@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Bookmark } from '@/shared/types';
+import { getByKey } from '@/shared/db/database';
 import * as BookmarkService from '@/services/BookmarkService';
 
 interface BookmarksState {
@@ -50,7 +51,6 @@ export const useBookmarks = create<BookmarksState>((set) => ({
   },
 
   refreshBookmark: async (id) => {
-    const { getByKey } = await import('@/shared/db/database');
     const updated = await getByKey<Bookmark>('bookmarks', id);
     if (!updated) return;
     set((s) => ({
