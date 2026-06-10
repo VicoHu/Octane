@@ -1,2 +1,6 @@
 settings.local.json
 .codegraph/
+
+# node
+node_modules/
+dist/
