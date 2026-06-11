@@ -1,7 +1,6 @@
 import React from 'react';
 import { IconLock } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
-import styles from './index.module.css';
 
 interface BookmarkCardProps {
   bookmark: Bookmark;
@@ -23,46 +22,75 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePrevie
       role="listitem"
       aria-label={bookmark.isNoteEncrypted ? `${bookmark.name}，包含加密笔记` : bookmark.name}
       onClick={() => onClick(bookmark)}
-      className={styles.card}
+      style={{
+        background: 'var(--card-bg)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--card-shadow)',
+        padding: 16,
+        cursor: 'pointer',
+        display: 'flex',
+        gap: 12,
+        transition: 'box-shadow 0.15s, transform 0.15s',
+        border: '1px solid var(--border-color)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = 'var(--card-hover-shadow)';
+        e.currentTarget.style.transform = 'translateY(-1px)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = 'var(--card-shadow)';
+        e.currentTarget.style.transform = 'translateY(0)';
+      }}
     >
       {/* Favicon */}
-      <div className={styles.favicon}>
+      <div style={{ flexShrink: 0, width: 32, height: 32 }}>
         {bookmark.faviconUrl ? (
           <img
             src={bookmark.faviconUrl}
             alt=""
-            className={styles.faviconImg}
+            style={{ width: 32, height: 32, borderRadius: 4 }}
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />
         ) : (
-          <div className={styles.fallback}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 4,
+            background: '#e0e0e0', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, color: '#999',
+          }}>
             {bookmark.name.charAt(0).toUpperCase()}
           </div>
         )}
       </div>
 
       {/* 右侧信息 */}
-      <div className={styles.info}>
-        <div className={styles.name}>{bookmark.name}</div>
-        <div className={styles.url}>{displayUrl}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {bookmark.name}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {displayUrl}
+        </div>
         {bookmark.description && (
-          <div className={`${styles.description} ${bookmark.hasNote ? styles.descriptionWithNote : ''}`}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: bookmark.hasNote ? 4 : 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {bookmark.description}
           </div>
         )}
 
         {/* 笔记预览 */}
         {bookmark.hasNote && (
-          <div className={styles.noteRow}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {bookmark.isNoteEncrypted ? (
               <>
-                <IconLock className={styles.noteIcon} />
-                <span className={styles.noteText}>••••••••</span>
+                <IconLock style={{ fontSize: 12, color: 'var(--muted)' }} />
+                <span style={{ fontSize: 12, color: 'var(--muted)', letterSpacing: 1 }}>••••••••</span>
               </>
             ) : (
-              <span className={styles.notePreview}>{notePreview}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                {notePreview}
+              </span>
             )}
           </div>
         )}

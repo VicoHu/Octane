@@ -13,11 +13,8 @@
   color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
-  position: relative;
-  border-right: 1px solid var(--sidebar-border);
-  transition: width var(--transition-normal);
+  overflow: hidden;
+  transition: width 0.2s ease;
 }
 
 .app-content {

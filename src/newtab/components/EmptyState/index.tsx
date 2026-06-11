@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
-import styles from './index.module.css';
 
 interface EmptyStateProps {
   message: string;
@@ -11,8 +10,15 @@ interface EmptyStateProps {
 
 export const EmptyState: React.FC<EmptyStateProps> = ({ message, actionLabel, onAction }) => {
   return (
-    <div className={styles.empty}>
-      <div className={`${styles.message} ${!actionLabel ? styles.messageOnly : ''}`}>{message}</div>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '60px 20px',
+      color: 'var(--muted)',
+    }}>
+      <div style={{ fontSize: 16, marginBottom: actionLabel ? 16 : 0 }}>{message}</div>
       {actionLabel && onAction && (
         <Button icon={<IconPlus />} onClick={onAction}>
           {actionLabel}

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
 import { IconKey } from '@douyinfe/semi-icons';
 import { useCrypto } from '@/store/useCrypto';
-import styles from './index.module.css';
 
 export const UnlockModal: React.FC = () => {
   const passwordSet = useCrypto((s) => s.passwordSet);
@@ -52,7 +51,7 @@ export const UnlockModal: React.FC = () => {
   return (
     <Modal
       title={
-        <div className={styles.titleRow}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <IconKey />
           <span>输入主密码</span>
         </div>
@@ -62,14 +61,14 @@ export const UnlockModal: React.FC = () => {
       closable={false}
       maskClosable={false}
     >
-      <div className={styles.body}>
+      <div style={{ padding: '8px 0' }}>
         <Input
           mode="password"
           placeholder="输入主密码"
           value={password}
           onChange={setPassword}
           onEnterPress={handleSubmit}
-          className={styles.input}
+          style={{ marginBottom: 12 }}
         />
         {!passwordSet && (
           <Input
@@ -78,11 +77,11 @@ export const UnlockModal: React.FC = () => {
             value={confirmPassword}
             onChange={setConfirmPassword}
             onEnterPress={handleSubmit}
-            className={styles.input}
+            style={{ marginBottom: 12 }}
           />
         )}
         {error && (
-          <div className={styles.error}>{error}</div>
+          <div style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 8 }}>{error}</div>
         )}
         <Button
           theme="solid"

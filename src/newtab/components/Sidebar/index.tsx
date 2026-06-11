@@ -1,8 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Select, Button, Input, Modal } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
-import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
   const workspaces = useWorkspace((s) => s.workspaces);
@@ -33,37 +32,35 @@ export const Sidebar: React.FC = () => {
     setShowNewWorkspace(false);
   };
 
-  const getPopupContainer = useCallback(() => document.getElementById('sidebar-container') || document.body, []);
-
   return (
-    <div className={styles.sidebar}>
-      {/* 品牌标题 */}
-      <div className={styles.header}>
-        <div className={styles.logo}>O</div>
-        <div className={styles.title}>Octane</div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 12px' }}>
+      {/* 标题 */}
+      <div style={{ marginBottom: 16, fontSize: 20, fontWeight: 700, letterSpacing: 1 }}>
+        Octane
       </div>
 
-      {/* 工作区 */}
-      <div className={styles.sectionLabel}>工作区</div>
+      {/* 工作区选择器 */}
       <Select
         value={currentWorkspaceId}
         onChange={(val) => val && selectWorkspace(val as string)}
-        className={styles.select}
+        style={{ width: '100%', marginBottom: 16 }}
         placeholder="选择工作区"
-        getPopupContainer={getPopupContainer}
         optionList={workspaces.map((ws) => ({
           value: ws.id,
           label: `${ws.icon} ${ws.name}`,
         }))}
       />
+
+      {/* 新建工作区按钮 */}
       <Button
         block
-        className={styles.addButton}
+        style={{ marginBottom: 16 }}
         onClick={() => setShowNewWorkspace(true)}
       >
         + 新建工作区
       </Button>
 
+      {/* 新建工作区弹窗 */}
       <Modal
         title="新建工作区"
         visible={showNewWorkspace}
@@ -78,42 +75,59 @@ export const Sidebar: React.FC = () => {
         />
       </Modal>
 
-      {/* 分类 */}
-      <div className={styles.sectionLabel}>分类</div>
-      <div className={styles.categoryList}>
-        {categories.map((cat) => {
-          const isActive = currentCategoryId === cat.id;
-          return (
-            <div
-              key={cat.id}
-              onClick={() => useWorkspace.getState().selectCategory(cat.id)}
-              className={`${styles.categoryItem} ${isActive ? styles.categoryItemActive : ''}`}
-            >
-              <span className={styles.categoryName}>
-                {cat.icon} {cat.name}
-              </span>
-              <IconDelete
-                className={styles.deleteIcon}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteCategory(cat.id);
-                }}
-              />
-            </div>
-          );
-        })}
+      {/* 分类列表 */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {categories.map((cat) => (
+          <div
+            key={cat.id}
+            onClick={() => useWorkspace.getState().selectCategory(cat.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '8px 12px',
+              borderRadius: 6,
+              marginBottom: 2,
+              cursor: 'pointer',
+              background: currentCategoryId === cat.id ? 'var(--sidebar-active-bg)' : 'transparent',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (currentCategoryId !== cat.id) {
+                e.currentTarget.style.background = 'var(--sidebar-hover-bg)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (currentCategoryId !== cat.id) {
+                e.currentTarget.style.background = 'transparent';
+              }
+            }}
+          >
+            <span>
+              {cat.icon} {cat.name}
+            </span>
+            <IconDelete
+              style={{ fontSize: 14, opacity: 0.5, cursor: 'pointer' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteCategory(cat.id);
+              }}
+            />
+          </div>
+        ))}
       </div>
 
-      <div className={styles.bottomButton}>
-        <Button
-          icon={<IconPlus />}
-          block
-          onClick={() => setShowNewCategory(true)}
-        >
-          添加分类
-        </Button>
-      </div>
+      {/* 添加分类按钮 */}
+      <Button
+        icon={<IconPlus />}
+        block
+        style={{ marginTop: 8 }}
+        onClick={() => setShowNewCategory(true)}
+      >
+        添加分类
+      </Button>
 
+      {/* 新建分类弹窗 */}
       <Modal
         title="新建分类"
         visible={showNewCategory}

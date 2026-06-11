@@ -8,7 +8,6 @@ import { BookmarkCard } from '@/newtab/components/BookmarkCard';
 import { EmptyState } from '@/newtab/components/EmptyState';
 import { NoteEditor } from '@/newtab/components/NoteEditor';
 import type { Bookmark } from '@/shared/types';
-import styles from './index.module.css';
 
 export const Content: React.FC = () => {
   const categories = useWorkspace((s) => s.categories);
@@ -77,10 +76,10 @@ export const Content: React.FC = () => {
   }
 
   return (
-    <div className={styles.content}>
+    <div style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
       {/* 顶部操作栏 */}
-      <div className={styles.toolbar}>
-        <h1 className={styles.title}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, flexShrink: 0 }}>
           {currentCategory?.icon} {currentCategory?.name ?? ''}
         </h1>
 
@@ -89,7 +88,7 @@ export const Content: React.FC = () => {
           placeholder="搜索书签..."
           value={query}
           onChange={setQuery}
-          className={styles.searchInput}
+          style={{ flex: 1, maxWidth: 400 }}
           showClear
           onClear={() => setQuery('')}
         />
@@ -105,16 +104,16 @@ export const Content: React.FC = () => {
 
       {/* 搜索提示 */}
       {query && (
-        <div className={styles.searchHint}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
           找到 {filteredBookmarks.length} 个结果（加密笔记内容不参与搜索）
         </div>
       )}
 
       {/* 卡片网格 / 空状态 / 加载中 */}
       {loading ? (
-        <div className={styles.grid}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {[1, 2, 3].map((i) => (
-            <div key={i} className={styles.skeleton} />
+            <div key={i} style={{ height: 100, background: '#eee', borderRadius: 'var(--radius-md)' }} />
           ))}
         </div>
       ) : filteredBookmarks.length === 0 ? (
@@ -124,7 +123,7 @@ export const Content: React.FC = () => {
           onAction={query ? undefined : () => setShowAddModal(true)}
         />
       ) : (
-        <div className={styles.grid}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           {filteredBookmarks.map((bookmark) => (
             <BookmarkCard
               key={bookmark.id}
@@ -146,7 +145,7 @@ export const Content: React.FC = () => {
           <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
           <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
           <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
-          <div className={styles.formActions}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <Button onClick={() => setShowAddModal(false)}>取消</Button>
             <Button htmlType="submit" theme="solid">添加</Button>
           </div>
