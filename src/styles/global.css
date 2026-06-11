@@ -1,22 +1,58 @@
 :root {
+  /* === 布局 Token === */
   --sidebar-width: 260px;
-  --sidebar-bg: #1a1a2e;
-  --sidebar-text: #e0e0e0;
-  --sidebar-active-bg: #16213e;
-  --sidebar-hover-bg: #0f3460;
-  --content-bg: #f5f5f5;
+  --header-height: 56px;
+
+  /* === 暗色侧边栏 === */
+  --sidebar-bg: #0f172a;
+  --sidebar-text: #e2e8f0;
+  --sidebar-text-muted: #94a3b8;
+  --sidebar-active-bg: #1e293b;
+  --sidebar-hover-bg: #1e293b;
+  --sidebar-border: #1e293b;
+
+  /* === 浅色内容区 === */
+  --content-bg: #f8fafc;
   --card-bg: #ffffff;
-  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --primary: #4361ee;
-  --primary-hover: #3a56d4;
-  --danger: #e74c3c;
-  --muted: #999;
-  --text-primary: #333;
-  --text-secondary: #666;
-  --border-color: #e8e8e8;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* === 品牌色 === */
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --primary-light: rgba(99, 102, 241, 0.1);
+  --danger: #ef4444;
+
+  /* === 中性色 === */
+  --muted: #64748b;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --border-color: #e2e8f0;
+
+  /* === 圆角 === */
   --radius-sm: 6px;
   --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* === 间距 === */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* === 字号 === */
+  --font-xs: 12px;
+  --font-sm: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 20px;
+  --font-2xl: 24px;
+
+  /* === 过渡 === */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
 }
 
 *, *::before, *::after {

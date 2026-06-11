@@ -7,4 +7,4 @@ dist/
 
 # wxt
 .wxt/
-.output/
+.output/__pycache__/

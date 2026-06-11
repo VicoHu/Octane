@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.2.0] - 2026-06-11
+
+### Changed
+
+- Sidebar 升级为暗色主题（Semi Design `semi-always-dark`），品牌标识使用渐变 Logo + 品牌色
+- 6 个组件的 40+ 处 inline style 迁移到 CSS modules，提升样式可维护性
+- 建立全局设计 Token 体系（slate 色板、indigo 品牌色、统一圆角/阴影/过渡动画）
+- BookmarkCard 的 favicon fallback 改为品牌色渐变背景 + 白色首字母
+- 卡片网格改为响应式布局，适配不同屏幕宽度
+- Sidebar 分类项的删除图标改为 hover 才显示，减少视觉噪音
+- NoteEditor SideSheet 始终挂载，修复首次点击书签不弹出的问题
+- skeleton 加载动画添加 `prefers-reduced-motion` 无障碍保护
+
+### Added
+
+- 添加 ui-ux-pro-max skill 用于 AI 辅助 UI 设计决策
+- 添加 CodeGraph MCP 配置用于代码图谱索引
+
 ## [0.1.1] - 2026-06-11
 
 ### Changed
