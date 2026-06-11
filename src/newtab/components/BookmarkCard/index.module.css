@@ -114,3 +114,33 @@
   font-size: var(--font-xs);
   color: var(--muted);
 }
+
+.actions {
+  flex-shrink: 0;
+  display: flex;
+  border-left: 1px solid var(--border-color);
+  margin: calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  overflow: hidden;
+}
+
+.actionBtn {
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--transition-normal), color var(--transition-normal);
+}
+
+.actionBtn + .actionBtn {
+  border-left: 1px solid var(--border-color);
+}
+
+.actionBtn:hover {
+  background: var(--primary);
+  color: #fff;
+}

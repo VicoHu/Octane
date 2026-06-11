@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconLock } from '@douyinfe/semi-icons';
+import { IconLock, IconEdit, IconEdit2 } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -7,9 +7,11 @@ interface BookmarkCardProps {
   bookmark: Bookmark;
   notePreview?: string;
   onClick: (bookmark: Bookmark) => void;
+  onEditNote: (bookmark: Bookmark) => void;
+  onEditBookmark: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePreview, onClick }) => {
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePreview, onClick, onEditNote, onEditBookmark }) => {
   const displayUrl = (() => {
     try {
       return new URL(bookmark.url).hostname;
@@ -66,6 +68,30 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePrevie
             )}
           </div>
         )}
+      </div>
+
+      {/* 操作按钮区 */}
+      <div className={styles.actions}>
+        <button
+          className={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditNote(bookmark);
+          }}
+          aria-label="编辑笔记"
+        >
+          <IconEdit />
+        </button>
+        <button
+          className={styles.actionBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditBookmark(bookmark);
+          }}
+          aria-label="编辑书签"
+        >
+          <IconEdit2 />
+        </button>
       </div>
     </div>
   );
