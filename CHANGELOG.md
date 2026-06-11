@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.1] - 2026-06-11
+
+### Changed
+
+- 迁移构建框架从原生 Vite + Chrome Extension MV3 到 WXT，一键支持 Chrome / Firefox / Edge 多浏览器开发
+- 入口文件移至 WXT 标准目录 `src/entrypoints/newtab/`，业务代码（services/store/components）保持不变
+- vitest 配置切换到 `WxtVitest()` 插件，自动处理路径别名和浏览器 API polyfill
+- tsconfig.json 继承 `.wxt/tsconfig.json`，由 WXT 管理 TypeScript 编译配置
+
+### Removed
+
+- 移除 `vite.config.ts`（构建配置由 `wxt.config.ts` 接管）
+- 移除 `public/manifest.json`（manifest 由 WXT 从 `wxt.config.ts` 生成）
+- 移除根目录 `index.html`（入口移至 `src/entrypoints/newtab/index.html`）
+- 移除 `src/vite-env.d.ts`（类型声明由 WXT 自动生成）
+
 ## [0.1.0] - 2026-06-11
 
 ### Added
