@@ -4,3 +4,7 @@ settings.local.json
 # node
 node_modules/
 dist/
+
+# wxt
+.wxt/
+.output/
