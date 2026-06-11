@@ -14,8 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 - BookmarkCard 的 favicon fallback 改为品牌色渐变背景 + 白色首字母
 - 卡片网格改为响应式布局，适配不同屏幕宽度
 - Sidebar 分类项的删除图标改为 hover 才显示，减少视觉噪音
-- NoteEditor SideSheet 始终挂载，修复首次点击书签不弹出的问题
 - skeleton 加载动画添加 `prefers-reduced-motion` 无障碍保护
+
+### Fixed
+
+- NoteEditor SideSheet 首次点击书签不弹出（改为始终挂载）
 
 ### Added
 
