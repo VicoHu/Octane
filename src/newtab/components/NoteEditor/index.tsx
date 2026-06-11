@@ -6,6 +6,7 @@ import { useBookmarks } from '@/store/useBookmarks';
 import { getNote, saveNote } from '@/services/NoteService';
 import { renderMarkdown } from '@/shared/utils/markdown';
 import type { Bookmark } from '@/shared/types';
+import styles from './index.module.css';
 
 interface NoteEditorProps {
   bookmark: Bookmark | null;
@@ -83,76 +84,68 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ bookmark, visible, onClo
     onClose();
   };
 
-  if (!bookmark) return null;
-
   return (
     <SideSheet
       title={
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600 }}>{bookmark.name}</span>
-          {bookmark.isNoteEncrypted && <IconLock style={{ color: 'var(--primary)' }} />}
-        </div>
+        bookmark ? (
+          <div className={styles.titleRow}>
+            <span className={styles.titleName}>{bookmark.name}</span>
+            {bookmark.isNoteEncrypted && <IconLock className={styles.lockIcon} />}
+          </div>
+        ) : null
       }
-      visible={visible}
+      visible={visible && !!bookmark}
       onCancel={handleClose}
       width={500}
       placement="right"
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: isEncrypted ? 'var(--primary)' : 'var(--muted)' }}>
-              {isEncrypted ? '🔒 加密笔记' : '普通笔记'}
-            </span>
-            <Switch
-              checked={isEncrypted}
-              onChange={handleEncryptionToggle}
-              size="small"
-            />
+        bookmark ? (
+          <div className={styles.footer}>
+            <div className={styles.footerLeft}>
+              <span className={`${styles.encryptLabel} ${isEncrypted ? styles.encryptActive : styles.encryptInactive}`}>
+                {isEncrypted ? '🔒 加密笔记' : '普通笔记'}
+              </span>
+              <Switch
+                checked={isEncrypted}
+                onChange={handleEncryptionToggle}
+                size="small"
+              />
+            </div>
+            <div className={styles.footerRight}>
+              <span className={styles.saveStatus}>
+                {saving ? '保存中...' : saved ? '已保存' : '未保存'}
+              </span>
+              <Button
+                icon={<IconDelete />}
+                type="danger"
+                onClick={() => {
+                  onDelete(bookmark.id);
+                  handleClose();
+                }}
+              />
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              {saving ? '保存中...' : saved ? '已保存' : '未保存'}
-            </span>
-            <Button
-              icon={<IconDelete />}
-              type="danger"
-              onClick={() => {
-                onDelete(bookmark.id);
-                handleClose();
-              }}
-            />
-          </div>
-        </div>
+        ) : null
       }
     >
-      <Tabs activeKey={tab} onChange={(key) => setTab(key as 'edit' | 'preview')}>
-        <TabPane tab="编辑" itemKey="edit">
-          <textarea
-            value={content}
-            onChange={(e) => handleContentChange(e.target.value)}
-            placeholder="点击开始记录...（支持 Markdown）"
-            style={{
-              width: '100%',
-              minHeight: 400,
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-sm)',
-              padding: 12,
-              fontSize: 14,
-              lineHeight: 1.6,
-              resize: 'vertical',
-              outline: 'none',
-              fontFamily: 'inherit',
-            }}
-          />
-        </TabPane>
-        <TabPane tab="预览" itemKey="preview">
-          <div
-            className="markdown-body"
-            style={{ minHeight: 400, padding: 12 }}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-          />
-        </TabPane>
-      </Tabs>
+      {bookmark && (
+        <Tabs activeKey={tab} onChange={(key) => setTab(key as 'edit' | 'preview')}>
+          <TabPane tab="编辑" itemKey="edit">
+            <textarea
+              value={content}
+              onChange={(e) => handleContentChange(e.target.value)}
+              placeholder="点击开始记录...（支持 Markdown）"
+              className={styles.textarea}
+            />
+          </TabPane>
+          <TabPane tab="预览" itemKey="preview">
+            <div
+              className={`markdown-body ${styles.previewBody}`}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+            />
+          </TabPane>
+        </Tabs>
+      )}
     </SideSheet>
   );
 };
