@@ -3,6 +3,11 @@
     "semi-mcp": {
       "command": "npx",
       "args": ["-y", "@douyinfe/semi-mcp"]
+    },
+    "codegraph": {
+      "type": "stdio",
+      "command": "codegraph",
+      "args": ["serve", "--mcp"]
     }
   }
 }
