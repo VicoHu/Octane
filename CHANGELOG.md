@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.0] - 2026-06-12
+
+### Changed
+
+- 书签卡片点击行为变更：点击卡片主体现在在新标签页打开书签 URL（原行为为打开笔记编辑器）
+- 卡片右侧新增操作按钮区：左侧按钮打开笔记编辑器，右侧按钮打开书签信息编辑弹窗
+- 书签信息编辑弹窗支持修改 URL、名称、描述
+
 ## [0.1.2.0] - 2026-06-11
 
 ### Changed

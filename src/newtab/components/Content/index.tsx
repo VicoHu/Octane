@@ -23,6 +23,7 @@ export const Content: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
+  const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
 
   const currentCategory = categories.find((c) => c.id === currentCategoryId);
 
@@ -66,7 +67,32 @@ export const Content: React.FC = () => {
   };
 
   const handleCardClick = (bookmark: Bookmark) => {
+    window.open(bookmark.url, '_blank');
+  };
+
+  const handleEditNote = (bookmark: Bookmark) => {
     setSelectedBookmark(bookmark);
+  };
+
+  const handleEditBookmark = (bookmark: Bookmark) => {
+    setEditingBookmark(bookmark);
+  };
+
+  const handleBookmarkUpdate = async (values: Record<string, string>) => {
+    if (!editingBookmark) return;
+    try {
+      const { updateBookmark } = await import('@/services/BookmarkService');
+      await updateBookmark(editingBookmark.id, {
+        name: values['name'] ?? editingBookmark.name,
+        url: values['url'] ?? editingBookmark.url,
+        description: values['description'] ?? editingBookmark.description,
+      });
+      await useBookmarks.getState().refreshBookmark(editingBookmark.id);
+      setEditingBookmark(null);
+      Toast.success('书签已更新');
+    } catch (e) {
+      Toast.error('更新失败：' + (e as Error).message);
+    }
   };
 
   // 无分类时的空状态
@@ -130,6 +156,8 @@ export const Content: React.FC = () => {
               key={bookmark.id}
               bookmark={bookmark}
               onClick={handleCardClick}
+              onEditNote={handleEditNote}
+              onEditBookmark={handleEditBookmark}
             />
           ))}
         </div>
@@ -160,6 +188,32 @@ export const Content: React.FC = () => {
         onClose={() => setSelectedBookmark(null)}
         onDelete={handleDeleteBookmark}
       />
+
+      {/* 书签信息编辑弹窗 */}
+      <Modal
+        title="编辑书签"
+        visible={!!editingBookmark}
+        footer={null}
+        onCancel={() => setEditingBookmark(null)}
+      >
+        <Form
+          key={editingBookmark?.id}
+          onSubmit={(values) => handleBookmarkUpdate(values as Record<string, string>)}
+          initValues={{
+            url: editingBookmark?.url ?? '',
+            name: editingBookmark?.name ?? '',
+            description: editingBookmark?.description ?? '',
+          }}
+        >
+          <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
+          <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
+          <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
+          <div className={styles.formActions}>
+            <Button onClick={() => setEditingBookmark(null)}>取消</Button>
+            <Button htmlType="submit" theme="solid">保存</Button>
+          </div>
+        </Form>
+      </Modal>
     </div>
   );
 };
