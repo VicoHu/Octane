@@ -2,7 +2,7 @@
 
 **书签 + 笔记 + 安全** — 浏览器里最方便的"带笔记的书签夹"。
 
-Octane 是一个 Chrome NewTab 页面插件，核心价值是为每个书签提供可加密的 Markdown 笔记空间。书签是入口，笔记是价值。
+Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge），核心价值是为每个书签提供可加密的 Markdown 笔记空间。书签是入口，笔记是价值。
 
 ## 功能
 
@@ -19,14 +19,14 @@ Octane 是一个 Chrome NewTab 页面插件，核心价值是为每个书签提�
 | 层 | 技术 |
 |---|------|
 | 框架 | React 19 + TypeScript 6 |
-| 构建 | Vite 8 |
+| 构建 | WXT（基于 Vite 8） |
 | UI | Semi Design |
 | 状态管理 | Zustand 5 |
 | 存储 | IndexedDB（via idb） |
 | 加密 | Web Crypto API（AES-GCM-256 + PBKDF2） |
 | Markdown | marked + DOMPurify |
 | 测试 | Vitest + Testing Library |
-| 扩展规范 | Chrome Extension Manifest V3 |
+| 扩展规范 | Chrome MV3 / Firefox MV2（WXT 自动适配） |
 
 ## 架构
 
@@ -54,9 +54,10 @@ Octane 是一个 Chrome NewTab 页面插件，核心价值是为每个书签提�
 ```
 octane/
 ├── public/
-│   ├── manifest.json           # Manifest V3 配置
-│   └── icons/                  # 扩展图标 (16/48/128px)
+│   └── icons/                  # 扩展图标 (16/48/128px + SVG)
 ├── src/
+│   ├── entrypoints/
+│   │   └── newtab/             # WXT 入口（index.html + main.tsx）
 │   ├── newtab/                 # 新标签页
 │   │   ├── App.tsx
 │   │   └── components/
@@ -73,7 +74,8 @@ octane/
 │       ├── types/              # TypeScript 类型定义
 │       └── utils/              # 工具函数（Markdown 渲染）
 ├── tests/                      # 集成测试
-└── docs/                       # 设计文档
+├── wxt.config.ts               # WXT 配置（manifest、React 模块）
+└── vitest.config.ts            # 测试配置（WxtVitest 插件）
 ```
 
 ## 开发
@@ -82,11 +84,19 @@ octane/
 # 安装依赖
 npm install
 
-# 开发模式
+# Chrome 开发模式（HMR）
 npm run dev
 
-# 构建
-npm run build
+# Firefox 开发模式
+npm run dev:firefox
+
+# 构建生产版本
+npm run build              # Chrome MV3
+npm run build:firefox      # Firefox MV2
+
+# 打包 zip
+npm run zip                # Chrome
+npm run zip:firefox        # Firefox
 
 # 运行测试
 npm test
@@ -95,12 +105,18 @@ npm test
 npm run test:watch
 ```
 
-## 安装到 Chrome
+## 安装到浏览器
 
+**Chrome / Edge：**
 1. `npm run build`
-2. 打开 `chrome://extensions/`
+2. 打开 `chrome://extensions/`（或 `edge://extensions/`）
 3. 开启"开发者模式"
-4. 点击"加载已解压的扩展程序"，选择 `dist/` 目录
+4. 点击"加载已解压的扩展程序"，选择 `.output/chrome-mv3/` 目录
+
+**Firefox：**
+1. `npm run build:firefox`
+2. 打开 `about:debugging#/runtime/this-firefox`
+3. 点击"临时载入附加组件"，选择 `.output/firefox-mv2/manifest.json`
 
 ## 安全设计
 
@@ -112,7 +128,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.0**（MVP 开发阶段）
+当前版本：**0.1.1**（MVP 开发阶段）
 
 ## 许可
 
