@@ -5,13 +5,13 @@ import styles from './index.module.css';
 
 interface BookmarkCardProps {
   bookmark: Bookmark;
-  notePreview?: string;
+  contextPreview?: string;
   onClick: (bookmark: Bookmark) => void;
-  onEditNote: (bookmark: Bookmark) => void;
+  onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePreview, onClick, onEditNote, onEditBookmark }) => {
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPreview, onClick, onViewContexts, onEditBookmark }) => {
   const displayUrl = (() => {
     try {
       return new URL(bookmark.url).hostname;
@@ -23,7 +23,7 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePrevie
   return (
     <div
       role="listitem"
-      aria-label={bookmark.isNoteEncrypted ? `${bookmark.name}，包含加密笔记` : bookmark.name}
+      aria-label={bookmark.hasEncryptedContext ? `${bookmark.name}，包含加密上下文` : bookmark.name}
       onClick={() => onClick(bookmark)}
       className={styles.card}
     >
@@ -50,21 +50,21 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePrevie
         <div className={styles.name}>{bookmark.name}</div>
         <div className={styles.url}>{displayUrl}</div>
         {bookmark.description && (
-          <div className={`${styles.description} ${bookmark.hasNote ? styles.descriptionWithNote : ''}`}>
+          <div className={`${styles.description} ${bookmark.contextCount > 0 ? styles.descriptionWithNote : ''}`}>
             {bookmark.description}
           </div>
         )}
 
-        {/* 笔记预览 */}
-        {bookmark.hasNote && (
+        {/* 上下文预览 */}
+        {bookmark.contextCount > 0 && (
           <div className={styles.noteRow}>
-            {bookmark.isNoteEncrypted ? (
+            {bookmark.hasEncryptedContext ? (
               <>
                 <IconLock className={styles.noteIcon} />
                 <span className={styles.noteText}>••••••••</span>
               </>
             ) : (
-              <span className={styles.notePreview}>{notePreview}</span>
+              <span className={styles.notePreview}>{contextPreview}</span>
             )}
           </div>
         )}
@@ -76,9 +76,9 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, notePrevie
           className={styles.actionBtn}
           onClick={(e) => {
             e.stopPropagation();
-            onEditNote(bookmark);
+            onViewContexts(bookmark);
           }}
-          aria-label="编辑笔记"
+          aria-label="查看上下文"
         >
           <IconEdit />
         </button>

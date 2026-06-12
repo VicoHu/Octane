@@ -1,10 +1,12 @@
 import { create } from 'zustand';
-import type { Bookmark } from '@/shared/types';
-import { getByKey } from '@/shared/db/database';
+import type { Bookmark, Context } from '@/shared/types';
+import { getByKey, getAll } from '@/shared/db/database';
 import * as BookmarkService from '@/services/BookmarkService';
 
 interface BookmarksState {
   bookmarks: Bookmark[];
+  /** 每个书签的上下文预览（最新一条非加密上下文的 title） */
+  contextPreviews: Record<string, string>;
   loading: boolean;
 
   loadBookmarks: (categoryId: string) => Promise<void>;
@@ -15,6 +17,7 @@ interface BookmarksState {
 
 export const useBookmarks = create<BookmarksState>((set) => ({
   bookmarks: [],
+  contextPreviews: {},
   loading: false,
 
   loadBookmarks: async (categoryId) => {
@@ -30,7 +33,30 @@ export const useBookmarks = create<BookmarksState>((set) => ({
         }
       }
     }
-    set({ bookmarks, loading: false });
+    // 批量加载上下文预览：一次 getAll + 内存分组
+    let contextPreviews: Record<string, string> = {};
+    try {
+      const allContexts: Context[] = await getAll('contexts');
+      // 按 bookmarkId 分组，取每个书签最新的非加密上下文 title
+      const grouped: Record<string, Context[]> = {};
+      for (const ctx of allContexts) {
+        const arr = grouped[ctx.bookmarkId];
+        if (arr) { arr.push(ctx); } else { grouped[ctx.bookmarkId] = [ctx]; }
+      }
+      const bookmarkIds = new Set(bookmarks.map((b) => b.id));
+      for (const [bid, ctxs] of Object.entries(grouped)) {
+        if (!bookmarkIds.has(bid)) continue;
+        // 按 createdAt 降序取第一条非加密上下文
+        const sorted = ctxs.sort((a, b) => b.createdAt - a.createdAt);
+        const first = sorted.find((c) => !c.isEncrypted);
+        if (first) {
+          contextPreviews[bid] = first.title;
+        }
+      }
+    } catch {
+      // 预览加载失败不影响主流程
+    }
+    set({ bookmarks, contextPreviews, loading: false });
   },
 
   createBookmark: async (workspaceId, categoryId, data) => {
@@ -47,7 +73,12 @@ export const useBookmarks = create<BookmarksState>((set) => ({
 
   deleteBookmark: async (id) => {
     await BookmarkService.deleteBookmark(id);
-    set((s) => ({ bookmarks: s.bookmarks.filter((b) => b.id !== id) }));
+    set((s) => ({
+      bookmarks: s.bookmarks.filter((b) => b.id !== id),
+      contextPreviews: Object.fromEntries(
+        Object.entries(s.contextPreviews).filter(([bid]) => bid !== id),
+      ),
+    }));
   },
 
   refreshBookmark: async (id) => {
