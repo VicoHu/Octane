@@ -10,7 +10,7 @@ import {
 
 async function clearAllStores(): Promise<void> {
   const db = await getDB();
-  const storeNames = ['workspaces', 'categories', 'bookmarks', 'notes', 'cryptoMetadata'] as const;
+  const storeNames = ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata'] as const;
   const tx = db.transaction([...storeNames], 'readwrite');
   for (const name of storeNames) {
     await tx.objectStore(name).clear();

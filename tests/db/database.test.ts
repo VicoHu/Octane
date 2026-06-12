@@ -12,12 +12,13 @@ import {
   cascadeDeleteCategory,
   deleteBookmarkCascade,
 } from '@/shared/db/database';
-import type { Workspace, Category, Bookmark, Note } from '@/shared/types';
+import type { Workspace, Category, Bookmark, Context } from '@/shared/types';
+import { ContextType } from '@/shared/types';
 
 /** 清空所有 object store */
 async function clearAllStores(): Promise<void> {
   const db = await getDB();
-  const storeNames = ['workspaces', 'categories', 'bookmarks', 'notes', 'cryptoMetadata'] as const;
+  const storeNames = ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata'] as const;
   const tx = db.transaction([...storeNames], 'readwrite');
   for (const name of storeNames) {
     await tx.objectStore(name).clear();
@@ -49,13 +50,22 @@ function makeBookmark(id: string, workspaceId: string, categoryId: string): Book
     id, workspaceId, categoryId,
     name: '测试书签', url: 'https://example.com',
     description: '', faviconUrl: '',
-    hasNote: false, isNoteEncrypted: false,
+    contextCount: 0, hasEncryptedContext: false,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }
 
-function makeNote(bookmarkId: string, content: string): Note {
-  return { bookmarkId, content, isEncrypted: false, updatedAt: Date.now() };
+function makeContext(id: string, bookmarkId: string, title: string): Context {
+  return {
+    id, bookmarkId,
+    type: ContextType.NOTE,
+    title,
+    content: '',
+    isEncrypted: false,
+    order: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
 }
 
 describe('IndexedDB CRUD', () => {
@@ -99,51 +109,53 @@ describe('IndexedDB CRUD', () => {
 });
 
 describe('级联删除', () => {
-  it('删除工作区 → 级联删除所有分类+书签+笔记', async () => {
+  it('删除工作区 → 级联删除所有分类+书签+上下文', async () => {
     await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
     await putRecord('categories', makeCategory('cat-1', 'ws-1', '工具'));
     await putRecord('categories', makeCategory('cat-2', 'ws-1', '学习'));
     await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
     await putRecord('bookmarks', makeBookmark('bm-2', 'ws-1', 'cat-1'));
     await putRecord('bookmarks', makeBookmark('bm-3', 'ws-1', 'cat-2'));
-    await putRecord('notes', makeNote('bm-1', '笔记1'));
-    await putRecord('notes', makeNote('bm-2', '笔记2'));
-    await putRecord('notes', makeNote('bm-3', '笔记3'));
+    await putRecord('contexts', makeContext('ctx-1', 'bm-1', '笔记1'));
+    await putRecord('contexts', makeContext('ctx-2', 'bm-2', '笔记2'));
+    await putRecord('contexts', makeContext('ctx-3', 'bm-3', '笔记3'));
 
     await cascadeDeleteWorkspace('ws-1');
 
     expect(await getByKey('workspaces', 'ws-1')).toBeUndefined();
     expect(await getAll('categories')).toHaveLength(0);
     expect(await getAll('bookmarks')).toHaveLength(0);
-    expect(await getAll('notes')).toHaveLength(0);
+    expect(await getAll('contexts')).toHaveLength(0);
   });
 
-  it('删除分类 → 级联删除该书签+笔记，不影响其他分类', async () => {
+  it('删除分类 → 级联删除该书签+上下文，不影响其他分类', async () => {
     await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
     await putRecord('categories', makeCategory('cat-1', 'ws-1', '工具'));
     await putRecord('categories', makeCategory('cat-2', 'ws-1', '学习'));
     await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
     await putRecord('bookmarks', makeBookmark('bm-2', 'ws-1', 'cat-2'));
-    await putRecord('notes', makeNote('bm-1', '笔记1'));
-    await putRecord('notes', makeNote('bm-2', '笔记2'));
+    await putRecord('contexts', makeContext('ctx-1', 'bm-1', '笔记1'));
+    await putRecord('contexts', makeContext('ctx-2', 'bm-2', '笔记2'));
 
     await cascadeDeleteCategory('cat-1');
 
     expect(await getByKey('categories', 'cat-1')).toBeUndefined();
     expect(await getByKey('bookmarks', 'bm-1')).toBeUndefined();
-    expect(await getByKey('notes', 'bm-1')).toBeUndefined();
+    expect(await getByKey('contexts', 'ctx-1')).toBeUndefined();
     expect(await getByKey('categories', 'cat-2')).toBeDefined();
     expect(await getByKey('bookmarks', 'bm-2')).toBeDefined();
-    expect(await getByKey('notes', 'bm-2')).toBeDefined();
+    expect(await getByKey('contexts', 'ctx-2')).toBeDefined();
   });
 
-  it('删除书签 → 级联删除笔记', async () => {
+  it('删除书签 → 级联删除关联上下文（1:N）', async () => {
     await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
-    await putRecord('notes', makeNote('bm-1', '笔记内容'));
+    await putRecord('contexts', makeContext('ctx-1', 'bm-1', '笔记A'));
+    await putRecord('contexts', makeContext('ctx-2', 'bm-1', '笔记B'));
 
     await deleteBookmarkCascade('bm-1');
 
     expect(await getByKey('bookmarks', 'bm-1')).toBeUndefined();
-    expect(await getByKey('notes', 'bm-1')).toBeUndefined();
+    expect(await getByKey('contexts', 'ctx-1')).toBeUndefined();
+    expect(await getByKey('contexts', 'ctx-2')).toBeUndefined();
   });
 });
