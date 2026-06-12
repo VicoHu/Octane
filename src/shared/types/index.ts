@@ -27,24 +27,38 @@ export interface Bookmark {
   url: string;
   description: string;
   faviconUrl: string;
-  /** 快速判断是否有笔记 */
-  hasNote: boolean;
-  /** 快速判断笔记是否加密（卡片显示锁图标） */
-  isNoteEncrypted: boolean;
+  /** 冗余：上下文数量 */
+  contextCount: number;
+  /** 冗余：是否包含加密上下文 */
+  hasEncryptedContext: boolean;
   createdAt: number;
   /** 乐观锁字段，防止并发覆盖 */
   updatedAt: number;
 }
 
+/** 上下文类型 */
+export enum ContextType {
+  NOTE = 'note',
+  // 未来扩展:
+  // CREDENTIAL = 'credential',
+  // CONFIG = 'config',
+}
+
 /**
- * 笔记（内部存储模型）
+ * 上下文（内部存储模型）
  *
+ * 一个书签可以拥有多个上下文条目。
  * content 是运行时明文，不持久化到 IndexedDB。
  * 加密时 content→encryptedData，解密时 encryptedData→content。
- * 业务层通过 NoteService 访问，始终拿到明文。
  */
-export interface Note {
+export interface Context {
+  id: string;
+  /** 索引，关联书签 */
   bookmarkId: string;
+  /** 上下文类型 */
+  type: ContextType;
+  /** 上下文标题，在列表中区分不同条目 */
+  title: string;
   /** 运行时明文，不持久化 */
   content: string;
   isEncrypted: boolean;
@@ -52,6 +66,9 @@ export interface Note {
   encryptedData?: string;
   /** 每次加密随机生成 */
   iv?: string;
+  /** 预留排序字段，v1 不暴露 API，默认按 createdAt 升序 */
+  order: number;
+  createdAt: number;
   updatedAt: number;
 }
 
@@ -69,4 +86,4 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;

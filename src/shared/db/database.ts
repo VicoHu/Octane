@@ -5,11 +5,11 @@ interface OctaneDB extends IDBPDatabase {
   workspaces: IDBPObjectStore<OctaneDB, ['workspaces']>;
   categories: IDBPObjectStore<OctaneDB, ['categories']>;
   bookmarks: IDBPObjectStore<OctaneDB, ['bookmarks']>;
-  notes: IDBPObjectStore<OctaneDB, ['notes']>;
+  contexts: IDBPObjectStore<OctaneDB, ['contexts']>;
   cryptoMetadata: IDBPObjectStore<OctaneDB, ['cryptoMetadata']>;
 }
 
-type StoreName = 'workspaces' | 'categories' | 'bookmarks' | 'notes' | 'cryptoMetadata';
+type StoreName = 'workspaces' | 'categories' | 'bookmarks' | 'contexts' | 'cryptoMetadata';
 
 let dbPromise: Promise<IDBPDatabase<OctaneDB>> | null = null;
 
@@ -36,9 +36,14 @@ export function getDB(): Promise<IDBPDatabase<OctaneDB>> {
           bookmarkStore.createIndex('by-categoryId', 'categoryId');
         }
 
-        // 笔记表，bookmarkId 为主键
-        if (!db.objectStoreNames.contains('notes')) {
-          db.createObjectStore('notes', { keyPath: 'bookmarkId' });
+        // 笔记表 → 上下文表（v1→v2 升级）
+        if (db.objectStoreNames.contains('notes')) {
+          console.warn('[Octane] 数据库升级 v1→v2：删除旧 notes store，历史笔记数据将丢失。');
+          db.deleteObjectStore('notes');
+        }
+        if (!db.objectStoreNames.contains('contexts')) {
+          const contextStore = db.createObjectStore('contexts', { keyPath: 'id' });
+          contextStore.createIndex('by-bookmarkId', 'bookmarkId');
         }
 
         // 加密元数据（全局单例）
@@ -94,11 +99,11 @@ export async function deleteRecord(storeName: StoreName, key: string): Promise<v
 
 // ========== 级联删除 ==========
 
-/** 级联删除工作区：Workspace → Categories + Bookmarks + Notes */
+/** 级联删除工作区：Workspace → Categories + Bookmarks + Contexts */
 export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(
-    ['workspaces', 'categories', 'bookmarks', 'notes'],
+    ['workspaces', 'categories', 'bookmarks', 'contexts'],
     'readwrite',
   );
 
@@ -109,7 +114,10 @@ export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void>
   const bookmarkIds = bookmarks.map((b) => b.id);
 
   for (const bookmarkId of bookmarkIds) {
-    await tx.objectStore('notes').delete(bookmarkId);
+    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmarkId);
+    for (const ctx of contexts) {
+      await tx.objectStore('contexts').delete(ctx.id);
+    }
   }
   for (const bookmarkId of bookmarkIds) {
     await tx.objectStore('bookmarks').delete(bookmarkId);
@@ -122,16 +130,19 @@ export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void>
   await tx.done;
 }
 
-/** 级联删除分类：Category → Bookmarks + Notes */
+/** 级联删除分类：Category → Bookmarks + Contexts */
 export async function cascadeDeleteCategory(categoryId: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['categories', 'bookmarks', 'notes'], 'readwrite');
+  const tx = db.transaction(['categories', 'bookmarks', 'contexts'], 'readwrite');
 
   const bookmarks = await tx.objectStore('bookmarks').index('by-categoryId').getAll(categoryId);
   const bookmarkIds = bookmarks.map((b) => b.id);
 
   for (const bookmarkId of bookmarkIds) {
-    await tx.objectStore('notes').delete(bookmarkId);
+    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmarkId);
+    for (const ctx of contexts) {
+      await tx.objectStore('contexts').delete(ctx.id);
+    }
   }
   for (const bookmarkId of bookmarkIds) {
     await tx.objectStore('bookmarks').delete(bookmarkId);
@@ -141,12 +152,15 @@ export async function cascadeDeleteCategory(categoryId: string): Promise<void> {
   await tx.done;
 }
 
-/** 删除书签及其关联笔记 */
+/** 删除书签及其关联上下文 */
 export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['bookmarks', 'notes'], 'readwrite');
+  const tx = db.transaction(['bookmarks', 'contexts'], 'readwrite');
 
-  await tx.objectStore('notes').delete(bookmarkId);
+  const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmarkId);
+  for (const ctx of contexts) {
+    await tx.objectStore('contexts').delete(ctx.id);
+  }
   await tx.objectStore('bookmarks').delete(bookmarkId);
 
   await tx.done;
