@@ -30,8 +30,8 @@ export async function createBookmark(
     url: data.url,
     description: data.description ?? '',
     faviconUrl: '',
-    hasNote: false,
-    isNoteEncrypted: false,
+    contextCount: 0,
+    hasEncryptedContext: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -40,14 +40,14 @@ export async function createBookmark(
 }
 
 /** 更新书签 */
-export async function updateBookmark(id: string, updates: Partial<Pick<Bookmark, 'name' | 'url' | 'description' | 'faviconUrl' | 'categoryId' | 'hasNote' | 'isNoteEncrypted'>>): Promise<void> {
+export async function updateBookmark(id: string, updates: Partial<Pick<Bookmark, 'name' | 'url' | 'description' | 'faviconUrl' | 'categoryId' | 'contextCount' | 'hasEncryptedContext'>>): Promise<void> {
   const existing = await getByKey<Bookmark>('bookmarks', id);
   if (!existing) throw new Error('书签不存在');
   const updated: Bookmark = { ...existing, ...updates, updatedAt: Date.now() };
   await putRecord('bookmarks', updated);
 }
 
-/** 删除书签（级联删除笔记） */
+/** 删除书签（级联删除上下文） */
 export async function deleteBookmark(id: string): Promise<void> {
   await deleteBookmarkCascade(id);
 }

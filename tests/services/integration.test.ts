@@ -5,11 +5,12 @@ import { setTestKey, setupTestKey } from '@/services/CryptoService';
 import { createWorkspace, listWorkspaces, updateWorkspace, deleteWorkspace } from '@/services/WorkspaceService';
 import { createCategory, listCategories, updateCategory, deleteCategory } from '@/services/CategoryService';
 import { createBookmark, listBookmarks, listBookmarksByWorkspace, updateBookmark, deleteBookmark, getFaviconUrl } from '@/services/BookmarkService';
-import { getNote, saveNote } from '@/services/NoteService';
+import { getContexts, getContext, createContext, updateContext, deleteContext } from '@/services/ContextService';
+import { ContextType } from '@/shared/types';
 
 async function clearAllStores(): Promise<void> {
   const db = await getDB();
-  const storeNames = ['workspaces', 'categories', 'bookmarks', 'notes', 'cryptoMetadata'] as const;
+  const storeNames = ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata'] as const;
   const tx = db.transaction([...storeNames], 'readwrite');
   for (const name of storeNames) {
     await tx.objectStore(name).clear();
@@ -89,7 +90,7 @@ describe('完整 CRUD 流程', () => {
   });
 });
 
-describe('端到端流程：工作区 → 分类 → 书签 → 笔记', () => {
+describe('端到端流程：工作区 → 分类 → 书签 → 上下文', () => {
   it('完整数据创建和查询', async () => {
     // 创建工作区
     const ws = await createWorkspace('个人', '🏠');
@@ -111,23 +112,45 @@ describe('端到端流程：工作区 → 分类 → 书签 → 笔记', () => {
     const allBms = await listBookmarksByWorkspace(ws.id);
     expect(allBms).toHaveLength(3);
 
-    // 保存笔记
-    await saveNote(bm1.id, 'Web 开发参考文档', false);
-    const note = await getNote(bm1.id);
-    expect(note).not.toBeNull();
-    expect(note!.content).toBe('Web 开发参考文档');
-    expect(note!.isEncrypted).toBe(false);
+    // 创建上下文（1:N）
+    await createContext(bm1.id, ContextType.NOTE, '项目笔记', 'Web 开发参考文档', false);
+    const contexts = await getContexts(bm1.id);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.content).toBe('Web 开发参考文档');
+    expect(contexts[0]!.title).toBe('项目笔记');
+    expect(contexts[0]!.isEncrypted).toBe(false);
 
-    // 无笔记的书签
-    const noNote = await getNote(bm2.id);
-    expect(noNote).toBeNull();
+    // 无上下文的书签
+    const noContexts = await getContexts(bm2.id);
+    expect(noContexts).toHaveLength(0);
+  });
+
+  it('一个书签可以创建多个上下文', async () => {
+    const ws = await createWorkspace('工作', '📁');
+    const cat = await createCategory(ws.id, '工具', '🔧');
+    const bm = await createBookmark(ws.id, cat.id, { name: 'Test', url: 'https://test.com' });
+
+    const ctx1 = await createContext(bm.id, ContextType.NOTE, '笔记1', '内容1', false);
+    const ctx2 = await createContext(bm.id, ContextType.NOTE, '笔记2', '内容2', false);
+
+    const contexts = await getContexts(bm.id);
+    expect(contexts).toHaveLength(2);
+    // 按 createdAt 升序，两个都在列表中即可
+    const ids = contexts.map((c) => c.id);
+    expect(ids).toContain(ctx1.id);
+    expect(ids).toContain(ctx2.id);
+
+    // 冗余字段同步
+    const updatedBm = await listBookmarks(cat.id);
+    expect(updatedBm[0]!.contextCount).toBe(2);
+    expect(updatedBm[0]!.hasEncryptedContext).toBe(false);
   });
 
   it('级联删除工作区 → 全部清除', async () => {
     const ws = await createWorkspace('测试', '🧪');
     const cat = await createCategory(ws.id, '分类A', '📂');
     const bm = await createBookmark(ws.id, cat.id, { name: 'Test', url: 'https://test.com' });
-    await saveNote(bm.id, '测试笔记', false);
+    await createContext(bm.id, ContextType.NOTE, '笔记', '测试笔记', false);
 
     await deleteWorkspace(ws.id);
 
@@ -135,80 +158,122 @@ describe('端到端流程：工作区 → 分类 → 书签 → 笔记', () => {
     expect(await listWorkspaces()).toHaveLength(0);
     expect(await listCategories(ws.id)).toHaveLength(0);
     expect(await listBookmarks(cat.id)).toHaveLength(0);
-    expect(await getNote(bm.id)).toBeNull();
+    expect(await getContexts(bm.id)).toHaveLength(0);
   });
 
-  it('级联删除分类 → 书签+笔记清除，其他分类不受影响', async () => {
+  it('级联删除分类 → 书签+上下文清除，其他分类不受影响', async () => {
     const ws = await createWorkspace('工作', '📁');
     const cat1 = await createCategory(ws.id, '保留', '✅');
     const cat2 = await createCategory(ws.id, '删除', '🗑️');
     const bm1 = await createBookmark(ws.id, cat1.id, { name: '保留书签', url: 'https://keep.com' });
     const bm2 = await createBookmark(ws.id, cat2.id, { name: '删除书签', url: 'https://delete.com' });
-    await saveNote(bm1.id, '保留笔记', false);
-    await saveNote(bm2.id, '删除笔记', false);
+    await createContext(bm1.id, ContextType.NOTE, '保留笔记', '保留笔记', false);
+    await createContext(bm2.id, ContextType.NOTE, '删除笔记', '删除笔记', false);
 
     await deleteCategory(cat2.id);
 
     // cat2 的数据被清除
     expect(await listBookmarks(cat2.id)).toHaveLength(0);
-    expect(await getNote(bm2.id)).toBeNull();
+    expect(await getContexts(bm2.id)).toHaveLength(0);
 
     // cat1 的数据保留
     expect(await listBookmarks(cat1.id)).toHaveLength(1);
-    const note = await getNote(bm1.id);
-    expect(note!.content).toBe('保留笔记');
+    const contexts = await getContexts(bm1.id);
+    expect(contexts[0]!.content).toBe('保留笔记');
   });
 });
 
-describe('加密笔记流程', () => {
-  it('保存加密笔记 → 读取时自动解密', async () => {
+describe('加密上下文流程', () => {
+  it('创建加密上下文 → 读取时自动解密', async () => {
     await setupTestKey('master-password');
     const ws = await createWorkspace('工作', '📁');
     const cat = await createCategory(ws.id, '敏感', '🔒');
     const bm = await createBookmark(ws.id, cat.id, { name: 'Secret', url: 'https://secret.com' });
 
-    await saveNote(bm.id, '这是一条敏感信息 🔐', true);
+    await createContext(bm.id, ContextType.NOTE, '秘密', '这是一条敏感信息 🔐', true);
 
-    const note = await getNote(bm.id);
-    expect(note).not.toBeNull();
-    expect(note!.content).toBe('这是一条敏感信息 🔐');
-    expect(note!.isEncrypted).toBe(true);
+    const contexts = await getContexts(bm.id);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.content).toBe('这是一条敏感信息 🔐');
+    expect(contexts[0]!.isEncrypted).toBe(true);
   });
 
-  it('加密笔记往返：不同密钥无法解密', async () => {
+  it('加密上下文往返：不同密钥无法解密', async () => {
     await setupTestKey('password-A');
     const ws = await createWorkspace('工作', '📁');
     const cat = await createCategory(ws.id, '加密', '🔒');
     const bm = await createBookmark(ws.id, cat.id, { name: 'Encrypted', url: 'https://enc.com' });
 
-    await saveNote(bm.id, '秘密内容', true);
+    await createContext(bm.id, ContextType.NOTE, '加密笔记', '秘密内容', true);
 
     // 换一个密钥
     await setupTestKey('password-B');
-    await expect(getNote(bm.id)).rejects.toThrow();
+    await expect(getContexts(bm.id)).rejects.toThrow();
   });
 
-  it('同一书签：明文笔记 → 加密笔记 → 清空笔记', async () => {
+  it('同一上下文：明文 → 加密 → 更新内容', async () => {
     await setupTestKey('password');
     const ws = await createWorkspace('工作', '📁');
     const cat = await createCategory(ws.id, '测试', '🧪');
     const bm = await createBookmark(ws.id, cat.id, { name: 'Test', url: 'https://test.com' });
 
-    // 明文笔记
-    await saveNote(bm.id, '明文笔记', false);
-    let note = await getNote(bm.id);
-    expect(note!.isEncrypted).toBe(false);
+    // 创建明文上下文
+    const ctx = await createContext(bm.id, ContextType.NOTE, '测试', '明文内容', false);
+    let loaded = await getContext(ctx.id);
+    expect(loaded!.isEncrypted).toBe(false);
 
     // 切换为加密
-    await saveNote(bm.id, '现在是加密的', true);
-    note = await getNote(bm.id);
-    expect(note!.content).toBe('现在是加密的');
-    expect(note!.isEncrypted).toBe(true);
+    await updateContext(ctx.id, { content: '现在是加密的', sensitive: true });
+    loaded = await getContext(ctx.id);
+    expect(loaded!.content).toBe('现在是加密的');
+    expect(loaded!.isEncrypted).toBe(true);
 
-    // 清空笔记 → 删除
-    await saveNote(bm.id, '', false);
-    note = await getNote(bm.id);
-    expect(note).toBeNull();
+    // 切换回明文
+    await updateContext(ctx.id, { content: '又变回明文', sensitive: false });
+    loaded = await getContext(ctx.id);
+    expect(loaded!.content).toBe('又变回明文');
+    expect(loaded!.isEncrypted).toBe(false);
+  });
+
+  it('删除上下文 → 冗余字段同步', async () => {
+    await setupTestKey('password');
+    const ws = await createWorkspace('工作', '📁');
+    const cat = await createCategory(ws.id, '测试', '🧪');
+    const bm = await createBookmark(ws.id, cat.id, { name: 'Test', url: 'https://test.com' });
+
+    const ctx1 = await createContext(bm.id, ContextType.NOTE, '笔记1', '内容1', false);
+    const ctx2 = await createContext(bm.id, ContextType.NOTE, '笔记2', '内容2', true);
+
+    let bms = await listBookmarks(cat.id);
+    expect(bms[0]!.contextCount).toBe(2);
+    expect(bms[0]!.hasEncryptedContext).toBe(true);
+
+    // 删除加密的
+    await deleteContext(ctx2.id);
+    bms = await listBookmarks(cat.id);
+    expect(bms[0]!.contextCount).toBe(1);
+    expect(bms[0]!.hasEncryptedContext).toBe(false);
+
+    // 删除最后一个
+    await deleteContext(ctx1.id);
+    bms = await listBookmarks(cat.id);
+    expect(bms[0]!.contextCount).toBe(0);
+    expect(bms[0]!.hasEncryptedContext).toBe(false);
+  });
+});
+
+describe('ContextService CRUD', () => {
+  it('getContext 返回 null 对不存在的 id', async () => {
+    const result = await getContext('non-existent');
+    expect(result).toBeNull();
+  });
+
+  it('updateContext 抛出错误对不存在的 id', async () => {
+    await expect(updateContext('non-existent', { title: 'test' })).rejects.toThrow('上下文不存在');
+  });
+
+  it('deleteContext 对不存在的 id 不抛错', async () => {
+    await expect(deleteContext('non-existent')).resolves.toBeUndefined();
   });
 });
 

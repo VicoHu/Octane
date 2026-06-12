@@ -1,18 +1,18 @@
 # Octane
 
-**书签 + 笔记 + 安全** — 浏览器里最方便的"带笔记的书签夹"。
+**书签 + 上下文 + 安全** — 浏览器里最方便的"带上下文的书签夹"。
 
-Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge），核心价值是为每个书签提供可加密的 Markdown 笔记空间。书签是入口，笔记是价值。
+Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge），核心价值是为每个书签提供可加密的上下文空间（笔记、凭据等）。书签是入口，上下文是价值。
 
 ## 功能
 
 - **书签管理** — CRUD 操作，支持分类、搜索、Favicon 自动抓取（Google Favicon API）
-- **Markdown 笔记** — 每个书签可附加 Markdown 笔记，支持实时预览（marked + DOMPurify）
-- **端到端加密** — AES-GCM-256 加密笔记字段，主密码通过 PBKDF2（600K 迭代）派生密钥
+- **上下文系统** — 每个书签可附加多个上下文条目（笔记、凭据等），支持 Markdown 实时预览 + 标题标记
+- **端到端加密** — AES-GCM-256 加密上下文字段，主密码通过 PBKDF2（600K 迭代）派生密钥
 - **会话级解锁** — 主密码输入一次，密钥缓存到 `chrome.storage.session`，浏览器关闭自动清除
 - **多工作区** — 支持多工作区隔离（如：工作、个人、项目 A）
 - **分类组织** — 书签按分类组织，支持增删改
-- **全文搜索** — 搜索书签名称、URL、描述（加密笔记内容不参与搜索）
+- **全文搜索** — 搜索书签名称、URL、描述（加密上下文内容不参与搜索）
 
 ## 技术栈
 
@@ -33,21 +33,21 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 ```
 ┌──────────────────────────────────────────────┐
 │            NewTab Page (React SPA)           │
-│  Sidebar │ Content │ NoteEditor │ UnlockModal│
+│  Sidebar │ Content │ ContextList │ UnlockModal│
 ├──────────────────────────────────────────────┤
 │              Zustand Store                   │
 │  useWorkspace | useBookmarks | useCrypto     │
 ├──────────────────────────────────────────────┤
 │              Service Layer                   │
 │  WorkspaceSvc | CategorySvc | BookmarkSvc    │
-│  NoteSvc ─────────→ CryptoService            │
+│  ContextSvc ─────→ CryptoService            │
 ├──────────────────────────────────────────────┤
 │           Shared Infrastructure              │
 │  DB (IndexedDB) │ Markdown │ Quota Monitor   │
 └──────────────────────────────────────────────┘
 ```
 
-**分层原则：** UI → Store → Service → DB，加密细节（encryptedData, iv, salt）对业务层不可见，NoteService 对上层只暴露明文接口。
+**分层原则：** UI → Store → Service → DB，加密细节（encryptedData, iv, salt）对业务层不可见，ContextService 对上层只暴露明文接口。
 
 ## 项目结构
 
@@ -64,7 +64,8 @@ octane/
 │   │       ├── Sidebar/        # 侧边栏（工作区 + 分类列表）
 │   │       ├── Content/        # 主内容区（搜索栏 + 卡片网格）
 │   │       ├── BookmarkCard/   # 书签卡片
-│   │       ├── NoteEditor/     # 笔记编辑器（Markdown + 预览）
+│   │       ├── ContextList/    # 上下文列表（列表/编辑视图切换）
+│   │       ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
 │   │       ├── UnlockModal/    # 主密码输入弹窗
 │   │       └── EmptyState/     # 空状态组件
 │   ├── services/               # 业务服务层
@@ -128,7 +129,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.1**（MVP 开发阶段）
+当前版本：**0.1.3.1**（MVP 开发阶段）
 
 ## 许可
 

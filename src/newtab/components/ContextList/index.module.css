@@ -1,0 +1,98 @@
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.titleName {
+  font-weight: 600;
+  font-size: var(--font-md);
+}
+
+.lockIcon {
+  color: var(--primary);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.listContainer {
+  min-height: 200px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xl) 0;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.contextItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.contextItem:hover {
+  border-color: var(--primary);
+  background-color: var(--surface-secondary);
+}
+
+.contextInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.contextTitle {
+  font-weight: 500;
+  font-size: var(--font-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.contextLock {
+  color: var(--primary);
+  font-size: var(--font-sm);
+}
+
+.contextTime {
+  font-size: var(--font-xs);
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  color: var(--danger);
+}

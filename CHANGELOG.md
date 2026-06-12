@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.1] - 2026-06-12
+
+### Changed
+
+- **笔记系统重构为 1:N 上下文模型**：一个书签可拥有多个上下文条目（Note → Context），支持独立标题、类型标记
+- `NoteService` → `ContextService`：新建 CRUD + `syncContextMeta` 冗余字段同步
+- IndexedDB schema 升级 v1→v2：`notes` store → `contexts` store（新主键 `id` + `by-bookmarkId` 索引），级联删除适配 1:N
+- `Bookmark` 冗余字段 `hasNote`/`isNoteEncrypted` → `contextCount`/`hasEncryptedContext`
+- 新增 `ContextList` 组件（列表视图 + 编辑视图切换、loading/error/empty 状态、Popconfirm 删除确认）
+- 新增 `ContextEditor` 组件（标题编辑、加密切换、自动保存 debounce）
+- `BookmarkCard` 预览逻辑改为 `contextPreview`，`useBookmarks` 批量加载上下文预览
+- 添加/编辑书签 Modal 改用 Semi 内置 footer，按钮间距与新建工作区一致
+
+### Removed
+
+- 删除 `NoteService.ts`、`NoteEditor` 组件
+
 ## [0.1.3.0] - 2026-06-12
 
 ### Changed

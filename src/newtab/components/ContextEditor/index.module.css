@@ -1,25 +1,53 @@
-.titleRow {
+.editor {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-sm);
 }
 
-.titleName {
-  font-weight: 600;
-  font-size: var(--font-md);
-}
-
-.lockIcon {
-  color: var(--primary);
-}
-
-.footer {
+.header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.footerLeft {
+.backBtn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  padding: var(--space-xs) 0;
+}
+
+.backBtn:hover {
+  text-decoration: underline;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.typeTag {
+  font-size: var(--font-xs);
+  color: var(--muted);
+  background: var(--surface-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.saveStatus {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+.titleInput {
+  font-weight: 600;
+  font-size: var(--font-md);
+}
+
+.encryptRow {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -37,20 +65,9 @@
   color: var(--muted);
 }
 
-.footerRight {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-}
-
-.saveStatus {
-  font-size: var(--font-xs);
-  color: var(--muted);
-}
-
 .textarea {
   width: 100%;
-  min-height: 400px;
+  min-height: 350px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: var(--space-md);
@@ -69,6 +86,6 @@
 }
 
 .previewBody {
-  min-height: 400px;
+  min-height: 350px;
   padding: var(--space-md);
 }

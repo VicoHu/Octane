@@ -6,7 +6,7 @@ import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
 import { EmptyState } from '@/newtab/components/EmptyState';
-import { NoteEditor } from '@/newtab/components/NoteEditor';
+import { ContextList } from '@/newtab/components/ContextList';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -15,15 +15,17 @@ export const Content: React.FC = () => {
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
   const bookmarks = useBookmarks((s) => s.bookmarks);
+  const contextPreviews = useBookmarks((s) => s.contextPreviews);
   const loading = useBookmarks((s) => s.loading);
   const createBookmark = useBookmarks((s) => s.createBookmark);
-  const deleteBookmark = useBookmarks((s) => s.deleteBookmark);
   const query = useSearch((s) => s.query);
   const setQuery = useSearch((s) => s.setQuery);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
+  const [addFormApi, setAddFormApi] = useState<any>(null);
+  const [editFormApi, setEditFormApi] = useState<any>(null);
 
   const currentCategory = categories.find((c) => c.id === currentCategoryId);
 
@@ -54,23 +56,11 @@ export const Content: React.FC = () => {
     }
   };
 
-  const handleDeleteBookmark = async (id: string) => {
-    try {
-      await deleteBookmark(id);
-      if (selectedBookmark?.id === id) {
-        setSelectedBookmark(null);
-      }
-      Toast.success('书签已删除');
-    } catch {
-      Toast.error('删除失败');
-    }
-  };
-
   const handleCardClick = (bookmark: Bookmark) => {
     window.open(bookmark.url, '_blank');
   };
 
-  const handleEditNote = (bookmark: Bookmark) => {
+  const handleViewContexts = (bookmark: Bookmark) => {
     setSelectedBookmark(bookmark);
   };
 
@@ -132,7 +122,7 @@ export const Content: React.FC = () => {
       {/* 搜索提示 */}
       {query && (
         <div className={styles.searchHint}>
-          找到 {filteredBookmarks.length} 个结果（加密笔记内容不参与搜索）
+          找到 {filteredBookmarks.length} 个结果（加密上下文内容不参与搜索）
         </div>
       )}
 
@@ -155,8 +145,9 @@ export const Content: React.FC = () => {
             <BookmarkCard
               key={bookmark.id}
               bookmark={bookmark}
+              contextPreview={contextPreviews[bookmark.id]}
               onClick={handleCardClick}
-              onEditNote={handleEditNote}
+              onViewContexts={handleViewContexts}
               onEditBookmark={handleEditBookmark}
             />
           ))}
@@ -167,37 +158,43 @@ export const Content: React.FC = () => {
       <Modal
         title="添加书签"
         visible={showAddModal}
-        footer={null}
         onCancel={() => setShowAddModal(false)}
+        footer={
+          <>
+            <Button onClick={() => setShowAddModal(false)}>取消</Button>
+            <Button theme="solid" onClick={() => addFormApi?.submitForm()}>添加</Button>
+          </>
+        }
       >
-        <Form onSubmit={(values) => handleAddBookmark(values as Record<string, string>)}>
+        <Form getFormApi={setAddFormApi} onSubmit={(values) => handleAddBookmark(values as Record<string, string>)}>
           <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
           <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
           <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
-          <div className={styles.formActions}>
-            <Button onClick={() => setShowAddModal(false)}>取消</Button>
-            <Button htmlType="submit" theme="solid">添加</Button>
-          </div>
         </Form>
       </Modal>
 
-      {/* 笔记编辑器（侧滑面板） */}
-      <NoteEditor
+      {/* 上下文列表（侧滑面板） */}
+      <ContextList
         bookmark={selectedBookmark}
         visible={!!selectedBookmark}
         onClose={() => setSelectedBookmark(null)}
-        onDelete={handleDeleteBookmark}
       />
 
       {/* 书签信息编辑弹窗 */}
       <Modal
         title="编辑书签"
         visible={!!editingBookmark}
-        footer={null}
         onCancel={() => setEditingBookmark(null)}
+        footer={
+          <>
+            <Button onClick={() => setEditingBookmark(null)}>取消</Button>
+            <Button theme="solid" onClick={() => editFormApi?.submitForm()}>保存</Button>
+          </>
+        }
       >
         <Form
           key={editingBookmark?.id}
+          getFormApi={setEditFormApi}
           onSubmit={(values) => handleBookmarkUpdate(values as Record<string, string>)}
           initValues={{
             url: editingBookmark?.url ?? '',
@@ -208,10 +205,6 @@ export const Content: React.FC = () => {
           <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
           <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
           <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
-          <div className={styles.formActions}>
-            <Button onClick={() => setEditingBookmark(null)}>取消</Button>
-            <Button htmlType="submit" theme="solid">保存</Button>
-          </div>
         </Form>
       </Modal>
     </div>
