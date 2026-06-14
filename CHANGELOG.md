@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.2] - 2026-06-14
+
+### Added
+
+- **工具栏 Popup「添加书签」**：在任何网页点击工具栏图标即可一键收藏当前页 —— Popup 作为「采集面」补齐 NewTab「管理面」的缺口
+  - 自动抓取当前页 URL 与标题（均可编辑），选择工作区与分类（联动），可选描述
+  - 重复 URL 检测：同一工作区同一分类下已存在相同 URL 时提示，可「仍然保存」（允许同一工作区不同分类重复）
+  - 记忆上次工作区与分类，下次打开默认选中
+  - 保存成功后短暂反馈并自动关闭 Popup（适配 Chrome Popup 失焦即关约束）
+
+### Changed
+
+- **Popup 重构为 Hub 架构**：从「打开即书签表单」改为「首页 Hub + 子页面」，为后续多功能扩展（笔记/搜索/工作区）打基础
+  - 首页：用户卡（头像 + 名称/邮箱 + 右上角账户下拉）+ 功能列表，主操作「保存当前页面」在首行视觉强调（indigo 左边框 + 浅底）
+  - 子页面：保存书签（原表单逻辑迁入，行为不变）、设置（占位，等账户/偏好系统接入）
+  - 子页面通用返回头（SubPageHeader），轻量视图路由（useState，不引入 router）
+  - guest 态预留：useUser 占位 hook 返回 null，UI 降级为品牌名 + 登录引导，未来接入鉴权只改 hook
+
 ## [0.1.3.1] - 2026-06-12
 
 ### Changed
