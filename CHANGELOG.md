@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.2] - 2026-06-14
+
+### Added
+
+- **工具栏 Popup「添加书签」**：在任何网页点击工具栏图标即可一键收藏当前页 —— Popup 作为「采集面」补齐 NewTab「管理面」的缺口
+  - 自动抓取当前页 URL 与标题（均可编辑），选择工作区与分类（联动），可选描述
+  - 重复 URL 检测：同一工作区同一分类下已存在相同 URL 时提示，可「仍然保存」（允许同一工作区不同分类重复）
+  - 记忆上次工作区与分类，下次打开默认选中
+  - 保存成功后短暂反馈并自动关闭 Popup（适配 Chrome Popup 失焦即关约束）
+
 ## [0.1.3.1] - 2026-06-12
 
 ### Changed
