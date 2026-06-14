@@ -60,3 +60,10 @@
 .subPageRight {
   min-width: 28px;
 }
+
+/* === 保存书签子页 === */
+.saveView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
