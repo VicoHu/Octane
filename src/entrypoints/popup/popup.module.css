@@ -24,3 +24,39 @@
   color: #92400e;
   font-size: 13px;
 }
+
+/* === 子页面返回头 === */
+.subPageHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #475569);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.backBtn:hover {
+  background: var(--primary-light, rgba(99, 102, 241, 0.1));
+  color: var(--primary, #6366f1);
+}
+
+.subPageTitle {
+  flex: 1;
+  text-align: center;
+}
+
+.subPageRight {
+  min-width: 28px;
+}
