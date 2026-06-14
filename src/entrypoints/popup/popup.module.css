@@ -74,3 +74,62 @@
   flex-direction: column;
   gap: 24px;
 }
+
+/* === 首页 === */
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.userCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--card-bg, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--card-shadow, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.userMenuTrigger {
+  flex-shrink: 0;
+}
+
+.sectionLabel {
+  padding: 0 4px;
+}
+
+.featureList {
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+}
+
+.featureItem {
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.featureItem:hover {
+  background: var(--primary-light, rgba(99, 102, 241, 0.1));
+}
+
+/* 主操作行：indigo 左边框 + 浅底强调 */
+.featureItemPrimary {
+  cursor: pointer;
+  border-left: 3px solid var(--primary, #6366f1);
+  background: var(--primary-light, rgba(99, 102, 241, 0.06));
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.featureItemPrimary:hover {
+  background: rgba(99, 102, 241, 0.12);
+}
