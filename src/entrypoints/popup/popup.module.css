@@ -67,3 +67,10 @@
   flex-direction: column;
   gap: 12px;
 }
+
+/* === 设置子页 === */
+.settingsView {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
