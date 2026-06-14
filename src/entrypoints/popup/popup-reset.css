@@ -1,0 +1,18 @@
+/*
+ * Popup 弹窗样式覆盖。
+ *
+ * global.css 为 NewTab 全屏页设置了 `html, body, #root { height: 100%;
+ * overflow: hidden }`，popup import global.css（复用设计 token）时会被这些
+ * 规则污染：body 高度塌陷 + overflow 截断，导致弹窗只能显示局部内容。
+ *
+ * popup 应由内容撑开尺寸，故在 global.css 之后覆盖为 height/width auto、
+ * overflow visible。本文件必须晚于 global.css import 才能生效。
+ */
+html,
+body,
+#root {
+  height: auto;
+  width: auto;
+  min-height: 0;
+  overflow: visible;
+}
