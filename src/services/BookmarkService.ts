@@ -61,3 +61,30 @@ export function getFaviconUrl(url: string): string {
     return '';
   }
 }
+
+/**
+ * 按 hostname 严格匹配书签。
+ *
+ * 遍历书签，提取每条 url 的 hostname（new URL().hostname），
+ * 与传入的 hostname 严格相等比较——不做 eTLD+1 归一化，
+ * 即 www.google.com ≠ google.com，用户存哪个 host 就匹配哪个 host。
+ *
+ * 调用方应先用 listBookmarksByWorkspace(workspaceId) 取得某工作区
+ * 下的全部书签（workspaceId 维度由此限定），本函数仅在结果中按 hostname 匹配。
+ * 同 hostname 多书签全部命中，由渲染层按书签分组展示。
+ *
+ * 无效 url（解析失败）的书签跳过，不计入结果。
+ *
+ * @param bookmarks 书签数组（通常为某 workspace 的全部书签）
+ * @param hostname 待匹配的 hostname（new URL().hostname 形式）
+ * @returns 命中的书签数组
+ */
+export function findBookmarksByHost(bookmarks: Bookmark[], hostname: string): Bookmark[] {
+  return bookmarks.filter((b) => {
+    try {
+      return new URL(b.url).hostname === hostname;
+    } catch {
+      return false;
+    }
+  });
+}
