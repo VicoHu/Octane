@@ -1,0 +1,41 @@
+.app {
+  min-height: 100vh;
+  background: var(--semi-color-bg-0, #fff);
+}
+.list {
+  padding-bottom: 16px;
+}
+.state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  font-size: 14px;
+  color: var(--semi-color-text-2, #999);
+}
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 100vh;
+  padding: 24px;
+  text-align: center;
+}
+.emptyText {
+  font-size: 14px;
+  color: var(--semi-color-text-1, #666);
+}
+.manageBtn {
+  padding: 8px 16px;
+  border: 1px solid #0077fa;
+  border-radius: 8px;
+  background: transparent;
+  color: #0077fa;
+  font-size: 13px;
+  cursor: pointer;
+}
+.manageBtn:hover {
+  background: rgba(0, 119, 250, 0.06);
+}
