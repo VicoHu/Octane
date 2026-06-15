@@ -85,3 +85,7 @@ App
 - 整体 design（APPROVED）：`~/.gstack/projects/octane/vicohu-feature-0.1.3.2-design-20260615-201117.md`
 - test plan（15 codepath）：`vicohu-feature-0.1.3.2-test-plan-20260615-210232.md`
 - memory：`side-panel-design.md`
+
+## 修订记录
+
+- **2026-06-16**：`openPanelOnActionClick` 配置从 side panel `main.tsx` 移至新增的 `src/entrypoints/background.ts`（service worker）。原因：`setPanelBehavior` 在 side panel 页面首次未加载时不执行，导致首次左击走默认（开 popup）。引入最小 background 松动了原整体 design"零 background"决策（仅为 `setPanelBehavior` 一处；用户反馈首次左击开 popup 缺陷后，抉择方案 A：左击直达 side panel，接受 popup 弱化）。
