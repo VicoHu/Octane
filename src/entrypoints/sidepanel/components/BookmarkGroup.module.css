@@ -1,0 +1,46 @@
+.group {
+  border-bottom: 1px solid var(--semi-color-border, #eee);
+  padding: 10px 0;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px 6px;
+}
+.name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--semi-color-text-0, #1c1c1c);
+}
+.lock {
+  color: #fa8c16;
+  font-size: 14px;
+}
+.count {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--semi-color-text-2, #999);
+}
+.contexts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px;
+}
+.locked {
+  margin: 0 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  color: #fa8c16;
+  font-size: 13px;
+}
+.loading, .empty, .error {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--semi-color-text-2, #999);
+}
+.error {
+  color: var(--semi-color-danger, #f5222d);
+}

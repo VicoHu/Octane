@@ -1,0 +1,68 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+
+vi.mock('../../hooks/useEncryptedContexts', () => ({
+  useEncryptedContexts: vi.fn(),
+}));
+
+import { BookmarkGroup } from '../BookmarkGroup';
+import { useEncryptedContexts } from '../../hooks/useEncryptedContexts';
+import type { Bookmark, Context } from '@/shared/types';
+import { ContextType } from '@/shared/types';
+
+function makeBookmark(overrides: Partial<Bookmark> = {}): Bookmark {
+  return {
+    id: 'b1', workspaceId: 'w1', categoryId: 'c1', name: 'Google',
+    url: 'https://google.com', description: '', faviconUrl: '',
+    contextCount: 2, hasEncryptedContext: false, createdAt: 0, updatedAt: 0,
+    ...overrides,
+  };
+}
+function makeContext(overrides: Partial<Context> = {}): Context {
+  return {
+    id: 'c1', bookmarkId: 'b1', type: ContextType.NOTE, title: '笔记A',
+    content: '内容', isEncrypted: false, order: 0, createdAt: 0, updatedAt: 0,
+    ...overrides,
+  };
+}
+const mock = useEncryptedContexts as ReturnType<typeof vi.fn>;
+
+describe('BookmarkGroup — 单书签四态', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('header 显示书签名 + 命中数', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.getByText('Google')).toBeTruthy();
+    expect(screen.getByText(/2 条上下文/)).toBeTruthy();
+  });
+
+  it('locked 态 → 显示解锁提示，不渲染明文', () => {
+    mock.mockReturnValue({ contexts: [makeContext({ content: '明文' })], locked: true, error: null, loading: false });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.getByText(/解锁/)).toBeTruthy();
+    expect(screen.queryByText('笔记A')).toBeNull();
+  });
+
+  it('loading 态 → 显示加载中', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.getByText('加载中…')).toBeTruthy();
+  });
+
+  it('error 态 → 显示错误信息', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: '解密失败', loading: false });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.getByText('解密失败')).toBeTruthy();
+  });
+
+  it('contexts 态 → 渲染 ContextCard 列表', () => {
+    mock.mockReturnValue({
+      contexts: [makeContext({ id: 'c1', title: '笔记A' }), makeContext({ id: 'c2', title: '笔记B' })],
+      locked: false, error: null, loading: false,
+    });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.getByText('笔记A')).toBeTruthy();
+    expect(screen.getByText('笔记B')).toBeTruthy();
+  });
+});
