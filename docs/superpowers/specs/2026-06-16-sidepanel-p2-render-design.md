@@ -16,6 +16,7 @@ P2 是 test plan 起手顺序 4（组件渲染）：接通四状态 UI + 按书�
 
 3. **组件拆分：两层 `BookmarkGroup` + `ContextCard`**。`BookmarkGroup`（每个书签一个，内部调 `useEncryptedContexts`，四态切换）+ `ContextCard`（纯展示）。
    - 命名说明：用 `BookmarkGroup` 而非 `BookmarkCard`，贴合 design"按书签分组"语义，且与 newtab 已有的 `src/newtab/components/BookmarkCard/` 区分（不同 entrypoint，职责不同）。
+   - 分类 Tag 说明：design 的"分类 Tag"指分类**名**，需额外 `getAll('categories')` 取数；P2 header 先用书签名 + 加密锁标识（`hasEncryptedContext`）+ 命中数替代，分类名 Tag 列后续。
 
 4. **添加按钮 / CTA：P2 先占位**。点击导航到 newtab 对应页（或最小保存）。完整内联保存表单（迁 `SaveBookmarkView` 逻辑）列后续。
 
@@ -71,6 +72,7 @@ App
 ## 不在范围内（列后续）
 
 - 完整"添加书签"内联保存表单（迁 `SaveBookmarkView` 逻辑）—— 本次按钮/CTA 占位
+- 分类名 Tag（需 `getAll('categories')` 取数）—— BookmarkGroup header 先用书签名 + 加密锁标识替代
 - `ContextCard` 的编辑交互（本次仅复制）
 - Firefox `sidebar_action` 适配层（P3）
 - BroadcastChannel 跨上下文同步（M7，P3）
