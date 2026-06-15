@@ -1,0 +1,61 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+
+vi.mock('@/shared/db/database', () => ({
+  getAll: vi.fn(),
+}));
+vi.mock('@/services/BookmarkService', async () => {
+  const actual = await vi.importActual<typeof import('@/services/BookmarkService')>('@/services/BookmarkService');
+  return { ...actual, findBookmarksByHost: vi.fn() };
+});
+
+import { useHostBookmarks } from '../useHostBookmarks';
+import { getAll } from '@/shared/db/database';
+import { findBookmarksByHost } from '@/services/BookmarkService';
+import type { Bookmark } from '@/shared/types';
+
+function makeBookmark(id: string, url: string): Bookmark {
+  return {
+    id, workspaceId: 'w1', categoryId: 'c1', name: id, url,
+    description: '', faviconUrl: '', contextCount: 0,
+    hasEncryptedContext: false, createdAt: 0, updatedAt: 0,
+  };
+}
+
+describe('useHostBookmarks — 全局 hostname 匹配', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('hostname 为 null → matched=[]，不调 getAll', () => {
+    const { result } = renderHook(() => useHostBookmarks(null));
+    expect(result.current.matched).toEqual([]);
+    expect(getAll).not.toHaveBeenCalled();
+  });
+
+  it('hostname 有值 → getAll(bookmarks) + findBookmarksByHost 返回命中', async () => {
+    const all = [makeBookmark('b1', 'https://a.com'), makeBookmark('b2', 'https://b.com')];
+    const hit = [all[0]];
+    (getAll as ReturnType<typeof vi.fn>).mockResolvedValue(all);
+    (findBookmarksByHost as ReturnType<typeof vi.fn>).mockReturnValue(hit);
+
+    const { result } = renderHook(() => useHostBookmarks('a.com'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(getAll).toHaveBeenCalledWith('bookmarks');
+    expect(findBookmarksByHost).toHaveBeenCalledWith(all, 'a.com');
+    expect(result.current.matched).toBe(hit);
+  });
+
+  it('hostname 变化 → 重新匹配，结果更新', async () => {
+    const all = [makeBookmark('b1', 'https://a.com')];
+    (getAll as ReturnType<typeof vi.fn>).mockResolvedValue(all);
+    (findBookmarksByHost as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce([all[0]])
+      .mockReturnValueOnce([]);
+
+    const { result, rerender } = renderHook(({ h }) => useHostBookmarks(h), { initialProps: { h: 'a.com' } });
+    await waitFor(() => expect(result.current.matched).toHaveLength(1));
+
+    rerender({ h: 'z.com' });
+    await waitFor(() => expect(result.current.matched).toHaveLength(0));
+  });
+});
