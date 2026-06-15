@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: {
     name: 'Octane',
     description: '书签 + 笔记 + 安全 — 浏览器里最方便的带笔记书签夹',
-    permissions: ['storage', 'tabs'],
+    permissions: ['storage', 'tabs', 'sidePanel'],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'",
     },
