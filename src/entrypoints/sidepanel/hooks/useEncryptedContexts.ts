@@ -14,17 +14,22 @@ export interface EncryptedContextsState {
 }
 
 /**
- * 获取书签的上下文，按解锁状态 gate 解密。
+ * 获取书签的上下文，按需解密。
  *
- * - 未解锁（isUnlocked false）→ locked=true，不调 getContexts（locked UI，不预渲染明文）
- * - 解锁 → getContexts（含解密）→ contexts；解密失败（密码错误/数据损坏）→ error，明文不泄露
+ * - 书签不含加密 context（hasEncryptedContext=false）→ 直接 getContexts（明文，无需密钥）
+ * - 含加密 context 且未解锁 → locked=true，不调 getContexts（locked UI，不预渲染明文）
+ * - 含加密 context 且已解锁 → getContexts（含解密）→ contexts；解密失败 → error，明文不泄露
  *
  * 解锁状态源自 chrome.storage.session（extension-level 跨上下文共享），
  * newtab 解锁后 side panel 自动感知（M5 跨上下文一致性）。
  *
  * @param bookmarkId 书签 id
+ * @param hasEncryptedContext 书签是否含加密 context（冗余字段，决定是否需解锁 gate）
  */
-export function useEncryptedContexts(bookmarkId: string): EncryptedContextsState {
+export function useEncryptedContexts(
+  bookmarkId: string,
+  hasEncryptedContext: boolean,
+): EncryptedContextsState {
   const [state, setState] = useState<EncryptedContextsState>({
     contexts: [],
     locked: false,
@@ -37,11 +42,14 @@ export function useEncryptedContexts(bookmarkId: string): EncryptedContextsState
     setState({ contexts: [], locked: false, error: null, loading: true });
 
     (async () => {
-      const unlocked = await isUnlocked();
-      if (!active) return;
-      if (!unlocked) {
-        setState({ contexts: [], locked: true, error: null, loading: false });
-        return;
+      // 仅含加密 context 时才需解锁 gate；未加密 context 不需密钥，直接读取
+      if (hasEncryptedContext) {
+        const unlocked = await isUnlocked();
+        if (!active) return;
+        if (!unlocked) {
+          setState({ contexts: [], locked: true, error: null, loading: false });
+          return;
+        }
       }
       try {
         const contexts = await getContexts(bookmarkId);
@@ -61,7 +69,7 @@ export function useEncryptedContexts(bookmarkId: string): EncryptedContextsState
     return () => {
       active = false;
     };
-  }, [bookmarkId]);
+  }, [bookmarkId, hasEncryptedContext]);
 
   return state;
 }

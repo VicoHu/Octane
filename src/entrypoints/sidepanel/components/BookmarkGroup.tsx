@@ -17,7 +17,7 @@ interface BookmarkGroupProps {
  * 注：分类名 Tag 需额外 getAll('categories') 取数，P2 先用书签名 + 加密锁标识替代。
  */
 export function BookmarkGroup({ bookmark }: BookmarkGroupProps) {
-  const { contexts, locked, error, loading } = useEncryptedContexts(bookmark.id);
+  const { contexts, locked, error, loading } = useEncryptedContexts(bookmark.id, bookmark.hasEncryptedContext);
 
   return (
     <div className={styles.group} role="listitem" aria-label={bookmark.name}>
