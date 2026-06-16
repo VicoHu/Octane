@@ -145,6 +145,7 @@ export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void>
   await tx.objectStore('workspaces').delete(workspaceId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 /** 级联删除分类：Category → Bookmarks + Contexts */
@@ -167,6 +168,7 @@ export async function cascadeDeleteCategory(categoryId: string): Promise<void> {
   await tx.objectStore('categories').delete(categoryId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 /** 删除书签及其关联上下文 */
@@ -181,6 +183,7 @@ export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
   await tx.objectStore('bookmarks').delete(bookmarkId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 // 导出类型供其他模块使用

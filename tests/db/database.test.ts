@@ -197,4 +197,36 @@ describe('数据变更广播', () => {
     await flushMessages();
     expect(received).toContainEqual({ store: 'workspaces', action: 'put' });
   });
+
+  it('deleteBookmarkCascade → 广播 bookmarks delete', async () => {
+    await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
+    await putRecord('contexts', makeContext('ctx-1', 'bm-1', '笔记'));
+    await flushMessages();
+    received = [];
+    await deleteBookmarkCascade('bm-1');
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'bookmarks', action: 'delete' });
+  });
+
+  it('cascadeDeleteCategory → 广播 bookmarks delete', async () => {
+    await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
+    await putRecord('categories', makeCategory('cat-1', 'ws-1', '工具'));
+    await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
+    await flushMessages();
+    received = [];
+    await cascadeDeleteCategory('cat-1');
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'bookmarks', action: 'delete' });
+  });
+
+  it('cascadeDeleteWorkspace → 广播 bookmarks delete', async () => {
+    await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
+    await putRecord('categories', makeCategory('cat-1', 'ws-1', '工具'));
+    await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
+    await flushMessages();
+    received = [];
+    await cascadeDeleteWorkspace('ws-1');
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'bookmarks', action: 'delete' });
+  });
 });
