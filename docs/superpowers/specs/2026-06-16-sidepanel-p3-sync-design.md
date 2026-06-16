@@ -169,3 +169,7 @@ if (typeof globalThis.BroadcastChannel === 'undefined') {
 - 整体 design（APPROVED）：`~/.gstack/projects/octane/vicohu-feature-0.1.3.2-design-20260615-201117.md`
 - test plan（15 codepath）：`~/.gstack/projects/octane/vicohu-feature-0.1.3.2-test-plan-20260615-210232.md`
 - memory：`side-panel-design.md`
+
+## 修订记录
+
+- **2026-06-16（执行时）**：取消 BroadcastChannel polyfill。原因：执行时探测发现 Node 18+ 全局已有原生 BroadcastChannel（`typeof === 'function'`），vitest jsdom 继承，无需 polyfill；且原生为异步派发。强制注入同步 polyfill 会偏离生产异步语义、覆盖全局有风险。改为：测试直接用原生异步（`postMessage` 后 `await`/`waitFor` 断言）；保留烟雾测试 `tests/broadcast-channel.test.ts`（2 case）确认测试环境 BroadcastChannel 可用；`tests/setup.ts` 不改。database.ts / useHostBookmarks 的 `typeof BroadcastChannel !== 'undefined'` 守卫保留（生产防御，无害）。
