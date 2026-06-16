@@ -69,13 +69,12 @@ export function getFaviconUrl(url: string): string {
  * 与传入的 hostname 严格相等比较——不做 eTLD+1 归一化，
  * 即 www.google.com ≠ google.com，用户存哪个 host 就匹配哪个 host。
  *
- * 调用方应先用 listBookmarksByWorkspace(workspaceId) 取得某工作区
- * 下的全部书签（workspaceId 维度由此限定），本函数仅在结果中按 hostname 匹配。
- * 同 hostname 多书签全部命中，由渲染层按书签分组展示。
+ * 调用方传入待筛选的书签数组（可为全局 getAll('bookmarks') 结果，或某 workspace
+ * 子集），本函数仅按 hostname 过滤。同 hostname 多书签全部命中，由渲染层按书签分组展示。
  *
  * 无效 url（解析失败）的书签跳过，不计入结果。
  *
- * @param bookmarks 书签数组（通常为某 workspace 的全部书签）
+ * @param bookmarks 书签数组（全局或某 workspace 子集）
  * @param hostname 待匹配的 hostname（new URL().hostname 形式）
  * @returns 命中的书签数组
  */
