@@ -8,6 +8,7 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 
 - **书签管理** — CRUD 操作，支持分类、搜索、Favicon 自动抓取（Google Favicon API）
 - **工具栏 Popup 采集** — 任何网页一键收藏当前页（Hub 首页：用户卡 + 功能列表；保存书签 / 设置子页面，主操作「保存当前页面」视觉强调）
+- **Side Panel 联动** — 在任意 http(s) 页面左击扩展图标直达侧边栏，按当前页 hostname 自动匹配书签并展示其上下文（BroadcastChannel 跨上下文同步：在 NewTab 改动后 Side Panel 自动刷新）
 - **上下文系统** — 每个书签可附加多个上下文条目（笔记、凭据等），支持 Markdown 实时预览 + 标题标记
 - **端到端加密** — AES-GCM-256 加密上下文字段，主密码通过 PBKDF2（600K 迭代）派生密钥
 - **会话级解锁** — 主密码输入一次，密钥缓存到 `chrome.storage.session`，浏览器关闭自动清除
@@ -59,7 +60,8 @@ octane/
 ├── src/
 │   ├── entrypoints/
 │   │   ├── newtab/             # WXT 入口（index.html + main.tsx）
-│   │   └── popup/              # 工具栏 Popup（Hub 首页 + 保存书签/设置子页面）
+│   │   ├── popup/              # 工具栏 Popup（Hub 首页 + 保存书签/设置子页面）
+│   │   └── sidepanel/          # Side Panel（hostname 联动书签 + 上下文预览）
 │   ├── newtab/                 # 新标签页
 │   │   ├── App.tsx
 │   │   └── components/
@@ -131,7 +133,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.3.2**（MVP 开发阶段）
+当前版本：**0.1.3.3**（MVP 开发阶段）
 
 ## 许可
 

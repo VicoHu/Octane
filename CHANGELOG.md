@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.3] - 2026-06-16
+
+### Added
+
+- **Side Panel（chrome.sidePanel）**：在任意 http(s) 页面左击扩展图标直达侧边栏，按当前页 hostname 联动展示匹配书签及其上下文
+  - 四状态编排：加载中 / 页面不支持联动（非 http）/ 无匹配书签 / 匹配列表（按书签分组）
+  - `useHostBookmarks` 全局 hostname 严格匹配（跨所有 workspace，www.google.com ≠ google.com）
+  - `useCurrentTabContext` 监听活动标签 + 导航完成，快速切标签时丢弃过期结果
+  - 加密上下文按解锁状态 gate 解密渲染（错误密码不泄露明文）
+  - **BroadcastChannel 跨上下文同步**：在 NewTab 改动书签或上下文后，Side Panel 自动刷新匹配结果（数据库写入单一收口广播）
+  - ContextCard 支持 Markdown 预览（marked + DOMPurify 净化）
+- Background service worker：`setPanelBehavior({ openPanelOnActionClick: true })`，左击图标直达 Side Panel（不再先开 Popup）
+
+### Fixed
+
+- 修复 Side Panel 在 `BroadcastChannel` 不可用的环境下崩溃的问题（监听加 null 守卫）
+
+### Changed
+
+- 本版本专注 Chrome，暂不做 Firefox `sidebar_action` 适配
+
 ## [0.1.3.2] - 2026-06-14
 
 ### Added

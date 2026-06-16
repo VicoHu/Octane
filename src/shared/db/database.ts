@@ -11,6 +11,20 @@ interface OctaneDB extends IDBPDatabase {
 
 type StoreName = 'workspaces' | 'categories' | 'bookmarks' | 'contexts' | 'cryptoMetadata';
 
+/**
+ * 数据变更事件：数据库写入后广播，让其他上下文（side panel）重新读取刷新。
+ * 同名 BroadcastChannel 实例互通信义，同实例 postMessage 不回环。
+ */
+export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete' };
+
+const dbChannel =
+  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
+
+/** 广播数据变更。无原生 BroadcastChannel 时静默跳过。 */
+function broadcast(store: StoreName, action: 'put' | 'delete'): void {
+  dbChannel?.postMessage({ store, action } satisfies DbChangeEvent);
+}
+
 let dbPromise: Promise<IDBPDatabase<OctaneDB>> | null = null;
 
 /** 获取 IndexedDB 连接（单例） */
@@ -88,13 +102,16 @@ export async function getByIndex<T>(
 /** 写入（put）记录 */
 export async function putRecord(storeName: StoreName, value: unknown): Promise<IDBValidKey> {
   const db = await getDB();
-  return db.put(storeName, value);
+  const key = await db.put(storeName, value);
+  broadcast(storeName, 'put');
+  return key;
 }
 
 /** 删除记录 */
 export async function deleteRecord(storeName: StoreName, key: string): Promise<void> {
   const db = await getDB();
-  return db.delete(storeName, key);
+  await db.delete(storeName, key);
+  broadcast(storeName, 'delete');
 }
 
 // ========== 级联删除 ==========
@@ -128,6 +145,7 @@ export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void>
   await tx.objectStore('workspaces').delete(workspaceId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 /** 级联删除分类：Category → Bookmarks + Contexts */
@@ -150,6 +168,7 @@ export async function cascadeDeleteCategory(categoryId: string): Promise<void> {
   await tx.objectStore('categories').delete(categoryId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 /** 删除书签及其关联上下文 */
@@ -164,6 +183,7 @@ export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
   await tx.objectStore('bookmarks').delete(bookmarkId);
 
   await tx.done;
+  broadcast('bookmarks', 'delete');
 }
 
 // 导出类型供其他模块使用

@@ -1,0 +1,49 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--semi-color-bg-0, #fff);
+  border-bottom: 1px solid var(--semi-color-border, #eee);
+}
+.favicon {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.info {
+  flex: 1;
+  min-width: 0;
+}
+.hostname {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--semi-color-text-0, #1c1c1c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.count {
+  font-size: 12px;
+  color: var(--semi-color-text-2, #999);
+}
+.addBtn {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: #0077fa;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.addBtn:hover {
+  background: #0066d6;
+}

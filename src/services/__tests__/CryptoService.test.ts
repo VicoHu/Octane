@@ -6,6 +6,7 @@ import {
   decrypt,
   setTestKey,
   setupTestKey,
+  isUnlocked,
 } from '@/services/CryptoService';
 
 async function clearAllStores(): Promise<void> {
@@ -80,5 +81,21 @@ describe('CryptoService 加密往返', () => {
   it('未设置密钥时解密应抛出错误', async () => {
     setTestKey(null);
     await expect(decrypt('fake', 'fake-iv')).rejects.toThrow('密钥不可用');
+  });
+});
+
+describe('会话密钥容错（M5：storage.session 不可用）', () => {
+  it('chrome.storage.session 不可用时 isUnlocked 返回 false，不抛错', async () => {
+    setTestKey(null);
+    const g = globalThis as Record<string, unknown>;
+    const origChrome = g['chrome'];
+    // 有 storage 但无 session（受限环境/上下文未注入 session API）
+    g['chrome'] = { storage: { local: {} } };
+    try {
+      const unlocked = await isUnlocked();
+      expect(unlocked).toBe(false);
+    } finally {
+      g['chrome'] = origChrome;
+    }
   });
 });
