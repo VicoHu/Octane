@@ -13,6 +13,7 @@ import { useHostBookmarks } from '../useHostBookmarks';
 import { getAll } from '@/shared/db/database';
 import { findBookmarksByHost } from '@/services/BookmarkService';
 import type { Bookmark } from '@/shared/types';
+import { DB_NAME } from '@/shared/types';
 
 function makeBookmark(id: string, url: string): Bookmark {
   return {
@@ -57,5 +58,41 @@ describe('useHostBookmarks — 全局 hostname 匹配', () => {
 
     rerender({ h: 'z.com' });
     await waitFor(() => expect(result.current.matched).toHaveLength(0));
+  });
+});
+
+describe('useHostBookmarks — BroadcastChannel 监听', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('收到 bookmarks 广播 → 重新匹配（getAll 再调一次）', async () => {
+    const all = [makeBookmark('b1', 'https://a.com')];
+    (getAll as ReturnType<typeof vi.fn>).mockResolvedValue(all);
+    (findBookmarksByHost as ReturnType<typeof vi.fn>).mockReturnValue([all[0]]);
+
+    const { result } = renderHook(() => useHostBookmarks('a.com'));
+    await waitFor(() => expect(result.current.matched).toHaveLength(1));
+    expect(getAll).toHaveBeenCalledTimes(1);
+
+    // 模拟 newtab 广播 bookmarks 变化（原生 BroadcastChannel 异步派发）
+    const ch = new BroadcastChannel(DB_NAME);
+    ch.postMessage({ store: 'bookmarks', action: 'put' });
+    await waitFor(() => expect(getAll).toHaveBeenCalledTimes(2));
+    ch.close();
+  });
+
+  it('收到非 bookmarks 广播 → 不重新匹配', async () => {
+    const all = [makeBookmark('b1', 'https://a.com')];
+    (getAll as ReturnType<typeof vi.fn>).mockResolvedValue(all);
+    (findBookmarksByHost as ReturnType<typeof vi.fn>).mockReturnValue([all[0]]);
+
+    const { result } = renderHook(() => useHostBookmarks('a.com'));
+    await waitFor(() => expect(result.current.matched).toHaveLength(1));
+    expect(getAll).toHaveBeenCalledTimes(1);
+
+    const ch = new BroadcastChannel(DB_NAME);
+    ch.postMessage({ store: 'contexts', action: 'put' });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(getAll).toHaveBeenCalledTimes(1);
+    ch.close();
   });
 });
