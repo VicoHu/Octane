@@ -7,15 +7,16 @@ export default defineBackground({
     // openPanelOnActionClick 保持默认 false → 左击走 default_popup 开 popup（缺陷）。
     // setPanelBehavior 是 upsert：每次 service worker 启动设置，确保安装后即生效。
     //
-    // Firefox 无 sidePanel API，可选链保护；M6 适配层在 P3 处理。
-    // 注：chrome 全局 TS 类型缺失（TS2304），与 useCurrentTabContext 同模式，@types/chrome 列后续统一修。
-    const sidePanel = (chrome as unknown as {
-      sidePanel?: {
-        setPanelBehavior?: (behavior: { openPanelOnActionClick: boolean }) => Promise<void>;
+    // 本版本专注 Chrome（不做 Firefox sidebar_action 适配）。
+    // chrome 全局 TS 类型缺失（TS2304），类型断言绕过，@types/chrome 列后续统一修。
+    (chrome as unknown as {
+      sidePanel: {
+        setPanelBehavior: (behavior: { openPanelOnActionClick: boolean }) => Promise<void>;
       };
-    }).sidePanel;
-    sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true })?.catch((err) => {
-      console.error('[octane] setPanelBehavior 失败', err);
-    });
+    }).sidePanel
+      .setPanelBehavior({ openPanelOnActionClick: true })
+      .catch((err) => {
+        console.error('[octane] setPanelBehavior 失败', err);
+      });
   },
 });
