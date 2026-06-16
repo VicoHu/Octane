@@ -13,7 +13,7 @@ import {
   deleteBookmarkCascade,
 } from '@/shared/db/database';
 import type { Workspace, Category, Bookmark, Context } from '@/shared/types';
-import { ContextType } from '@/shared/types';
+import { ContextType, DB_NAME } from '@/shared/types';
 
 /** 清空所有 object store */
 async function clearAllStores(): Promise<void> {
@@ -157,5 +157,44 @@ describe('级联删除', () => {
     expect(await getByKey('bookmarks', 'bm-1')).toBeUndefined();
     expect(await getByKey('contexts', 'ctx-1')).toBeUndefined();
     expect(await getByKey('contexts', 'ctx-2')).toBeUndefined();
+  });
+});
+
+/** 等待原生 BroadcastChannel 异步派发的 onmessage（postMessage 非同步触发） */
+const flushMessages = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 10));
+
+describe('数据变更广播', () => {
+  let received: { store: string; action: string }[] = [];
+  let channel: BroadcastChannel;
+
+  beforeEach(() => {
+    received = [];
+    channel = new BroadcastChannel(DB_NAME);
+    channel.onmessage = (e: MessageEvent) => {
+      received.push(e.data as { store: string; action: string });
+    };
+  });
+
+  afterEach(() => channel.close());
+
+  it('putRecord → 广播 { store, action: "put" }', async () => {
+    await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'bookmarks', action: 'put' });
+  });
+
+  it('deleteRecord → 广播 { store, action: "delete" }', async () => {
+    await putRecord('bookmarks', makeBookmark('bm-1', 'ws-1', 'cat-1'));
+    await flushMessages();
+    received = [];
+    await deleteRecord('bookmarks', 'bm-1');
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'bookmarks', action: 'delete' });
+  });
+
+  it('不同 store 各自广播对应 store 名', async () => {
+    await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
+    await flushMessages();
+    expect(received).toContainEqual({ store: 'workspaces', action: 'put' });
   });
 });
