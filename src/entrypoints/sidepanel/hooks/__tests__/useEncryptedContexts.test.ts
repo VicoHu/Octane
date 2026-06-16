@@ -63,4 +63,28 @@ describe('useEncryptedContexts — 加密上下文解锁 gate', () => {
     expect(result.current.error).toBeTruthy();
     expect(result.current.contexts).toEqual([]);
   });
+
+  it('bookmarkId 变化时丢弃过期结果（前一次异步未完成的结果不覆盖新结果）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    // 第一次 query 挂起（模拟慢异步），第二次立即返回
+    let resolveFirst!: (v: Context[]) => void;
+    (getContexts as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(new Promise<Context[]>((r) => { resolveFirst = r; }))
+      .mockResolvedValueOnce([makeContext({ id: 'c-new', content: '新书签的上下文' })]);
+
+    const { result, rerender } = renderHook(({ id }) => useEncryptedContexts(id), { initialProps: { id: 'bm-1' } });
+    // 第一次 effect 已发起挂起的 getContexts('bm-1')
+    await new Promise((r) => setTimeout(r, 10));
+
+    // 切换 bookmarkId → 触发新 effect，前一个 active flag 置 false
+    rerender({ id: 'bm-2' });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.contexts).toHaveLength(1);
+    expect(result.current.contexts[0]!.id).toBe('c-new');
+
+    // 前一次的慢异步现在 resolve → 应被丢弃，不覆盖 bm-2 的结果
+    resolveFirst([makeContext({ id: 'c-stale', content: '过期内容' })]);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(result.current.contexts[0]!.id).toBe('c-new');
+  });
 });

@@ -50,10 +50,10 @@ export function useHostBookmarks(hostname: string | null): HostBookmarksState {
     // → 广播 store==='bookmarks' → 自动重新匹配。
     const channel =
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
-    channel.onmessage = (e: MessageEvent) => {
+    channel?.addEventListener('message', (e: MessageEvent) => {
       const data = e.data as { store?: string };
       if (data?.store === 'bookmarks') refresh();
-    };
+    });
 
     return () => {
       active = false;

@@ -96,3 +96,27 @@ describe('useHostBookmarks — BroadcastChannel 监听', () => {
     ch.close();
   });
 });
+
+describe('useHostBookmarks — BroadcastChannel 不可用时静默降级', () => {
+  const origBC = globalThis.BroadcastChannel;
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'BroadcastChannel', { value: origBC, writable: true, configurable: true });
+  });
+
+  // 回归测试：BroadcastChannel 为 undefined 时 channel=null，监听须用可选链守卫
+  // （channel?.addEventListener），否则对 null 赋值抛 TypeError。与 database.ts 的
+  // dbChannel?.postMessage 同模式。
+  it('无 BroadcastChannel 时静默降级不崩溃', async () => {
+    Object.defineProperty(globalThis, 'BroadcastChannel', { value: undefined, writable: true, configurable: true });
+
+    const all = [makeBookmark('b1', 'https://a.com')];
+    (getAll as ReturnType<typeof vi.fn>).mockResolvedValue(all);
+    (findBookmarksByHost as ReturnType<typeof vi.fn>).mockReturnValue([all[0]]);
+
+    // 渲染应不抛错（channel=null 时监听跳过，refresh 仍正常匹配）
+    const { result } = renderHook(() => useHostBookmarks('a.com'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.matched).toHaveLength(1);
+  });
+});
