@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.4] - 2026-06-17
+
+### Added
+
+- **数据可移植性（P1）**：本地全量数据导入导出（覆盖式），支持书签/分类/工作区/上下文/加密数据完整迁移
+  - 导出：5 表存储态 JSON（contexts 密文不解密）；50MB 文件阈值；schema/version/字段级/cryptoMetadata 一致性校验
+  - 导入：background service worker 执行覆盖式单事务（4 表 clear+put，cryptoMetadata 条件 put）→ 重算冗余字段 → lock session → 广播
+  - 加密数据密文迁移：导出 salt + 密文，导入方用相同主密码即可解密，文件不含密钥/明文
+  - UI：newtab Sidebar「设置」入口（SideSheet）显示本地备份区；破坏性导入三重确认（Modal + Checkbox + danger 按钮）
+  - newtab 订阅 `octane-import` 广播事件，导入后整体 reload
+
+### Fixed
+
+- 修复 v0.1.3.3 `openPanelOnActionClick` 后 popup 失去左击入口：newtab Sidebar 新增设置入口（SideSheet）补备份可达性
+- 修复导入覆盖确认 Modal 按钮紧贴下沿（确认按钮移至 footer prop）
+- 修复 MV3 service worker 唤醒时序致导入 `sendMessage` "Receiving end does not exist"（onMessage listener 顶层注册）
+- 修复 newtab 自备份自恢复时书签列表陈旧（import 后兜底 loadBookmarks）
+- 修复 `applyImport` 中 syncContextMeta 失败致 session 半死态（非致命 + lock 必执行）
+
 ## [0.1.3.3] - 2026-06-16
 
 ### Added
