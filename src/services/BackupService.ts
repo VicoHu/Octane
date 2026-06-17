@@ -60,3 +60,29 @@ export function validateBackup(parsed: unknown): ValidationResult {
   };
   return { ok: true, data: backupData };
 }
+
+/** 备份文件大小上限：50MB（防止 JSON.parse 卡死/内存溢出） */
+export const MAX_BACKUP_BYTES = 50 * 1024 * 1024;
+
+/**
+ * 读取文件 + 大小校验 + JSON 解析 + 结构校验。
+ * 单一返回类型，与 validateBackup 一致。
+ */
+export async function parseBackupFile(file: File): Promise<ValidationResult> {
+  if (file.size > MAX_BACKUP_BYTES) {
+    return { ok: false, error: `备份文件过大（超过 50MB），已拒绝` };
+  }
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    return { ok: false, error: '备份文件读取失败' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: '备份文件不是合法 JSON' };
+  }
+  return validateBackup(parsed);
+}
