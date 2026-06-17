@@ -1,5 +1,13 @@
 import { openDB, type IDBPDatabase, type IDBPObjectStore } from 'idb';
 import { DB_NAME, DB_VERSION } from '@/shared/types';
+import type {
+  BackupData,
+  Bookmark,
+  Category,
+  Context,
+  CryptoMetadata,
+  Workspace,
+} from '@/shared/types';
 
 interface OctaneDB extends IDBPDatabase {
   workspaces: IDBPObjectStore<OctaneDB, ['workspaces']>;
@@ -23,6 +31,21 @@ const dbChannel =
 /** 广播数据变更。无原生 BroadcastChannel 时静默跳过。 */
 function broadcast(store: StoreName, action: 'put' | 'delete'): void {
   dbChannel?.postMessage({ store, action } satisfies DbChangeEvent);
+}
+
+/** 公开包装：供导入等外部流程显式触发 store 变更广播（side panel 刷新）。 */
+export function broadcastChange(store: StoreName, action: 'put' | 'delete'): void {
+  broadcast(store, action);
+}
+
+/** 全量导入广播 channel 名（独立于 store 级广播，供 newtab 整体 reload）。 */
+export const IMPORT_CHANNEL_NAME = 'octane-import';
+const importChannel =
+  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(IMPORT_CHANNEL_NAME) : null;
+
+/** 广播「全量导入完成」事件。newtab 订阅后整体 reload。 */
+export function broadcastImport(): void {
+  importChannel?.postMessage({ type: 'imported' });
 }
 
 let dbPromise: Promise<IDBPDatabase<OctaneDB>> | null = null;
@@ -184,6 +207,46 @@ export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
 
   await tx.done;
   broadcast('bookmarks', 'delete');
+}
+
+// ========== 全量导出 / 覆盖导入 ==========
+
+const DATA_STORES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
+const ALL_STORES = [...DATA_STORES, 'cryptoMetadata'] as const;
+
+/**
+ * 导出全部数据（5 表存储态）。
+ * contexts 取底层 getAll（含密文，不解密）——禁止用会解密的 ContextService.getContexts。
+ */
+export async function exportAllData(): Promise<BackupData> {
+  return {
+    workspaces: await getAll<Workspace>('workspaces'),
+    categories: await getAll<Category>('categories'),
+    bookmarks: await getAll<Bookmark>('bookmarks'),
+    contexts: await getAll<Context>('contexts'),
+    cryptoMetadata: (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null,
+  };
+}
+
+/**
+ * 覆盖式写入：单 readwrite 事务，4 数据表 clear 后 put，cryptoMetadata 仅在 data 含时 put。
+ * 仅做数据搬运 —— 不重算冗余字段、不 lock、不广播（由业务层 BackupService.applyImport 编排）。
+ * 任一步失败事务整体回滚。
+ */
+export async function replaceAllDataRaw(data: BackupData): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction([...ALL_STORES], 'readwrite');
+  for (const s of DATA_STORES) {
+    await tx.objectStore(s).clear();
+  }
+  for (const ws of data.workspaces) await tx.objectStore('workspaces').put(ws);
+  for (const c of data.categories) await tx.objectStore('categories').put(c);
+  for (const b of data.bookmarks) await tx.objectStore('bookmarks').put(b);
+  for (const ctx of data.contexts) await tx.objectStore('contexts').put(ctx);
+  if (data.cryptoMetadata) {
+    await tx.objectStore('cryptoMetadata').put(data.cryptoMetadata);
+  }
+  await tx.done;
 }
 
 // 导出类型供其他模块使用
