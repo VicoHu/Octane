@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
 import { useBackup } from '@/store/useBackup';
-import styles from '../../popup.module.css';
+import styles from './LocalBackupSection.module.css';
 
-/** 本地备份区：导出 + 导入（覆盖式，破坏性强确认）。 */
+/** 本地备份区：导出 + 导入（覆盖式，破坏性强确认）。popup/newtab 共享。 */
 export function LocalBackupSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmed, setConfirmed] = useState(false);

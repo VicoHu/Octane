@@ -14,7 +14,7 @@ vi.mock('lottie-web', () => ({
   },
 }));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { LocalBackupSection } from '../LocalBackupSection';
+import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { useBackup } from '@/store/useBackup';
 import * as BackupService from '@/services/BackupService';
 
@@ -54,4 +54,3 @@ describe('LocalBackupSection', () => {
     expect(confirmBtn.disabled).toBe(true);
   });
 });
-

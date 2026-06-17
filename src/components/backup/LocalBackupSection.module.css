@@ -1,0 +1,5 @@
+/* === 本地备份区（popup/newtab 共享） === */
+.backupSection { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.backupActions { display: flex; gap: 8px; }
+.backupConfirmBody { display: flex; flex-direction: column; gap: 12px; }
+.backupError { color: var(--semi-color-danger); }

@@ -1,5 +1,5 @@
 import SubPageHeader from './SubPageHeader';
-import { LocalBackupSection } from './backup/LocalBackupSection';
+import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import styles from '../popup.module.css';
 
 interface SettingsViewProps {

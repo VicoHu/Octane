@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { Select, Button, Input, Modal } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete } from '@douyinfe/semi-icons';
+import { Select, Button, Input, Modal, SideSheet } from '@douyinfe/semi-ui';
+import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
+import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -18,6 +19,7 @@ export const Sidebar: React.FC = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -112,7 +114,26 @@ export const Sidebar: React.FC = () => {
         >
           添加分类
         </Button>
+        <Button
+          icon={<IconSetting />}
+          block
+          className={styles.settingsButton}
+          aria-label="设置"
+          onClick={() => setShowSettings(true)}
+        >
+          设置
+        </Button>
       </div>
+
+      {/* 设置侧边抽屉：本地数据导入导出（newtab 主管理页的备份入口） */}
+      <SideSheet
+        title="设置"
+        visible={showSettings}
+        onCancel={() => setShowSettings(false)}
+        width={380}
+      >
+        <LocalBackupSection />
+      </SideSheet>
 
       <Modal
         title="新建分类"
