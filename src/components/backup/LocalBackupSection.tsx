@@ -49,8 +49,19 @@ export function LocalBackupSection() {
         title="确认覆盖全部数据"
         visible={modalOpen}
         onCancel={cancelImport}
-        footer={null}
         maskClosable={false}
+        footer={
+          <Button
+            theme="solid"
+            type="danger"
+            block
+            disabled={!confirmed}
+            loading={status === 'running'}
+            onClick={handleConfirm}
+          >
+            确认覆盖
+          </Button>
+        }
       >
         <div className={styles.backupConfirmBody}>
           <Typography.Text>
@@ -60,15 +71,6 @@ export function LocalBackupSection() {
           <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked ?? false)}>
             我了解此操作不可撤销
           </Checkbox>
-          <Button
-            theme="solid"
-            type="danger"
-            disabled={!confirmed}
-            loading={status === 'running'}
-            onClick={handleConfirm}
-          >
-            确认覆盖
-          </Button>
         </div>
       </Modal>
     </div>
