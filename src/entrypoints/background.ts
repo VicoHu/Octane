@@ -1,3 +1,9 @@
+import { handleMessage } from '@/services/BackupMessaging';
+
+// onMessage listener 顶层注册：service worker 一加载即注册，
+// 避免 listener 在 main() 内因 SW 唤醒时序导致首次 sendMessage 收到 "Receiving end does not exist"。
+browser.runtime.onMessage.addListener((msg) => handleMessage(msg));
+
 export default defineBackground({
   main() {
     // 左击扩展图标直达 side panel（Chrome sidePanel API）。

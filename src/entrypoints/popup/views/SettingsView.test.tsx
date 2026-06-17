@@ -16,9 +16,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import SettingsView from './SettingsView';
 
 describe('SettingsView', () => {
-  it('渲染占位文案', () => {
+  it('渲染本地备份区（导入/导出按钮）', () => {
     render(<SettingsView onBack={vi.fn()} />);
-    expect(screen.getByText('设置功能开发中')).toBeTruthy();
+    expect(screen.getByText('导出数据')).toBeTruthy();
+    expect(screen.getByText('导入数据')).toBeTruthy();
   });
 
   it('点击返回调用 onBack', () => {
