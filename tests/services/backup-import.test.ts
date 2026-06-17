@@ -1,10 +1,10 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { getDB, resetDB, putRecord, getByKey, getAll } from '@/shared/db/database';
+import { getDB, resetDB, getByKey, getAll } from '@/shared/db/database';
 import { applyImport } from '@/services/BackupService';
 import { IMPORT_CHANNEL_NAME } from '@/shared/db/database';
 import * as CryptoService from '@/services/CryptoService';
-import type { BackupData, Bookmark, Context } from '@/shared/types';
+import type { BackupData, Bookmark, Context, CryptoMetadata } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
 beforeEach(async () => {
@@ -40,8 +40,21 @@ const payload: BackupData = {
 describe('applyImport', () => {
   it('覆盖写入 5 表', async () => {
     await applyImport(payload);
+    expect(await getAll('workspaces')).toHaveLength(1);
+    expect(await getAll('categories')).toHaveLength(1);
     expect(await getAll('bookmarks')).toHaveLength(1);
     expect(await getAll('contexts')).toHaveLength(1);
+    // cryptoMetadata: payload 为 null → 保留本机原值；beforeEach 已清空表 → undefined
+    expect(await getByKey('cryptoMetadata', 'singleton')).toBeUndefined();
+  });
+
+  it('cryptoMetadata 写入路径：payload 含 meta → 持久化', async () => {
+    const meta: CryptoMetadata = {
+      id: 'singleton', salt: 'S2', iterations: 1,
+      algorithm: 'AES-GCM-256', createdAt: 1,
+    };
+    await applyImport({ ...payload, cryptoMetadata: meta });
+    expect((await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton'))?.salt).toBe('S2');
   });
 
   it('重算冗余字段：篡改的 contextCount=0 → 重算为 1', async () => {
@@ -49,6 +62,28 @@ describe('applyImport', () => {
     const bm = await getByKey<Bookmark>('bookmarks', 'bm-1');
     expect(bm?.contextCount).toBe(1);
     expect(bm?.hasEncryptedContext).toBe(false);
+  });
+
+  it('重算冗余字段：含加密 context → hasEncryptedContext 翻转为 true', async () => {
+    const encryptedCtx: Context = {
+      id: 'ctx-enc', bookmarkId: 'bm-1', type: ContextType.NOTE,
+      title: 'enc', content: '', isEncrypted: true,
+      encryptedData: 'fake-ct', iv: 'fake-iv',
+      order: 0, createdAt: 1, updatedAt: 1,
+    };
+    const tamperedPlain: Bookmark = { ...tamperedBm, hasEncryptedContext: false };
+    await applyImport({
+      ...payload,
+      bookmarks: [tamperedPlain],
+      contexts: [encryptedCtx],
+      cryptoMetadata: {
+        id: 'singleton', salt: 'S2', iterations: 1,
+        algorithm: 'AES-GCM-256', createdAt: 1,
+      },
+    });
+    const bm = await getByKey<Bookmark>('bookmarks', 'bm-1');
+    expect(bm?.hasEncryptedContext).toBe(true);
+    expect(bm?.contextCount).toBe(1);
   });
 
   it('调用 lock() 清 session 旧密钥', async () => {
