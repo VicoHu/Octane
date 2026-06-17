@@ -87,3 +87,26 @@ export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
 export const DB_VERSION = 2;
+
+/** 备份文件 schema 标识 */
+export const BACKUP_SCHEMA = 'octane-backup';
+/** 备份格式版本（schema 变更时递增；校验仅接受已知版本） */
+export const BACKUP_VERSION = 1;
+
+/** 备份数据载荷：5 表存储态（contexts 含密文，不解密） */
+export interface BackupData {
+  workspaces: Workspace[];
+  categories: Category[];
+  bookmarks: Bookmark[];
+  contexts: Context[];
+  cryptoMetadata: CryptoMetadata | null;
+}
+
+/** 备份文件顶层结构 */
+export interface BackupFile {
+  schema: typeof BACKUP_SCHEMA;
+  version: number;
+  exportedAt: number;
+  appVersion: string;
+  data: BackupData;
+}
