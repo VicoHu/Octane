@@ -3,6 +3,9 @@ import {
   BACKUP_VERSION,
 } from '@/shared/types';
 import type { BackupData, Bookmark, Category, Context, CryptoMetadata, Workspace } from '@/shared/types';
+import { replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
+import { syncContextMeta } from '@/services/ContextService';
+import { lock } from '@/services/CryptoService';
 
 export type ValidationResult =
   | { ok: true; data: BackupData }
@@ -85,4 +88,21 @@ export async function parseBackupFile(file: File): Promise<ValidationResult> {
     return { ok: false, error: '备份文件不是合法 JSON' };
   }
   return validateBackup(parsed);
+}
+
+/**
+ * 应用导入：覆盖事务 → 重算冗余字段 → lock session → 广播。
+ * 必须在 background service worker 调用（事务不可被 popup 中断）。
+ */
+export async function applyImport(data: BackupData): Promise<void> {
+  await replaceAllDataRaw(data);
+  // 重算冗余字段：防备份被篡改导致解锁 gate 错乱
+  for (const b of data.bookmarks) {
+    await syncContextMeta(b.id);
+  }
+  // 清 session 旧密钥：salt 已变，旧密钥与新数据不匹配
+  await lock();
+  // 广播：side panel（store 级）+ newtab（全量 import 事件）
+  broadcastChange('bookmarks', 'put');
+  broadcastImport();
 }
