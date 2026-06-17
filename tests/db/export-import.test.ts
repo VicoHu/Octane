@@ -12,7 +12,7 @@ import {
   broadcastImport,
 } from '@/shared/db/database';
 import type { BackupData, Bookmark, Context, Workspace, Category, CryptoMetadata } from '@/shared/types';
-import { ContextType, DB_NAME } from '@/shared/types';
+import { ContextType } from '@/shared/types';
 
 async function clearAllStores(): Promise<void> {
   const db = await getDB();

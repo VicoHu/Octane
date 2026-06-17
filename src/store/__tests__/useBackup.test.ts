@@ -62,11 +62,13 @@ describe('useBackup', () => {
   it('exportData → 导出 + 下载 → success', async () => {
     vi.spyOn(DB, 'exportAllData').mockResolvedValue(okData);
     const createSpy = vi.fn();
-    vi.stubGlobal('URL', { createObjectURL: createSpy.mockReturnValue('blob:x'), revokeObjectURL: vi.fn() });
+    const revokeSpy = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL: createSpy.mockReturnValue('blob:x'), revokeObjectURL: revokeSpy });
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     await useBackup.getState().exportData();
     expect(useBackup.getState().status).toBe('success');
     expect(createSpy).toHaveBeenCalled();
+    expect(revokeSpy).toHaveBeenCalled(); // 释放 blob URL，防内存泄漏
     expect(getManifest).toHaveBeenCalled();
     clickSpy.mockRestore();
     vi.unstubAllGlobals();

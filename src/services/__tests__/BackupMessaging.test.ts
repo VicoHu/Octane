@@ -8,6 +8,9 @@ const emptyData: BackupData = {
 };
 
 describe('handleMessage', () => {
+  // 防止 spy 跨用例泄漏：每个用例后还原所有 mock
+  beforeEach(() => vi.restoreAllMocks());
+
   it('octane:apply-import → 调 applyImport 并返回 ok', async () => {
     const spy = vi.spyOn(BackupService, 'applyImport').mockResolvedValue(undefined);
     const r = await handleMessage({ type: 'octane:apply-import', data: emptyData });
