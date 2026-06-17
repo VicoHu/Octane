@@ -1,3 +1,5 @@
+import { handleMessage } from '@/services/BackupMessaging';
+
 export default defineBackground({
   main() {
     // 左击扩展图标直达 side panel（Chrome sidePanel API）。
@@ -18,5 +20,8 @@ export default defineBackground({
       .catch((err) => {
         console.error('[octane] setPanelBehavior 失败', err);
       });
+
+    // 导入覆盖事务在 background 执行（popup 瞬态，长事务不可中断）
+    browser.runtime.onMessage.addListener((msg) => handleMessage(msg));
   },
 });
