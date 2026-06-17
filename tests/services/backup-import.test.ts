@@ -4,6 +4,7 @@ import { getDB, resetDB, getByKey, getAll } from '@/shared/db/database';
 import { applyImport } from '@/services/BackupService';
 import { IMPORT_CHANNEL_NAME } from '@/shared/db/database';
 import * as CryptoService from '@/services/CryptoService';
+import * as ContextService from '@/services/ContextService';
 import type { BackupData, Bookmark, Context, CryptoMetadata } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
@@ -101,5 +102,25 @@ describe('applyImport', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(got).toBe(true);
     ch.close();
+  });
+
+  it('I2：syncContextMeta 抛错时视为非致命 → lock 仍执行 + broadcastImport 仍触发', async () => {
+    // 复现 I2 缺陷：replaceAllDataRaw 事务已落盘，但若 syncContextMeta 抛错
+    // 原实现会让 lock / 广播被跳过 → session 旧密钥残留 + popup 误导性失败。
+    const ctxSpy = vi.spyOn(ContextService, 'syncContextMeta').mockRejectedValue(new Error('boom'));
+    const lockSpy = vi.spyOn(CryptoService, 'lock').mockResolvedValue(undefined);
+    const ch = new BroadcastChannel(IMPORT_CHANNEL_NAME);
+    let got = false;
+    ch.onmessage = () => { got = true; };
+
+    await applyImport(payload);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(ctxSpy).toHaveBeenCalled(); // 重算确有调用（只是抛错）
+    expect(lockSpy).toHaveBeenCalledTimes(1); // 关键：lock 必执行
+    expect(got).toBe(true); // 关键：broadcastImport 仍触发
+    ch.close();
+    ctxSpy.mockRestore();
+    lockSpy.mockRestore();
   });
 });
