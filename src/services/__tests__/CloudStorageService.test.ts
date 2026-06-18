@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resetDB, getDB } from '@/shared/db/database';
 import { setupTestKey, setTestKey } from '@/services/CryptoService';
 import {
@@ -8,7 +8,20 @@ import {
   clearCloudConfig,
   getLastBackupAt,
   setLastBackupAt,
+  testConnection,
+  uploadBackup,
+  downloadBackup,
 } from '@/services/CloudStorageService';
+
+// 编排测试用：mock provider 注册表（避免引入真实 SDK）。
+const fakeProvider = vi.hoisted(() => ({
+  testConnection: vi.fn(),
+  uploadBackup: vi.fn(),
+  downloadBackup: vi.fn(),
+}));
+vi.mock('@/services/cloud/providers', () => ({
+  getCloudProvider: () => fakeProvider,
+}));
 
 const cfg = {
   region: 'oss-cn-hangzhou',
@@ -56,6 +69,9 @@ beforeEach(async () => {
   await clearAllStores();
   for (const k of Object.keys(localStore)) delete localStore[k];
   installChromeStorageLocal();
+  fakeProvider.testConnection.mockReset();
+  fakeProvider.uploadBackup.mockReset();
+  fakeProvider.downloadBackup.mockReset();
 });
 
 describe('CloudStorageService 凭证层', () => {
@@ -105,5 +121,39 @@ describe('CloudStorageService 凭证层', () => {
     await setLastBackupAt('oss', 1_700_000_000_000);
     expect(await getLastBackupAt('oss')).toBe(1_700_000_000_000);
     expect(await getLastBackupAt('cos')).toBeNull();
+  });
+});
+
+describe('CloudStorageService 编排', () => {
+  it('未配置时 testConnection 抛错', async () => {
+    await setupTestKey('main-password-1234');
+    await expect(testConnection('oss')).rejects.toThrow('未配置');
+  });
+
+  it('uploadBackup 解密凭证 → 委托 provider → 记录 lastBackupAt', async () => {
+    await setupTestKey('main-password-1234');
+    await saveCloudConfig('oss', cfg);
+    fakeProvider.uploadBackup.mockResolvedValue(undefined);
+    const blob = new Blob(['x']);
+    await uploadBackup('oss', blob);
+    expect(fakeProvider.uploadBackup).toHaveBeenCalledWith(cfg, blob);
+    expect(await getLastBackupAt('oss')).toBeGreaterThan(0);
+  });
+
+  it('downloadBackup 返回 provider 的 Blob', async () => {
+    await setupTestKey('main-password-1234');
+    await saveCloudConfig('oss', cfg);
+    const blob = new Blob(['data']);
+    fakeProvider.downloadBackup.mockResolvedValue(blob);
+    expect(await downloadBackup('oss')).toBe(blob);
+    expect(fakeProvider.downloadBackup).toHaveBeenCalledWith(cfg);
+  });
+
+  it('testConnection 委托 provider 并传入解密后的凭证', async () => {
+    await setupTestKey('main-password-1234');
+    await saveCloudConfig('oss', cfg);
+    fakeProvider.testConnection.mockResolvedValue(undefined);
+    await testConnection('oss');
+    expect(fakeProvider.testConnection).toHaveBeenCalledWith(cfg);
   });
 });

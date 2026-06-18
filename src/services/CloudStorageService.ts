@@ -1,4 +1,5 @@
 import { encrypt, decrypt } from '@/services/CryptoService';
+import { getCloudProvider } from '@/services/cloud/providers';
 import type { CloudStorageConfig, ProviderId } from '@/services/cloud/types';
 
 /** 凭证存储键（按 provider 分键，密文）。 */
@@ -57,4 +58,26 @@ export async function getLastBackupAt(id: ProviderId): Promise<number | null> {
 /** 记录上次备份时间。 */
 export async function setLastBackupAt(id: ProviderId, ts: number): Promise<void> {
   await chromeStorageLocal().set({ [LAST_BACKUP_KEY(id)]: ts });
+}
+
+/** 测试连通性：解密凭证后委托 provider；未配置抛错。 */
+export async function testConnection(id: ProviderId): Promise<void> {
+  const cfg = await getCloudConfig(id);
+  if (!cfg) throw new Error('未配置云存储');
+  await getCloudProvider(id).testConnection(cfg);
+}
+
+/** 上传备份：解密凭证 → 委托 provider.put → 记录 lastBackupAt。 */
+export async function uploadBackup(id: ProviderId, blob: Blob): Promise<void> {
+  const cfg = await getCloudConfig(id);
+  if (!cfg) throw new Error('未配置云存储');
+  await getCloudProvider(id).uploadBackup(cfg, blob);
+  await setLastBackupAt(id, Date.now());
+}
+
+/** 下载备份：解密凭证 → 委托 provider.get → 返回 Blob。 */
+export async function downloadBackup(id: ProviderId): Promise<Blob> {
+  const cfg = await getCloudConfig(id);
+  if (!cfg) throw new Error('未配置云存储');
+  return getCloudProvider(id).downloadBackup(cfg);
 }
