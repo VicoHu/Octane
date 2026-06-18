@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.3.5] - 2026-06-18
+
+### Added
+
+- **数据可移植性（P2/P3）云存储备份**：阿里云 OSS / 腾讯云 COS 手动上传与覆盖恢复
+  - 策略模式架构（`CloudStorageProvider` 接口 + OSS/COS 实现 + 注册表），便于扩展新服务商
+  - 凭证经主密码 AES-GCM 加密，按 provider 分键存 `chrome.storage.local`（用前需解锁主密码）
+  - 配置 UI：双 Tab（OSS/COS）+ 连通性测试 + 清除配置 + 上次备份时间
+  - 上传 = 轻提示（非破坏性）；从云恢复 = 破坏性强确认（Modal + Checkbox + danger）
+  - 从云恢复复用 P1 导入事务（`parseBackupFile` + `octane:apply-import` 覆盖事务）
+  - 备份对象 key 固定 `octane/backup/octane-backup.json`（覆盖式单文件）
+  - wxt `host_permissions` 放行 `*.aliyuncs.com` / `*.myqcloud.com`
+  - 用户侧配置指南 `docs/cloud-backup-setup.md`（桶 CORS + 最小权限子账号）
+
+### Changed
+
+- 导出与云上传共用 `buildBackupBlob`；上传为轻提示（反转伞形 spec Open Question #4，仅恢复需强确认）
+
 ## [0.1.3.4] - 2026-06-17
 
 ### Added
