@@ -62,7 +62,11 @@ export const UnlockModal: React.FC = () => {
         </div>
       }
       visible={visible}
-      footer={null}
+      footer={
+        <Button theme="solid" block loading={loading} onClick={handleSubmit}>
+          {passwordSet ? '解锁' : '设置'}
+        </Button>
+      }
       closable={canDismiss}
       maskClosable={canDismiss}
       onCancel={closeUnlockModal}
@@ -89,14 +93,6 @@ export const UnlockModal: React.FC = () => {
         {error && (
           <div className={styles.error}>{error}</div>
         )}
-        <Button
-          theme="solid"
-          block
-          loading={loading}
-          onClick={handleSubmit}
-        >
-          {passwordSet ? '解锁' : '设置'}
-        </Button>
       </div>
     </Modal>
   );
