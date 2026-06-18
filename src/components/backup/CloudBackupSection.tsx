@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Tabs, Input, Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
 import { useBackup } from '@/store/useBackup';
+import { useCrypto } from '@/store/useCrypto';
 import { getCloudProvider } from '@/services/cloud/providers';
-import { isUnlocked } from '@/services/CryptoService';
 import { getLastBackupAt } from '@/services/CloudStorageService';
 import type { BackupData } from '@/shared/types';
 import type { CloudStorageConfig, ProviderId } from '@/services/cloud/types';
@@ -12,7 +12,11 @@ const TABS: ProviderId[] = ['oss', 'cos'];
 
 /** 云备份区：OSS/COS 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/newtab 共享。 */
 export function CloudBackupSection() {
-  const [unlocked, setUnlocked] = useState(false);
+  // 主密码状态来自全局 store（newtab/popup 入口处 checkStatus 写入）
+  const unlocked = useCrypto((s) => s.unlocked);
+  const passwordSet = useCrypto((s) => s.passwordSet);
+  const openUnlockModal = useCrypto((s) => s.openUnlockModal);
+
   const [tab, setTab] = useState<ProviderId>('oss');
   // 表单按 provider 分组，切换 Tab 不丢失输入
   const [forms, setForms] = useState<Record<string, Record<string, string>>>({});
@@ -24,9 +28,6 @@ export function CloudBackupSection() {
   const provider = getCloudProvider(tab);
 
   useEffect(() => {
-    isUnlocked().then(setUnlocked);
-  }, []);
-  useEffect(() => {
     getLastBackupAt(tab).then(setLastBackup).catch(() => setLastBackup(null));
   }, [tab, busy]);
 
@@ -35,6 +36,7 @@ export function CloudBackupSection() {
     setForms((f) => ({ ...f, [tab]: { ...(f[tab] ?? {}), [name]: val } }));
 
   const disabled = !unlocked || busy;
+  const lockLabel = !passwordSet ? '设置主密码' : '解锁主密码';
 
   const handleTest = async () => {
     setBusy(true);
@@ -67,7 +69,7 @@ export function CloudBackupSection() {
       await useBackup.getState().saveCloudConfig(tab, cfg);
       Toast.success('配置已保存');
     } catch {
-      Toast.error('保存失败：请先解锁主密码');
+      Toast.error('保存失败：请先设置/解锁主密码');
     } finally {
       setBusy(false);
     }
@@ -127,7 +129,15 @@ export function CloudBackupSection() {
   return (
     <div className={styles.cloudSection}>
       {!unlocked && (
-        <Banner type="warning" description="云备份凭证由主密码加密，使用前请先解锁。" />
+        <Banner
+          type="warning"
+          description={
+            <span>
+              云备份凭证由主密码加密，{passwordSet ? '请先解锁' : '请先设置'}主密码。
+              <Button size="small" theme="borderless" onClick={openUnlockModal}>{lockLabel}</Button>
+            </span>
+          }
+        />
       )}
       <Tabs activeKey={tab} onTabChange={(k) => setTab(k as ProviderId)}>
         {TABS.map((id) => (

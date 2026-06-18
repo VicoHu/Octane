@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-// Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock（同 SettingsView.test）。
+// Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock。
 vi.mock('lottie-web', () => ({
   default: {
     loadAnimation: () => ({
@@ -29,8 +29,15 @@ vi.mock('@/store/useBackup', () => ({
   useBackup: { getState: () => store },
 }));
 
-const crypto = vi.hoisted(() => ({ isUnlocked: vi.fn() }));
-vi.mock('@/services/CryptoService', () => ({ isUnlocked: crypto.isUnlocked }));
+// CloudBackupSection 读 useCrypto（主密码状态 + 解锁入口）
+const cryptoState = vi.hoisted(() => ({
+  unlocked: false,
+  passwordSet: false,
+  openUnlockModal: vi.fn(),
+}));
+vi.mock('@/store/useCrypto', () => ({
+  useCrypto: (sel: (s: Record<string, unknown>) => unknown) => sel(cryptoState),
+}));
 
 const cloudSvc = vi.hoisted(() => ({ getLastBackupAt: vi.fn() }));
 vi.mock('@/services/CloudStorageService', () => ({ getLastBackupAt: cloudSvc.getLastBackupAt }));
@@ -63,10 +70,11 @@ const btn = (text: string): HTMLButtonElement => screen.getByText(text).closest(
 
 beforeEach(() => {
   Object.values(store).forEach((m) => (m as ReturnType<typeof vi.fn>).mockReset());
-  crypto.isUnlocked.mockReset();
   cloudSvc.getLastBackupAt.mockReset();
-  // 默认已解锁、无历史备份
-  crypto.isUnlocked.mockResolvedValue(true);
+  // 默认已解锁、已设密码、无历史备份
+  cryptoState.unlocked = true;
+  cryptoState.passwordSet = true;
+  cryptoState.openUnlockModal = vi.fn();
   cloudSvc.getLastBackupAt.mockResolvedValue(null);
 });
 
@@ -79,12 +87,21 @@ describe('CloudBackupSection', () => {
     expect(screen.getByText('AccessKeySecret')).toBeTruthy();
   });
 
-  it('未解锁 → 显示 Banner + 操作按钮 disabled', async () => {
-    crypto.isUnlocked.mockResolvedValue(false);
+  it('未解锁 → 显示 Banner + 内联解锁入口 + 操作按钮 disabled', async () => {
+    cryptoState.unlocked = false;
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText(/请先解锁/)).toBeTruthy());
+    expect(btn('解锁主密码')).toBeTruthy(); // 内联解锁按钮
     expect(btn('测试连接').disabled).toBe(true);
     expect(btn('上传备份').disabled).toBe(true);
+  });
+
+  it('未设置主密码 → Banner 文案为「请先设置」+ 内联「设置主密码」按钮', async () => {
+    cryptoState.unlocked = false;
+    cryptoState.passwordSet = false;
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByText(/请先设置/)).toBeTruthy());
+    expect(btn('设置主密码')).toBeTruthy();
   });
 
   it('点击「从云恢复」→ 下载解析成功 → 弹破坏性确认 Modal（未勾选时确认禁用）', async () => {

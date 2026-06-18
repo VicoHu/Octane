@@ -28,6 +28,22 @@ vi.mock('./views/SettingsView', () => ({
     <button onClick={onBack}>mock-settings</button>
   ),
 }));
+// App 现调 checkStatus（→ 真实 CryptoService → IndexedDB），mock useCrypto 避免 DB 依赖
+vi.mock('@/store/useCrypto', () => ({
+  useCrypto: (sel: (s: Record<string, unknown>) => unknown) =>
+    sel({
+      passwordSet: false,
+      unlocked: false,
+      loading: false,
+      unlockModalOpen: false,
+      checkStatus: vi.fn(),
+      setupMasterPassword: vi.fn(),
+      unlockWithPassword: vi.fn(),
+      lockSession: vi.fn(),
+      openUnlockModal: vi.fn(),
+      closeUnlockModal: vi.fn(),
+    }),
+}));
 import { render, screen, fireEvent } from '@testing-library/react';
 import App from './App';
 

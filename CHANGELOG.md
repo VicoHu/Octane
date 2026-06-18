@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
   - 备份对象 key 固定 `octane/backup/octane-backup.json`（覆盖式单文件）
   - wxt `host_permissions` 放行 `*.aliyuncs.com` / `*.myqcloud.com`
   - 用户侧配置指南 `docs/cloud-backup-setup.md`（桶 CORS + 最小权限子账号）
+  - newtab「设置」前置选项入口：设置主密码 / 数据备份和同步（内联菜单，主密码项随状态自适应：设置/解锁/锁定）
+
+### Fixed
+
+- 修复主密码首次设置入口缺失：`UnlockModal` 原仅在「已设密码但未解锁」时显示，导致首次使用无从设置主密码（加密笔记与云备份均不可达）。改为可手动触发，并接入 newtab/popup 两入口
+- popup 接入主密码解锁流程（挂载 `UnlockModal` + `checkStatus`）
 
 ### Changed
 

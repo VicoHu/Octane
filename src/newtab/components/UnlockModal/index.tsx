@@ -8,15 +8,19 @@ export const UnlockModal: React.FC = () => {
   const passwordSet = useCrypto((s) => s.passwordSet);
   const unlocked = useCrypto((s) => s.unlocked);
   const loading = useCrypto((s) => s.loading);
+  const unlockModalOpen = useCrypto((s) => s.unlockModalOpen);
   const setupMasterPassword = useCrypto((s) => s.setupMasterPassword);
   const unlockWithPassword = useCrypto((s) => s.unlockWithPassword);
+  const closeUnlockModal = useCrypto((s) => s.closeUnlockModal);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
 
-  // 仅在已设置密码但未解锁时显示
-  const visible = passwordSet && !unlocked;
+  // 可见：手动请求打开（首次设置/手动解锁）OR 已设密码但未解锁（重锁自动弹）。
+  const visible = unlockModalOpen || (passwordSet && !unlocked);
+  // 仅手动打开时允许关闭（误开可退出）；重锁自动弹时强制处理。
+  const canDismiss = unlockModalOpen;
 
   const handleSubmit = async () => {
     setError('');
@@ -54,13 +58,14 @@ export const UnlockModal: React.FC = () => {
       title={
         <div className={styles.titleRow}>
           <IconKey />
-          <span>输入主密码</span>
+          <span>{passwordSet ? '输入主密码' : '设置主密码'}</span>
         </div>
       }
       visible={visible}
       footer={null}
-      closable={false}
-      maskClosable={false}
+      closable={canDismiss}
+      maskClosable={canDismiss}
+      onCancel={closeUnlockModal}
     >
       <div className={styles.body}>
         <Input
@@ -90,7 +95,7 @@ export const UnlockModal: React.FC = () => {
           loading={loading}
           onClick={handleSubmit}
         >
-          解锁
+          {passwordSet ? '解锁' : '设置'}
         </Button>
       </div>
     </Modal>
