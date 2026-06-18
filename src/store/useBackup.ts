@@ -1,7 +1,5 @@
 import { create } from 'zustand';
-import { parseBackupFile } from '@/services/BackupService';
-import { exportAllData } from '@/shared/db/database';
-import { BACKUP_SCHEMA, BACKUP_VERSION } from '@/shared/types';
+import { parseBackupFile, buildBackupBlob } from '@/services/BackupService';
 import type { BackupData } from '@/shared/types';
 
 export type BackupStatus = 'idle' | 'validating' | 'confirming' | 'running' | 'success' | 'error';
@@ -53,15 +51,7 @@ export const useBackup = create<BackupState>((set, get) => ({
   exportData: async () => {
     set({ status: 'running', errorMessage: null });
     try {
-      const data = await exportAllData();
-      const file = {
-        schema: BACKUP_SCHEMA,
-        version: BACKUP_VERSION,
-        exportedAt: Date.now(),
-        appVersion: browser.runtime.getManifest().version,
-        data,
-      };
-      const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+      const blob = await buildBackupBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
