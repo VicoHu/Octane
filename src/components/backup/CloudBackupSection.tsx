@@ -139,7 +139,7 @@ export function CloudBackupSection() {
           }
         />
       )}
-      <Tabs activeKey={tab} onTabChange={(k) => setTab(k as ProviderId)}>
+      <Tabs activeKey={tab} onChange={(k) => setTab(k as ProviderId)}>
         {TABS.map((id) => (
           <Tabs.TabPane key={id} itemKey={id} tab={getCloudProvider(id).label} />
         ))}

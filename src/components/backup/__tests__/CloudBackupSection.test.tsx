@@ -54,7 +54,11 @@ const providers = vi.hoisted(() => ({
   cos: {
     id: 'cos',
     label: '腾讯云 COS',
-    configFields: [{ name: 'region', label: 'Region', type: 'text' as const, required: true }],
+    configFields: [
+      { name: 'region', label: 'Region', type: 'text' as const, required: true },
+      { name: 'accessKeyId', label: 'SecretId', type: 'text' as const, required: true },
+      { name: 'accessKeySecret', label: 'SecretKey', type: 'password' as const, required: true },
+    ],
   },
 }));
 vi.mock('@/services/cloud/providers', () => ({
@@ -85,6 +89,16 @@ describe('CloudBackupSection', () => {
     expect(screen.getByText('腾讯云 COS')).toBeTruthy();
     expect(screen.getByText('Region')).toBeTruthy();
     expect(screen.getByText('AccessKeySecret')).toBeTruthy();
+  });
+
+  it('点击「腾讯云 COS」Tab → 切换并显示 COS 字段（SecretId）', async () => {
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByText('阿里云 OSS')).toBeTruthy());
+    // 初始 OSS：有 AccessKeySecret，无 SecretId
+    expect(screen.queryByText('SecretId')).toBeNull();
+    fireEvent.click(screen.getByText('腾讯云 COS'));
+    await waitFor(() => expect(screen.getByText('SecretId')).toBeTruthy());
+    expect(screen.queryByText('AccessKeySecret')).toBeNull();
   });
 
   it('未解锁 → 显示 Banner + 内联解锁入口 + 操作按钮 disabled', async () => {
