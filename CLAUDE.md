@@ -92,6 +92,6 @@
 
 ## 页面UI/UX优化
 当任务涉及页面交互优化时：
-1. 优先考虑使用 Semi Design 组件库，而不是手动实现。使用 Semi Design组件库，可以使用 semi-design-guide skill。
+1. 优先考虑使用 Semi Design 组件库，而不是手动实现。使用 Semi Design组件库，可以使用 semi-ui-skills skill。
 2. 优先使用 ui-ux-pro-max skill。
 对于简单的页面交互优化，可以使用手动优化。
