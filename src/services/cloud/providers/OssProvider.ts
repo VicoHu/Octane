@@ -26,7 +26,7 @@ export class OssProvider implements CloudStorageProvider {
   }
 
   async testConnection(cfg: CloudStorageConfig): Promise<void> {
-    await this.buildClient(cfg).getBucketInfo({ bucket: cfg.bucket });
+    await this.buildClient(cfg).getBucketInfo(cfg.bucket);
   }
 
   async uploadBackup(cfg: CloudStorageConfig, blob: Blob): Promise<void> {

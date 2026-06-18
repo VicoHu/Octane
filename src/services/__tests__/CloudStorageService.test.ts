@@ -113,8 +113,8 @@ describe('CloudStorageService 凭证层', () => {
     await setupTestKey('main-password-1234');
     await saveCloudConfig('oss', cfg);
     await saveCloudConfig('cos', { ...cfg, bucket: 'cos-bucket' });
-    expect((await getCloudConfig('oss')).bucket).toBe('octane-test');
-    expect((await getCloudConfig('cos')).bucket).toBe('cos-bucket');
+    expect((await getCloudConfig('oss'))?.bucket).toBe('octane-test');
+    expect((await getCloudConfig('cos'))?.bucket).toBe('cos-bucket');
   });
 
   it('lastBackupAt 明文时间戳读写', async () => {
