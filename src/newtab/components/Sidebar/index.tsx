@@ -3,6 +3,7 @@ import { Select, Button, Input, Modal, SideSheet } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
+import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -133,6 +134,7 @@ export const Sidebar: React.FC = () => {
         width={380}
       >
         <LocalBackupSection />
+        <CloudBackupSection />
       </SideSheet>
 
       <Modal

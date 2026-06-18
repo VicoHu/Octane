@@ -1,17 +1,19 @@
 import SubPageHeader from './SubPageHeader';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
+import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import styles from '../popup.module.css';
 
 interface SettingsViewProps {
   onBack: () => void;
 }
 
-/** 设置子页面：本地数据备份（导入/导出）。 */
+/** 设置子页面：本地数据备份 + 云备份。 */
 export default function SettingsView({ onBack }: SettingsViewProps) {
   return (
     <div className={styles.settingsView}>
       <SubPageHeader title="设置" onBack={onBack} />
       <LocalBackupSection />
+      <CloudBackupSection />
     </div>
   );
 }
