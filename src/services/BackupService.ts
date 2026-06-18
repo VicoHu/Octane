@@ -3,7 +3,7 @@ import {
   BACKUP_VERSION,
 } from '@/shared/types';
 import type { BackupData, Bookmark, Category, Context, CryptoMetadata, Workspace } from '@/shared/types';
-import { replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
+import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
 
@@ -118,4 +118,20 @@ export async function applyImport(data: BackupData): Promise<void> {
   broadcastChange('bookmarks', 'put');
   broadcastChange('contexts', 'put');
   broadcastImport();
+}
+
+/**
+ * 构建备份 Blob（导出与云上传共用同一份）。
+ * 内部取存储态 exportAllData（contexts 含密文，不解密）。
+ */
+export async function buildBackupBlob(): Promise<Blob> {
+  const data = await exportAllData();
+  const file = {
+    schema: BACKUP_SCHEMA,
+    version: BACKUP_VERSION,
+    exportedAt: Date.now(),
+    appVersion: browser.runtime.getManifest().version,
+    data,
+  };
+  return new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
 }

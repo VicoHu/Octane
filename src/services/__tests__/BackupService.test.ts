@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { validateBackup, parseBackupFile, MAX_BACKUP_BYTES } from '@/services/BackupService';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const { getManifest } = vi.hoisted(() => ({ getManifest: vi.fn(() => ({ version: '0.1.3.5' })) }));
+vi.mock('wxt/browser', () => ({ browser: { runtime: { getManifest } } }));
+
+import { validateBackup, parseBackupFile, MAX_BACKUP_BYTES, buildBackupBlob } from '@/services/BackupService';
+import * as DB from '@/shared/db/database';
 import { BACKUP_SCHEMA, BACKUP_VERSION } from '@/shared/types';
 import type { BackupFile, BackupData } from '@/shared/types';
 
@@ -13,6 +18,8 @@ function makeFile(dataOver: Partial<BackupData> = {}, fileOver: Partial<BackupFi
     ...fileOver,
   };
 }
+
+const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null };
 
 describe('validateBackup', () => {
   it('合法空备份 → ok', () => {
@@ -89,5 +96,22 @@ describe('parseBackupFile', () => {
     const file = new File(['{不是json'], 'bad.json', { type: 'application/json' });
     const r = await parseBackupFile(file);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe('buildBackupBlob', () => {
+  beforeEach(() => {
+    getManifest.mockClear();
+  });
+
+  it('生成 schema/version/appVersion/data 正确的备份 Blob', async () => {
+    vi.spyOn(DB, 'exportAllData').mockResolvedValue(okData);
+    const blob = await buildBackupBlob();
+    const parsed = JSON.parse(await blob.text());
+    expect(parsed.schema).toBe(BACKUP_SCHEMA);
+    expect(parsed.version).toBe(BACKUP_VERSION);
+    expect(parsed.appVersion).toBe('0.1.3.5');
+    expect(parsed.data).toEqual(okData);
+    expect(getManifest).toHaveBeenCalled();
   });
 });

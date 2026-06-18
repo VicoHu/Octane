@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { parseBackupFile } from '@/services/BackupService';
-import { exportAllData } from '@/shared/db/database';
-import { BACKUP_SCHEMA, BACKUP_VERSION } from '@/shared/types';
+import { parseBackupFile, buildBackupBlob } from '@/services/BackupService';
+import * as CloudStorageService from '@/services/CloudStorageService';
 import type { BackupData } from '@/shared/types';
+import type { ProviderId, CloudStorageConfig } from '@/services/cloud/types';
 
 export type BackupStatus = 'idle' | 'validating' | 'confirming' | 'running' | 'success' | 'error';
 
@@ -15,6 +15,12 @@ interface BackupState {
   cancelImport: () => void;
   exportData: () => Promise<void>;
   reset: () => void;
+  saveCloudConfig: (id: ProviderId, config: CloudStorageConfig) => Promise<void>;
+  clearCloudConfig: (id: ProviderId) => Promise<void>;
+  testCloudConnection: (id: ProviderId) => Promise<void>;
+  uploadCloudBackup: (id: ProviderId) => Promise<void>;
+  restoreFromCloud: (id: ProviderId) => Promise<BackupData>;
+  applyCloudRestore: (data: BackupData) => Promise<void>;
 }
 
 const INITIAL = { status: 'idle' as BackupStatus, errorMessage: null as string | null, pendingData: null as BackupData | null };
@@ -53,15 +59,7 @@ export const useBackup = create<BackupState>((set, get) => ({
   exportData: async () => {
     set({ status: 'running', errorMessage: null });
     try {
-      const data = await exportAllData();
-      const file = {
-        schema: BACKUP_SCHEMA,
-        version: BACKUP_VERSION,
-        exportedAt: Date.now(),
-        appVersion: browser.runtime.getManifest().version,
-        data,
-      };
-      const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+      const blob = await buildBackupBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -75,4 +73,29 @@ export const useBackup = create<BackupState>((set, get) => ({
   },
 
   reset: () => set(INITIAL),
+
+  // ===== Cloud actions：薄封装，错误 throw，由组件 catch + Toast =====
+  saveCloudConfig: async (id, config) => {
+    await CloudStorageService.saveCloudConfig(id, config);
+  },
+  clearCloudConfig: async (id) => {
+    await CloudStorageService.clearCloudConfig(id);
+  },
+  testCloudConnection: async (id) => {
+    await CloudStorageService.testConnection(id);
+  },
+  uploadCloudBackup: async (id) => {
+    const blob = await buildBackupBlob();
+    await CloudStorageService.uploadBackup(id, blob);
+  },
+  restoreFromCloud: async (id) => {
+    const blob = await CloudStorageService.downloadBackup(id);
+    const r = await parseBackupFile(new File([blob], 'octane-cloud-backup.json'));
+    if (!r.ok) throw new Error(r.error);
+    return r.data;
+  },
+  applyCloudRestore: async (data) => {
+    const res = await browser.runtime.sendMessage({ type: 'octane:apply-import', data });
+    if (!res || !res.ok) throw new Error((res?.error as string) || '恢复失败');
+  },
 }));

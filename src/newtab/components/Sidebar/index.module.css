@@ -129,3 +129,30 @@
 .settingsButton {
   margin-top: var(--space-xs);
 }
+
+.settingsMenu {
+  margin-top: var(--space-xs);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.settingsMenuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text-muted);
+  font-size: var(--font-sm);
+  line-height: 1.5;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.settingsMenuItem:hover {
+  background: var(--sidebar-hover-bg);
+  color: #f1f5f9;
+}

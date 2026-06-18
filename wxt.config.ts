@@ -7,6 +7,7 @@ export default defineConfig({
     name: 'Octane',
     description: '书签 + 笔记 + 安全 — 浏览器里最方便的带笔记书签夹',
     permissions: ['storage', 'tabs', 'sidePanel'],
+    host_permissions: ['https://*.aliyuncs.com/*', 'https://*.myqcloud.com/*'],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'",
     },

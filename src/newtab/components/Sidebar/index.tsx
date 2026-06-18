@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { Select, Button, Input, Modal, SideSheet } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconSetting, IconKey, IconSave } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
+import { useCrypto } from '@/store/useCrypto';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
+import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -15,11 +17,18 @@ export const Sidebar: React.FC = () => {
   const deleteCategory = useWorkspace((s) => s.deleteCategory);
   const createWorkspace = useWorkspace((s) => s.createWorkspace);
 
+  // 主密码状态：驱动设置菜单「主密码」项的文案与动作
+  const passwordSet = useCrypto((s) => s.passwordSet);
+  const unlocked = useCrypto((s) => s.unlocked);
+  const openUnlockModal = useCrypto((s) => s.openUnlockModal);
+  const lockSession = useCrypto((s) => s.lockSession);
+
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -36,6 +45,13 @@ export const Sidebar: React.FC = () => {
   };
 
   const getPopupContainer = useCallback(() => document.getElementById('sidebar-container') || document.body, []);
+
+  // 主密码项自适应：未设置→设置；已设未解锁→解锁；已解锁→锁定
+  const passwordLabel = !passwordSet ? '设置主密码' : unlocked ? '锁定主密码' : '解锁主密码';
+  const handlePasswordClick = () => {
+    if (unlocked) lockSession();
+    else openUnlockModal();
+  };
 
   return (
     <div className={styles.sidebar}>
@@ -114,25 +130,45 @@ export const Sidebar: React.FC = () => {
         >
           添加分类
         </Button>
+        {/* 设置：前置选项（主密码 / 数据备份和同步），点击展开内联菜单 */}
+        {settingsMenuOpen && (
+          <div className={styles.settingsMenu}>
+            <button
+              type="button"
+              className={styles.settingsMenuItem}
+              onClick={() => { setSettingsMenuOpen(false); handlePasswordClick(); }}
+            >
+              <IconKey /> {passwordLabel}
+            </button>
+            <button
+              type="button"
+              className={styles.settingsMenuItem}
+              onClick={() => { setSettingsMenuOpen(false); setShowSettings(true); }}
+            >
+              <IconSave /> 数据备份和同步
+            </button>
+          </div>
+        )}
         <Button
           icon={<IconSetting />}
           block
           className={styles.settingsButton}
           aria-label="设置"
-          onClick={() => setShowSettings(true)}
+          onClick={() => setSettingsMenuOpen((o) => !o)}
         >
           设置
         </Button>
       </div>
 
-      {/* 设置侧边抽屉：本地数据导入导出（newtab 主管理页的备份入口） */}
+      {/* 设置侧边抽屉：本地 + 云数据备份（newtab 主管理页的备份入口） */}
       <SideSheet
-        title="设置"
+        title="数据备份和同步"
         visible={showSettings}
         onCancel={() => setShowSettings(false)}
         width={380}
       >
         <LocalBackupSection />
+        <CloudBackupSection />
       </SideSheet>
 
       <Modal
