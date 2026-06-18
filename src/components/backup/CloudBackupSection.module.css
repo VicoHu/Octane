@@ -1,0 +1,33 @@
+.cloudSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fieldRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fieldLabel {
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lastTime {
+  font-size: 13px;
+  color: var(--semi-color-text-2);
+}
+.confirmBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
