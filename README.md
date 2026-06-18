@@ -15,6 +15,7 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 - **多工作区** — 支持多工作区隔离（如：工作、个人、项目 A）
 - **分类组织** — 书签按分类组织，支持增删改
 - **全文搜索** — 搜索书签名称、URL、描述（加密上下文内容不参与搜索）
+- **数据备份与同步** — 本地全量导入导出（JSON，覆盖式）+ 阿里云 OSS / 腾讯云 COS 云备份恢复（凭证经主密码加密存储，策略模式可扩展其他服务商）
 
 ## 技术栈
 
@@ -72,6 +73,8 @@ octane/
 │   │       ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
 │   │       ├── UnlockModal/    # 主密码输入弹窗
 │   │       └── EmptyState/     # 空状态组件
+│   ├── components/
+│   │   └── backup/             # 共享备份组件（本地导入导出 + 云备份，popup/newtab 复用）
 │   ├── services/               # 业务服务层
 │   ├── store/                  # Zustand 状态管理
 │   └── shared/
@@ -133,7 +136,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.3.3**（MVP 开发阶段）
+当前版本：**0.1.3.5**（MVP 开发阶段）
 
 ## 许可
 
