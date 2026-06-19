@@ -1,5 +1,6 @@
 .card {
   cursor: pointer;
+  position: relative;
 }
 
 .favicon {
@@ -102,14 +103,42 @@
 }
 
 .actions {
-  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  right: var(--space-sm);
   display: flex;
-  border-left: 1px solid var(--border-color);
-  margin: calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) 0;
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  overflow: hidden;
+  gap: var(--space-xs);
+  opacity: 0;
+  transform: translateY(-50%) translateX(4px);
+  pointer-events: none;
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
 }
 
-.actionBtn + .actionBtn {
-  border-left: 1px solid var(--border-color);
+.card:hover .actions,
+.card:focus-within .actions {
+  opacity: 1;
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+
+.actionBtn {
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
+}
+
+/* 触屏设备无 hover：操作按钮常驻可见 */
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+    transform: translateY(-50%);
+    pointer-events: auto;
+  }
+}
+
+/* 尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .actions {
+    transition: none;
+    transform: translateY(-50%);
+  }
 }

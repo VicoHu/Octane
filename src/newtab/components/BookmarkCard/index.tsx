@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Button } from '@douyinfe/semi-ui';
-import { IconLock, IconEdit, IconEdit2 } from '@douyinfe/semi-icons';
+import { Card, Button, Tooltip } from '@douyinfe/semi-ui';
+import { IconLock, IconComment, IconEdit } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -72,30 +72,34 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
         )}
       </div>
 
-      {/* 操作按钮区 */}
+      {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
       <div className={styles.actions}>
-        <Button
-          theme="borderless"
-          size="small"
-          icon={<IconEdit />}
-          aria-label="查看上下文"
-          className={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewContexts(bookmark);
-          }}
-        />
-        <Button
-          theme="borderless"
-          size="small"
-          icon={<IconEdit2 />}
-          aria-label="编辑书签"
-          className={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditBookmark(bookmark);
-          }}
-        />
+        <Tooltip content="查看上下文">
+          <Button
+            theme="borderless"
+            type="tertiary"
+            icon={<IconComment />}
+            aria-label="查看上下文"
+            className={styles.actionBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewContexts(bookmark);
+            }}
+          />
+        </Tooltip>
+        <Tooltip content="编辑书签">
+          <Button
+            theme="borderless"
+            type="tertiary"
+            icon={<IconEdit />}
+            aria-label="编辑书签"
+            className={styles.actionBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditBookmark(bookmark);
+            }}
+          />
+        </Tooltip>
       </div>
     </Card>
   );
