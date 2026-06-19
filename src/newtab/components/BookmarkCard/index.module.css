@@ -1,19 +1,5 @@
 .card {
-  background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow);
-  padding: var(--space-lg);
   cursor: pointer;
-  display: flex;
-  gap: var(--space-md);
-  transition: box-shadow var(--transition-normal), transform var(--transition-normal), border-color var(--transition-normal);
-  border: 1px solid var(--border-color);
-}
-
-.card:hover {
-  box-shadow: var(--card-hover-shadow);
-  transform: translateY(-2px);
-  border-color: var(--primary);
 }
 
 .favicon {
@@ -124,23 +110,6 @@
   overflow: hidden;
 }
 
-.actionBtn {
-  width: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--transition-normal), color var(--transition-normal);
-}
-
 .actionBtn + .actionBtn {
   border-left: 1px solid var(--border-color);
-}
-
-.actionBtn:hover {
-  background: var(--primary);
-  color: #fff;
 }
