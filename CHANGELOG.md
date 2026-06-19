@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.4.1] - 2026-06-20
+
+### Changed
+
+- **newtab 展示组件迁移 Semi Design**：书签卡片（`Card` + 操作 `Button`）、骨架屏（`Skeleton`）、上下文列表（`List` + `Popconfirm`）、侧边栏设置菜单（`Dropdown`）与分类列表（`List`）统一改用 Semi 组件，提升视觉一致性与无障碍
+  - 书签卡片 favicon 加载失败回退首字母占位
+  - 侧边栏分类 active 态用 Semi primary-light，空分类显示提示
+  - Dropdown/Popconfirm 弹层锚定 sidebar 容器，防止跳出暗色区变亮
+- 侧边栏视觉统一 Semi dark 主题色（`--sidebar-*` 引用 Semi token，定义在 `.semi-always-dark` 作用域——Semi 语义 token 声明在 body 而非 :root，作用域错位会致背景透明白）
+
+### Fixed
+
+- 主密码弹窗「解锁/设置」按钮整体右偏 12px（Semi Modal footer 默认给按钮 `margin-left:12px`，单个 block 按钮清零复位）
+- 书签卡片 hover 效果不自然（去掉自定义位移，回归 Semi Card 标准阴影）
+
 ## [0.1.3.5] - 2026-06-18
 
 ### Added
