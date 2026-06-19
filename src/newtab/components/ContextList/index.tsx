@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SideSheet, Button, Popconfirm, Toast, Spin, Empty } from '@douyinfe/semi-ui';
+import { SideSheet, Button, Popconfirm, Toast, Spin, Empty, List } from '@douyinfe/semi-ui';
 import { IconPlus, IconLock, IconDelete } from '@douyinfe/semi-icons';
 import { getContexts, createContext, deleteContext } from '@/services/ContextService';
 import { ContextEditor } from '@/newtab/components/ContextEditor';
@@ -145,41 +145,47 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
                 </Button>
               </Empty>
             ) : (
-              <div className={styles.list}>
+              <List size="small">
                 {contexts.map((ctx) => (
-                  <div
+                  <List.Item
                     key={ctx.id}
-                    className={styles.contextItem}
                     onClick={() => setEditingContext(ctx)}
-                  >
-                    <div className={styles.contextInfo}>
-                      <div className={styles.contextTitle}>
-                        {ctx.title || '无标题'}
-                        {ctx.isEncrypted && <IconLock className={styles.contextLock} />}
+                    main={
+                      <div className={styles.contextInfo}>
+                        <div className={styles.contextTitle}>
+                          {ctx.title || '无标题'}
+                          {ctx.isEncrypted && <IconLock className={styles.contextLock} />}
+                        </div>
+                        <div className={styles.contextTime}>
+                          {new Date(ctx.updatedAt).toLocaleString()}
+                        </div>
                       </div>
-                      <div className={styles.contextTime}>
-                        {new Date(ctx.updatedAt).toLocaleString()}
-                      </div>
-                    </div>
-                    <Popconfirm
-                      title="确认删除该上下文？"
-                      onConfirm={(e) => {
-                        e?.stopPropagation();
-                        handleDelete(ctx.id);
-                      }}
-                      onCancel={(e) => e?.stopPropagation()}
-                    >
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="删除"
+                    }
+                    extra={
+                      <Popconfirm
+                        title="确认删除该上下文？"
+                        okType="danger"
+                        okText="删除"
+                        trigger="click"
+                        onConfirm={(e) => {
+                          e?.stopPropagation();
+                          handleDelete(ctx.id);
+                        }}
+                        onCancel={(e) => e?.stopPropagation()}
                       >
-                        <IconDelete />
-                      </button>
-                    </Popconfirm>
-                  </div>
+                        <Button
+                          theme="borderless"
+                          size="small"
+                          icon={<IconDelete />}
+                          aria-label="删除"
+                          className={styles.deleteBtn}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </Popconfirm>
+                    }
+                  />
                 ))}
-              </div>
+              </List>
             )}
           </div>
         )
