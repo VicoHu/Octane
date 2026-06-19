@@ -70,30 +70,6 @@
   border-radius: 2px;
 }
 
-.categoryItem {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  margin-bottom: 1px;
-  cursor: pointer;
-  background: transparent;
-  transition: background var(--transition-fast);
-}
-
-.categoryItem:hover {
-  background: var(--sidebar-hover-bg);
-}
-
-.categoryItemActive {
-  background: var(--sidebar-active-bg);
-}
-
-.categoryItemActive:hover {
-  background: var(--sidebar-active-bg);
-}
-
 .categoryName {
   font-size: var(--font-sm);
   overflow: hidden;
@@ -102,21 +78,33 @@
   line-height: 1.5;
 }
 
+/* active 分类项：dark scope 下用 Semi primary-light（rgba(blue-5,.2)） */
+.catActive {
+  background: var(--semi-color-primary-light-default);
+}
+
+.catActive:hover {
+  background: var(--semi-color-primary-light-active);
+}
+
+.emptyHint {
+  font-size: var(--font-xs);
+  color: var(--sidebar-text-muted);
+  text-align: center;
+  padding: var(--space-lg) 0;
+}
+
 .deleteIcon {
   font-size: var(--font-xs);
-  opacity: 0;
+  opacity: 0.5;
   cursor: pointer;
   flex-shrink: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), color var(--transition-fast);
   color: var(--sidebar-text-muted);
 }
 
-.categoryItem:hover .deleteIcon {
-  opacity: 0.6;
-}
-
 .deleteIcon:hover {
-  opacity: 1 !important;
+  opacity: 1;
   color: var(--danger);
 }
 
@@ -128,31 +116,4 @@
 
 .settingsButton {
   margin-top: var(--space-xs);
-}
-
-.settingsMenu {
-  margin-top: var(--space-xs);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.settingsMenuItem {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  background: transparent;
-  border: none;
-  color: var(--sidebar-text-muted);
-  font-size: var(--font-sm);
-  line-height: 1.5;
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.settingsMenuItem:hover {
-  background: var(--sidebar-hover-bg);
-  color: #f1f5f9;
 }

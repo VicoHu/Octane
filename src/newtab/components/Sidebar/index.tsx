@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Select, Button, Input, Modal, SideSheet } from '@douyinfe/semi-ui';
+import { Select, Button, Input, Modal, SideSheet, Dropdown, List } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting, IconKey, IconSave } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useCrypto } from '@/store/useCrypto';
@@ -28,7 +28,6 @@ export const Sidebar: React.FC = () => {
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -99,27 +98,36 @@ export const Sidebar: React.FC = () => {
       {/* 分类 */}
       <div className={styles.sectionLabel}>分类</div>
       <div className={styles.categoryList}>
-        {categories.map((cat) => {
-          const isActive = currentCategoryId === cat.id;
-          return (
-            <div
-              key={cat.id}
-              onClick={() => useWorkspace.getState().selectCategory(cat.id)}
-              className={`${styles.categoryItem} ${isActive ? styles.categoryItemActive : ''}`}
-            >
-              <span className={styles.categoryName}>
-                {cat.icon} {cat.name}
-              </span>
-              <IconDelete
-                className={styles.deleteIcon}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteCategory(cat.id);
-                }}
-              />
-            </div>
-          );
-        })}
+        {categories.length === 0 ? (
+          <div className={styles.emptyHint}>暂无分类</div>
+        ) : (
+          <List size="small">
+            {categories.map((cat) => {
+              const isActive = currentCategoryId === cat.id;
+              return (
+                <List.Item
+                  key={cat.id}
+                  className={isActive ? styles.catActive : undefined}
+                  onClick={() => useWorkspace.getState().selectCategory(cat.id)}
+                  main={
+                    <span className={styles.categoryName}>
+                      {cat.icon} {cat.name}
+                    </span>
+                  }
+                  extra={
+                    <IconDelete
+                      className={styles.deleteIcon}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteCategory(cat.id);
+                      }}
+                    />
+                  }
+                />
+              );
+            })}
+          </List>
+        )}
       </div>
 
       <div className={styles.bottomButton}>
@@ -130,34 +138,34 @@ export const Sidebar: React.FC = () => {
         >
           添加分类
         </Button>
-        {/* 设置：前置选项（主密码 / 数据备份和同步），点击展开内联菜单 */}
-        {settingsMenuOpen && (
-          <div className={styles.settingsMenu}>
-            <button
-              type="button"
-              className={styles.settingsMenuItem}
-              onClick={() => { setSettingsMenuOpen(false); handlePasswordClick(); }}
-            >
-              <IconKey /> {passwordLabel}
-            </button>
-            <button
-              type="button"
-              className={styles.settingsMenuItem}
-              onClick={() => { setSettingsMenuOpen(false); setShowSettings(true); }}
-            >
-              <IconSave /> 数据备份和同步
-            </button>
-          </div>
-        )}
-        <Button
-          icon={<IconSetting />}
-          block
-          className={styles.settingsButton}
-          aria-label="设置"
-          onClick={() => setSettingsMenuOpen((o) => !o)}
+        {/* 设置：前置选项（主密码 / 数据备份和同步），Dropdown 点击展开。
+            getPopupContainer 锚定 sidebar-container（dark scope + position:relative），
+            防 Portal 跳出变亮色。 */}
+        <Dropdown
+          trigger="click"
+          position="bottomLeft"
+          clickToHide
+          getPopupContainer={getPopupContainer}
+          render={
+            <Dropdown.Menu>
+              <Dropdown.Item icon={<IconKey />} onClick={handlePasswordClick}>
+                {passwordLabel}
+              </Dropdown.Item>
+              <Dropdown.Item icon={<IconSave />} onClick={() => setShowSettings(true)}>
+                数据备份和同步
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          }
         >
-          设置
-        </Button>
+          <Button
+            icon={<IconSetting />}
+            block
+            className={styles.settingsButton}
+            aria-label="设置"
+          >
+            设置
+          </Button>
+        </Dropdown>
       </div>
 
       {/* 设置侧边抽屉：本地 + 云数据备份（newtab 主管理页的备份入口） */}
