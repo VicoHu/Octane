@@ -18,14 +18,8 @@
 .logo {
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, var(--primary), #818cf8);
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: var(--font-sm);
-  color: #fff;
+  object-fit: cover;
   flex-shrink: 0;
 }
 
@@ -33,6 +27,7 @@
   font-size: var(--font-lg);
   font-weight: 700;
   letter-spacing: -0.01em;
+  margin-left: 0.15rem;
   color: #f1f5f9;
 }
 

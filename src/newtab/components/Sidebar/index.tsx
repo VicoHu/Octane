@@ -56,7 +56,7 @@ export const Sidebar: React.FC = () => {
     <div className={styles.sidebar}>
       {/* 品牌标题 */}
       <div className={styles.header}>
-        <div className={styles.logo}>O</div>
+        <img className={styles.logo} src="/icons/icon-128.png" alt="Octane" />
         <div className={styles.title}>Octane</div>
       </div>
 
