@@ -2,11 +2,12 @@ import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
 import { StickyHeader } from './components/StickyHeader';
 import { BookmarkGroup } from './components/BookmarkGroup';
+import { focusOrCreateHomeTab } from '@/shared/tabs/focusOrCreateHomeTab';
 import styles from './App.module.css';
 
-/** P2 占位：添加/管理按钮导航到 newtab（完整内联保存表单列后续）。 */
+/** 唤起 logo tab：当前窗口已有 pinned home tab → 聚焦，否则创建 pinned。 */
 function openNewtab() {
-  chrome.tabs.create({ url: chrome.runtime.getURL('newtab.html') });
+  void focusOrCreateHomeTab();
 }
 
 /**

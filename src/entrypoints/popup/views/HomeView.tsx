@@ -5,8 +5,10 @@ import {
   IconSetting,
   IconChevronRight,
   IconUser,
+  IconHome,
 } from '@douyinfe/semi-icons';
 import { useUser } from '../hooks/useUser';
+import { focusOrCreateHomeTab } from '@/shared/tabs/focusOrCreateHomeTab';
 import type { View } from '../navigation';
 import styles from '../popup.module.css';
 
@@ -16,7 +18,10 @@ interface HomeViewProps {
 }
 
 interface Feature {
-  key: Exclude<View, 'home'>;
+  /** 切换到目标视图（与 onClick 二选一）。 */
+  key?: Exclude<View, 'home'>;
+  /** 自定义点击行为，如唤起 logo tab（与 key 二选一）。 */
+  onClick?: () => void;
   icon: ReactNode;
   title: string;
   desc: string;
@@ -35,6 +40,12 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       title: '保存当前页面',
       desc: '把这个网页加入书签',
       primary: true,
+    },
+    {
+      onClick: () => void focusOrCreateHomeTab(),
+      icon: <IconHome />,
+      title: '打开书签主页',
+      desc: '在固定标签页管理全部书签',
     },
   ];
 
@@ -98,7 +109,7 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       <List className={styles.featureList} split>
         {features.map((f) => (
           <List.Item
-            key={f.key}
+            key={f.key ?? 'action'}
             className={f.primary ? styles.featureItemPrimary : styles.featureItem}
             header={f.icon}
             main={
@@ -112,7 +123,10 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
               </>
             }
             extra={<IconChevronRight />}
-            onClick={() => onNavigate(f.key)}
+            onClick={() => {
+              if (f.onClick) f.onClick();
+              else if (f.key) onNavigate(f.key);
+            }}
           />
         ))}
       </List>
