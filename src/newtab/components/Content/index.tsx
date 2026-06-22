@@ -4,6 +4,8 @@ import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
+import { useOpenTabs } from '@/newtab/hooks/useOpenTabs';
+import { normalizeUrl } from '@/shared/tabs/matchUrl';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
 import { EmptyState } from '@/newtab/components/EmptyState';
 import { ContextList } from '@/newtab/components/ContextList';
@@ -15,9 +17,9 @@ export const Content: React.FC = () => {
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
   const bookmarks = useBookmarks((s) => s.bookmarks);
-  const contextPreviews = useBookmarks((s) => s.contextPreviews);
   const loading = useBookmarks((s) => s.loading);
   const createBookmark = useBookmarks((s) => s.createBookmark);
+  const openUrls = useOpenTabs();
   const query = useSearch((s) => s.query);
   const setQuery = useSearch((s) => s.setQuery);
 
@@ -154,7 +156,7 @@ export const Content: React.FC = () => {
             <BookmarkCard
               key={bookmark.id}
               bookmark={bookmark}
-              contextPreview={contextPreviews[bookmark.id]}
+              hasOpenTab={openUrls.has(normalizeUrl(bookmark.url) ?? '')}
               onClick={handleCardClick}
               onViewContexts={handleViewContexts}
               onEditBookmark={handleEditBookmark}

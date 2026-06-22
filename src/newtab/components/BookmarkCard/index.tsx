@@ -6,13 +6,14 @@ import styles from './index.module.css';
 
 interface BookmarkCardProps {
   bookmark: Bookmark;
-  contextPreview?: string;
+  /** 该书签是否匹配到当前窗口已打开的 tab（左侧竖线标识） */
+  hasOpenTab?: boolean;
   onClick: (bookmark: Bookmark) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPreview, onClick, onViewContexts, onEditBookmark }) => {
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark }) => {
   const [faviconError, setFaviconError] = useState(false);
   const displayUrl = (() => {
     try {
@@ -22,16 +23,21 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
     }
   })();
 
+  // 上下文徽章 tooltip / aria-label：有加密时锁优先（设计 §2.1）
+  const badgeTooltip = bookmark.hasEncryptedContext
+    ? `包含加密上下文（${bookmark.contextCount} 条）`
+    : `${bookmark.contextCount} 条上下文`;
+
   return (
     <Card
       role="listitem"
-      aria-label={bookmark.hasEncryptedContext ? `${bookmark.name}，包含加密上下文` : bookmark.name}
+      aria-label={hasOpenTab ? `${bookmark.name}，已打开` : bookmark.name}
       onClick={() => onClick(bookmark)}
       shadows="hover"
       bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
-      className={styles.card}
+      className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''}`}
     >
-      {/* Favicon（faviconUrl 加载失败时回退首字母）*/}
+      {/* Favicon（faviconUrl 加载失败时回退首字母）+ 右下角上下文徽章 */}
       <div className={styles.favicon}>
         {bookmark.faviconUrl && !faviconError ? (
           <img
@@ -45,6 +51,21 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
             {bookmark.name.charAt(0).toUpperCase()}
           </div>
         )}
+        {bookmark.contextCount > 0 && (
+          <Tooltip content={badgeTooltip}>
+            <div
+              className={styles.contextBadge}
+              role="img"
+              aria-label={badgeTooltip}
+            >
+              {bookmark.hasEncryptedContext ? (
+                <IconLock className={styles.contextBadgeIcon} />
+              ) : (
+                <span className={styles.contextBadgeDot} />
+              )}
+            </div>
+          </Tooltip>
+        )}
       </div>
 
       {/* 右侧信息 */}
@@ -52,22 +73,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
         <div className={styles.name}>{bookmark.name}</div>
         <div className={styles.url}>{displayUrl}</div>
         {bookmark.description && (
-          <div className={`${styles.description} ${bookmark.contextCount > 0 ? styles.descriptionWithNote : ''}`}>
+          <div className={styles.description}>
             {bookmark.description}
-          </div>
-        )}
-
-        {/* 上下文预览 */}
-        {bookmark.contextCount > 0 && (
-          <div className={styles.noteRow}>
-            {bookmark.hasEncryptedContext ? (
-              <>
-                <IconLock className={styles.noteIcon} />
-                <span className={styles.noteText}>••••••••</span>
-              </>
-            ) : (
-              <span className={styles.notePreview}>{contextPreview}</span>
-            )}
           </div>
         )}
       </div>

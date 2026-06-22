@@ -26,10 +26,11 @@ const bookmark: Bookmark = {
   updatedAt: 0,
 };
 
-const renderCard = (overrides: Partial<Bookmark> = {}, handlers = {}) =>
+const renderCard = (overrides: Partial<Bookmark> = {}, handlers = {}, hasOpenTab?: boolean) =>
   render(
     <BookmarkCard
       bookmark={{ ...bookmark, ...overrides }}
+      hasOpenTab={hasOpenTab}
       onClick={handlers.onClick ?? vi.fn()}
       onViewContexts={handlers.onViewContexts ?? vi.fn()}
       onEditBookmark={handlers.onEditBookmark ?? vi.fn()}
@@ -69,17 +70,32 @@ describe('BookmarkCard', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  it('加密上下文书签显示脱敏文案，明文预览不泄露', () => {
-    const { container } = render(
-      <BookmarkCard
-        bookmark={{ ...bookmark, hasEncryptedContext: true, contextCount: 1 }}
-        contextPreview="明文机密内容"
-        onClick={vi.fn()}
-        onViewContexts={vi.fn()}
-        onEditBookmark={vi.fn()}
-      />,
-    );
-    expect(screen.getByText('••••••••')).toBeTruthy();
-    expect(container.textContent).not.toContain('明文机密内容');
+  it('加密上下文书签显示锁徽章（替代旧脱敏文案）', () => {
+    renderCard({ hasEncryptedContext: true, contextCount: 1 });
+    const badge = screen.getByRole('img', { name: '包含加密上下文（1 条）' });
+    // 锁徽章内含 svg（IconLock）
+    expect(badge.querySelector('svg')).toBeTruthy();
+  });
+
+  it('明文上下文书签显示圆点徽章（无锁图标）', () => {
+    renderCard({ contextCount: 2 });
+    const badge = screen.getByRole('img', { name: '2 条上下文' });
+    // 圆点徽章不含 svg
+    expect(badge.querySelector('svg')).toBeNull();
+  });
+
+  it('无上下文书签不渲染徽章', () => {
+    renderCard({ contextCount: 0 });
+    expect(screen.queryByRole('img', { name: /上下文/ })).toBeNull();
+  });
+
+  it('hasOpenTab 时 Card aria-label 标注已打开', () => {
+    const { container } = renderCard({}, {}, true);
+    expect(container.querySelector('[aria-label="GitHub，已打开"]')).toBeTruthy();
+  });
+
+  it('hasOpenTab 缺省时 Card aria-label 仅书签名', () => {
+    const { container } = renderCard();
+    expect(container.querySelector('[aria-label="GitHub"]')).toBeTruthy();
   });
 });
