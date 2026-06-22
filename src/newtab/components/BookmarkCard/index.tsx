@@ -1,5 +1,6 @@
-import React from 'react';
-import { IconLock, IconEdit, IconEdit2 } from '@douyinfe/semi-icons';
+import React, { useState } from 'react';
+import { Card, Button, Tooltip } from '@douyinfe/semi-ui';
+import { IconLock, IconComment, IconEdit } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -12,6 +13,7 @@ interface BookmarkCardProps {
 }
 
 export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPreview, onClick, onViewContexts, onEditBookmark }) => {
+  const [faviconError, setFaviconError] = useState(false);
   const displayUrl = (() => {
     try {
       return new URL(bookmark.url).hostname;
@@ -21,22 +23,22 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
   })();
 
   return (
-    <div
+    <Card
       role="listitem"
       aria-label={bookmark.hasEncryptedContext ? `${bookmark.name}，包含加密上下文` : bookmark.name}
       onClick={() => onClick(bookmark)}
+      shadows="hover"
+      bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
       className={styles.card}
     >
-      {/* Favicon */}
+      {/* Favicon（faviconUrl 加载失败时回退首字母）*/}
       <div className={styles.favicon}>
-        {bookmark.faviconUrl ? (
+        {bookmark.faviconUrl && !faviconError ? (
           <img
             src={bookmark.faviconUrl}
             alt=""
             className={styles.faviconImg}
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
+            onError={() => setFaviconError(true)}
           />
         ) : (
           <div className={styles.fallback}>
@@ -70,29 +72,35 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, contextPre
         )}
       </div>
 
-      {/* 操作按钮区 */}
+      {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
       <div className={styles.actions}>
-        <button
-          className={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewContexts(bookmark);
-          }}
-          aria-label="查看上下文"
-        >
-          <IconEdit />
-        </button>
-        <button
-          className={styles.actionBtn}
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditBookmark(bookmark);
-          }}
-          aria-label="编辑书签"
-        >
-          <IconEdit2 />
-        </button>
+        <Tooltip content="查看上下文">
+          <Button
+            theme="borderless"
+            type="tertiary"
+            icon={<IconComment />}
+            aria-label="查看上下文"
+            className={styles.actionBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewContexts(bookmark);
+            }}
+          />
+        </Tooltip>
+        <Tooltip content="编辑书签">
+          <Button
+            theme="borderless"
+            type="tertiary"
+            icon={<IconEdit />}
+            aria-label="编辑书签"
+            className={styles.actionBtn}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditBookmark(bookmark);
+            }}
+          />
+        </Tooltip>
       </div>
-    </div>
+    </Card>
   );
 };

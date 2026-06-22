@@ -3,16 +3,9 @@
   --sidebar-width: 260px;
   --header-height: 56px;
 
-  /* === 暗色侧边栏 === */
-  --sidebar-bg: #0f172a;
-  --sidebar-text: #e2e8f0;
-  --sidebar-text-muted: #94a3b8;
-  --sidebar-active-bg: #1e293b;
-  --sidebar-hover-bg: #1e293b;
-  --sidebar-border: #1e293b;
-
   /* === 浅色内容区 === */
   --content-bg: #f8fafc;
+  --surface-secondary: #f1f5f9;
   --card-bg: #ffffff;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
@@ -53,6 +46,18 @@
   /* === 过渡 === */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
+}
+
+/* === 暗色侧边栏 token（必须在 .semi-always-dark scope 定义：Semi 的 --semi-color-*
+   声明在 body 选择器而非 :root，:root 内 var(--semi-color-*) 解析为空 → --sidebar-*
+   invalid → sidebar 背景透明显白。放到 sidebar 元素上才能取到 dark 值）=== */
+.semi-always-dark {
+  --sidebar-bg: var(--semi-color-bg-1);
+  --sidebar-text: var(--semi-color-text-0);
+  --sidebar-text-muted: var(--semi-color-text-2);
+  --sidebar-active-bg: var(--semi-color-fill-2);
+  --sidebar-hover-bg: var(--semi-color-fill-1);
+  --sidebar-border: var(--semi-color-border);
 }
 
 *, *::before, *::after {

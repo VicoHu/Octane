@@ -63,7 +63,9 @@ export const UnlockModal: React.FC = () => {
       }
       visible={visible}
       footer={
-        <Button theme="solid" block loading={loading} onClick={handleSubmit}>
+        // Semi Modal footer 默认给 .semi-button margin-left:12px（多按钮右对齐间距），
+        // block 撑满按钮需清零，否则整体右偏 12px
+        <Button theme="solid" block loading={loading} onClick={handleSubmit} style={{ marginLeft: 0 }}>
           {passwordSet ? '解锁' : '设置'}
         </Button>
       }

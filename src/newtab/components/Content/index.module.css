@@ -36,22 +36,6 @@
   gap: var(--space-lg);
 }
 
-.skeleton {
-  height: 104px;
-  background: linear-gradient(90deg, var(--border-color) 25%, #f1f5f9 50%, var(--border-color) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: var(--radius-lg);
-}
-
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
-    background: var(--border-color);
-  }
+.skeletonCard {
+  padding: var(--space-lg);
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Input, Button, Modal, Form, Toast } from '@douyinfe/semi-ui';
+import { Input, Button, Modal, Form, Toast, Skeleton } from '@douyinfe/semi-ui';
 import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
@@ -130,7 +130,16 @@ export const Content: React.FC = () => {
       {loading ? (
         <div className={styles.grid}>
           {[1, 2, 3].map((i) => (
-            <div key={i} className={styles.skeleton} />
+            <Skeleton
+              key={i}
+              active
+              placeholder={
+                <div className={styles.skeletonCard}>
+                  <Skeleton.Title style={{ width: '60%', marginBottom: 12 }} />
+                  <Skeleton.Paragraph rows={2} />
+                </div>
+              }
+            />
           ))}
         </div>
       ) : filteredBookmarks.length === 0 ? (

@@ -1,19 +1,6 @@
 .card {
-  background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--card-shadow);
-  padding: var(--space-lg);
   cursor: pointer;
-  display: flex;
-  gap: var(--space-md);
-  transition: box-shadow var(--transition-normal), transform var(--transition-normal), border-color var(--transition-normal);
-  border: 1px solid var(--border-color);
-}
-
-.card:hover {
-  box-shadow: var(--card-hover-shadow);
-  transform: translateY(-2px);
-  border-color: var(--primary);
+  position: relative;
 }
 
 .favicon {
@@ -116,31 +103,42 @@
 }
 
 .actions {
-  flex-shrink: 0;
+  position: absolute;
+  top: 50%;
+  right: var(--space-sm);
   display: flex;
-  border-left: 1px solid var(--border-color);
-  margin: calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) calc(var(--space-lg) * -1) 0;
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  overflow: hidden;
+  gap: var(--space-xs);
+  opacity: 0;
+  transform: translateY(-50%) translateX(4px);
+  pointer-events: none;
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+}
+
+.card:hover .actions,
+.card:focus-within .actions {
+  opacity: 1;
+  transform: translateY(-50%);
+  pointer-events: auto;
 }
 
 .actionBtn {
-  width: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: background var(--transition-normal), color var(--transition-normal);
+  background: var(--card-bg);
+  border-radius: var(--radius-md);
 }
 
-.actionBtn + .actionBtn {
-  border-left: 1px solid var(--border-color);
+/* 触屏设备无 hover：操作按钮常驻可见 */
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+    transform: translateY(-50%);
+    pointer-events: auto;
+  }
 }
 
-.actionBtn:hover {
-  background: var(--primary);
-  color: #fff;
+/* 尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .actions {
+    transition: none;
+    transform: translateY(-50%);
+  }
 }
