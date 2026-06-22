@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.4.2] - 2026-06-22
+
+### Changed
+
+- **NewTab 改为 pinned logo tab（放弃 `chrome_url_overrides.newtab`）**：参考 Workona，改为在 tab 栏最左常驻一个 pinned home tab 作为书签主页入口，不再劫持每个新标签页
+  - 入口改名 `src/entrypoints/newtab/` → `home/`（wxt Unlisted Page，移除 `chrome_url_overrides`），Ctrl+T 恢复 Chrome 默认新标签页
+  - pinned tab Chrome 原生无关闭按钮（仅 Ctrl+W 可关），favicon 显示 Octane logo
+  - 新增 `src/shared/tabs/focusOrCreateHomeTab.ts`：当前窗口已有 pinned home tab 则聚焦，否则创建（sidepanel「在 Octane 管理」、popup「打开书签主页」、background 事件共用去重唤起）
+  - background `onInstalled` / `onStartup` / `windows.onCreated` 保证每窗口常驻；尊重用户意图不做 `onRemoved` 强制重建
+  - 与 Side Panel 互补：Side Panel 给当前页上下文，logo tab 给全局书签管理
+
+### Fixed
+
+- `home/index.html` 补 favicon `<link>`（pinned tab 图标显示）
+
+### Known Issues
+
+- popup 不可达（`openPanelOnActionClick:true` 覆盖 `default_popup`，左击只开 Side Panel）——独立 issue #13 跟进；不影响 logo tab 功能（唤起靠 pinned tab + Side Panel）
+
 ## [0.1.4.1] - 2026-06-20
 
 ### Changed

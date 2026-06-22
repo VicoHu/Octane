@@ -1,8 +1,42 @@
 import { handleMessage } from '@/services/BackupMessaging';
+import {
+  focusOrCreateHomeTab,
+  ensureHomeTabInAllWindows,
+} from '@/shared/tabs/focusOrCreateHomeTab';
 
 // onMessage listener 顶层注册：service worker 一加载即注册，
 // 避免 listener 在 main() 内因 SW 唤醒时序导致首次 sendMessage 收到 "Receiving end does not exist"。
 browser.runtime.onMessage.addListener((msg) => handleMessage(msg));
+
+// logo tab 常驻保证：顶层注册（与 onMessage 同策略，避免 SW 唤醒时序丢事件）。
+// 放弃 newtab override 后，改为每窗口常驻一个 pinned home tab（见 home entrypoint + focusOrCreateHomeTab）。
+// - install：首次安装，当前窗口唤起 logo tab
+// - update / startup：升级 / 浏览器启动，补齐所有窗口
+// - windows.onCreated：每个新窗口放一个 logo tab
+browser.runtime.onInstalled.addListener((details) => {
+  const reason = details.reason;
+  if (reason === 'install') {
+    focusOrCreateHomeTab().catch((e) =>
+      console.error('[octane] onInstalled(install) 唤起 logo tab 失败', e),
+    );
+  } else if (reason === 'update') {
+    ensureHomeTabInAllWindows().catch((e) =>
+      console.error('[octane] onInstalled(update) 补齐 logo tab 失败', e),
+    );
+  }
+});
+browser.runtime.onStartup.addListener(() => {
+  ensureHomeTabInAllWindows().catch((e) =>
+    console.error('[octane] onStartup 补齐 logo tab 失败', e),
+  );
+});
+browser.windows.onCreated.addListener((window) => {
+  if (window.id != null) {
+    focusOrCreateHomeTab(window.id).catch((e) =>
+      console.error('[octane] windows.onCreated 唤起 logo tab 失败', e),
+    );
+  }
+});
 
 export default defineBackground({
   main() {
