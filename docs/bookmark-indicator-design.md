@@ -368,3 +368,35 @@ const handleCardClick = (bookmark: Bookmark) => {
 - ✅ wxt build：732ms 构建成功
 - ✅ tsc：零新增错误
 - commit：`1a150d7`（Phase 2）、`6d1319e`（Phase 3）
+
+---
+
+## 9. 匹配方案修正：段边界前缀（2026-06-23，#15）
+
+### 9.1 问题
+
+§8.1 的实现（`Map<host+pathname, tabId>` + **精确匹配**）存在缺陷：书签 `vicohu.com` 打开后，tab 在页面内导航到 `/archives/hello-halo`，pathname 变化导致精确匹配失配，竖线消失。
+
+### 9.2 方案演进（双轨 → 单轨）
+
+- **office-hours 定双轨**：识别轨（站点匹配）+ 跳转轨（tabId binding via `chrome.storage.session`）。
+- **plan-eng-review outside voice（Codex）推翻为单轨**，两个理由：
+  1. **P0 跨窗静默失败**：`storage.session` 是扩展级、不 window-scoped，跨窗口 binding + `focusTab`（仅 `tabs.update` 不跨窗）= 窗口 B 点书签静默失败。
+  2. **战略过度工程**：原始 bug 严重度低（竖线视觉不准，点击仍正常新建），双轨为「同站多书签」罕见场景引入 binding+storage+监听，违反简单优先。
+
+### 9.3 最终实现（50 行单轨）
+
+- **`matchUrl.ts`**：保留 `normalizeUrl`，新增 `bookmarkMatchesOpenTab(bmUrl, tabUrl)`：host 相等 + 段边界前缀（`tabPath===bmPath || tabPath.startsWith(bmPath+'/')`，`normPath` 归一末尾斜杠、根 `/`→`''`）。
+- **`useOpenTabs.ts`**：返回 `Array<{url,tabId,lastAccessed}>`（替代 §8.1 的 `Map`），按 `lastAccessed` 降序——`handleCardClick` 的 `find` 取首个即最近活跃。
+- **`Content/index.tsx`**：`hasOpenTab` 用 `some`、`handleCardClick` 用 `find`，无 binding，未匹配走 `window.open`。
+
+### 9.4 接受的权衡
+
+- 根书签（path `/`）匹配同站任意页（站点根书签，开着站点任何页算）。
+- 同站多书签点击退化为「聚焦最近活跃同站 tab」（场景罕见，实际等价）。
+
+### 9.5 验证
+
+- ✅ vitest：`matchUrl.test.ts`（15，含 `[REGRESSION]` + mutation 验证段边界）+ `useOpenTabs.test.ts`（6）；全量 252/252 pass。
+- ✅ tsc：改动文件零新增错误。
+- commit：`6c8ba19`（fix）、`58946a0`（release 0.1.4.3）；PR #16。
