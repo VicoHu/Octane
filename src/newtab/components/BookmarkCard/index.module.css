@@ -114,6 +114,17 @@
   background: var(--primary);
 }
 
+/* Phase 3：点击跳转时竖线脉冲动效（设计 §4.3） */
+.cardHasOpenTab.pulsing::before {
+  animation: tabPulse 0.4s ease-out;
+}
+
+@keyframes tabPulse {
+  0%   { transform: scaleY(1); opacity: 1; }
+  50%  { transform: scaleY(1.3); opacity: 0.8; }
+  100% { transform: scaleY(1); opacity: 1; }
+}
+
 .actions {
   position: absolute;
   top: 50%;
@@ -152,5 +163,8 @@
   .actions {
     transition: none;
     transform: translateY(-50%);
+  }
+  .cardHasOpenTab.pulsing::before {
+    animation: none;
   }
 }

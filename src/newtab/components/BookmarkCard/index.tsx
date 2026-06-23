@@ -15,6 +15,8 @@ interface BookmarkCardProps {
 
 export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark }) => {
   const [faviconError, setFaviconError] = useState(false);
+  // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
+  const [pulsing, setPulsing] = useState(false);
   const displayUrl = (() => {
     try {
       return new URL(bookmark.url).hostname;
@@ -32,10 +34,17 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
     <Card
       role="listitem"
       aria-label={hasOpenTab ? `${bookmark.name}，已打开` : bookmark.name}
-      onClick={() => onClick(bookmark)}
+      onClick={() => {
+        onClick(bookmark);
+        // 有已打开 tab 时触发竖线脉冲（跳转反馈）
+        if (hasOpenTab) {
+          setPulsing(true);
+          setTimeout(() => setPulsing(false), 400);
+        }
+      }}
       shadows="hover"
       bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
-      className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''}`}
+      className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
     >
       {/* Favicon（faviconUrl 加载失败时回退首字母）+ 右下角上下文徽章 */}
       <div className={styles.favicon}>
