@@ -8,7 +8,10 @@ import { normalizeUrl } from '@/shared/tabs/matchUrl';
 declare const chrome: unknown;
 
 interface ChromeTabLike {
+  id?: number;
   url?: string;
+  /** 最近活跃时间（毫秒时间戳），用于同 key 多 tab 时取最近活跃的 */
+  lastAccessed?: number;
 }
 
 interface TabsEventEmitter {
@@ -26,19 +29,20 @@ interface ChromeLike {
 }
 
 /**
- * 监听当前窗口已打开的 tab，返回规范化的 host+pathname 集合。
+ * 监听当前窗口已打开的 tab，返回「规范化 host+pathname → tabId」映射。
  *
- * 用于 BookmarkCard 的"已打开 Tab"左侧竖线标识（设计 §2.2）。
+ * 用于 BookmarkCard 的「已打开 Tab」左侧竖线标识（设计 §2.2）+ Phase 2 点击跳转。
  *
  * - 挂载时 query 一次当前窗口全部 tab
- * - 监听 tabs.onCreated/onUpdated/onRemoved 实时刷新（tab 开关/导航后竖线同步）
+ * - 监听 tabs.onCreated/onUpdated/onRemoved 实时刷新（tab 开关/导航后同步）
  * - 卸载时移除监听
- * - chrome 不可用时（测试 / 非扩展环境）返回空集合，不抛错
+ * - chrome 不可用时（测试 / 非扩展环境）返回空 Map，不抛错
+ * - 同一 host+pathname 匹配多个 tab 时，取 lastAccessed 最大的（最近活跃）
  *
  * 匹配规则见 matchUrl.ts（host + pathname 精确比较）。
  */
-export function useOpenTabs(): Set<string> {
-  const [openUrls, setOpenUrls] = useState<Set<string>>(new Set());
+export function useOpenTabs(): Map<string, number> {
+  const [openTabs, setOpenTabs] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
     const c = chrome as unknown as ChromeLike | undefined;
@@ -50,12 +54,20 @@ export function useOpenTabs(): Set<string> {
       try {
         const tabs = await c.tabs.query({ currentWindow: true });
         if (!active) return;
-        const set = new Set<string>();
+        const map = new Map<string, number>();
+        const lastSeen = new Map<string, number>();
         for (const t of tabs) {
+          if (t.id == null) continue;
           const key = normalizeUrl(t.url ?? '');
-          if (key) set.add(key);
+          if (!key) continue;
+          // 同 key 多 tab：保留 lastAccessed 最大的（最近活跃）
+          const ts = t.lastAccessed ?? 0;
+          if (ts >= (lastSeen.get(key) ?? -1)) {
+            lastSeen.set(key, ts);
+            map.set(key, t.id);
+          }
         }
-        setOpenUrls(set);
+        setOpenTabs(map);
       } catch {
         // query 失败（权限 / 环境问题）保持上次状态，不抛错
       }
@@ -74,5 +86,5 @@ export function useOpenTabs(): Set<string> {
     };
   }, []);
 
-  return openUrls;
+  return openTabs;
 }

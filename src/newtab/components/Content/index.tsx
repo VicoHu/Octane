@@ -6,6 +6,7 @@ import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
 import { useOpenTabs } from '@/newtab/hooks/useOpenTabs';
 import { normalizeUrl } from '@/shared/tabs/matchUrl';
+import { focusTab } from '@/shared/tabs/focusTab';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
 import { EmptyState } from '@/newtab/components/EmptyState';
 import { ContextList } from '@/newtab/components/ContextList';
@@ -19,7 +20,7 @@ export const Content: React.FC = () => {
   const bookmarks = useBookmarks((s) => s.bookmarks);
   const loading = useBookmarks((s) => s.loading);
   const createBookmark = useBookmarks((s) => s.createBookmark);
-  const openUrls = useOpenTabs();
+  const openTabs = useOpenTabs();
   const query = useSearch((s) => s.query);
   const setQuery = useSearch((s) => s.setQuery);
 
@@ -59,7 +60,14 @@ export const Content: React.FC = () => {
   };
 
   const handleCardClick = (bookmark: Bookmark) => {
-    window.open(bookmark.url, '_blank');
+    // Phase 2：匹配到已打开 tab → 聚焦该 tab；否则新建标签
+    const key = normalizeUrl(bookmark.url);
+    const tabId = key ? openTabs.get(key) : undefined;
+    if (tabId != null) {
+      void focusTab(tabId);
+    } else {
+      window.open(bookmark.url, '_blank');
+    }
   };
 
   const handleViewContexts = (bookmark: Bookmark) => {
@@ -156,7 +164,7 @@ export const Content: React.FC = () => {
             <BookmarkCard
               key={bookmark.id}
               bookmark={bookmark}
-              hasOpenTab={openUrls.has(normalizeUrl(bookmark.url) ?? '')}
+              hasOpenTab={openTabs.has(normalizeUrl(bookmark.url) ?? '')}
               onClick={handleCardClick}
               onViewContexts={handleViewContexts}
               onEditBookmark={handleEditBookmark}
