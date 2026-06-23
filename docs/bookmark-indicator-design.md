@@ -345,3 +345,26 @@ const handleCardClick = (bookmark: Bookmark) => {
 - ✅ vitest：38 文件 / 231 测试全绿（含新增 4 个徽章 + hasOpenTab 用例）
 - ✅ wxt build：904ms 构建成功（输出 .output/chrome-mv3/）
 - ⚠️ tsc --noEmit：报错均为项目既有问题（chrome 未声明、Semi Card role 属性、测试 handlers 隐式 any），本次改动**未引入新类型错误**
+
+---
+
+## 8. Phase 2/3 实现记录（2026-06-23 实施，issue #15）
+
+### 8.1 Phase 2：点击已打开书签直接跳转 Tab
+
+- **useOpenTabs 扩展**：返回 `Set<string>` → `Map<host+pathname, tabId>`，同 key 多 tab 取 `lastAccessed` 最新（最近活跃）。
+- **新建 focusTab helper**（`src/shared/tabs/focusTab.ts`）：`chrome.tabs.update(tabId, {active:true})`。tab 来自 currentWindow 查询，无需 windows.update。
+- **Content handleCardClick**：有匹配 tab → `focusTab(tabId)`；无 → `window.open(url,'_blank')`。
+
+### 8.2 Phase 3：跳转脉冲动效
+
+- 点击 hasOpenTab 书签触发竖线 0.4s 脉冲（`tabPulse` keyframes）。
+- `pulsing` state + setTimeout(400ms) 清除（保留 Phase 1 伪元素竖线，未改结构）。
+- `prefers-reduced-motion` 下禁用动画。
+
+### 8.3 验证
+
+- ✅ vitest：231 测试全绿（未破坏现有用例）
+- ✅ wxt build：732ms 构建成功
+- ✅ tsc：零新增错误
+- commit：`1a150d7`（Phase 2）、`6d1319e`（Phase 3）
