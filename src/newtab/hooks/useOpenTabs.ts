@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { normalizeUrl } from '@/shared/tabs/matchUrl';
 
 /**
  * chrome 最小子集类型（项目无 @types/chrome，参考 focusOrCreateHomeTab.ts 的断言模式）。
@@ -10,7 +9,7 @@ declare const chrome: unknown;
 interface ChromeTabLike {
   id?: number;
   url?: string;
-  /** 最近活跃时间（毫秒时间戳），用于同 key 多 tab 时取最近活跃的 */
+  /** 最近活跃时间（毫秒时间戳），用于排序取最近活跃的 tab */
   lastAccessed?: number;
 }
 
@@ -28,21 +27,28 @@ interface ChromeLike {
   };
 }
 
+/** 已打开 Tab 的最小投影：Content 层用 bookmarkMatchesOpenTab 做前缀匹配。 */
+export interface OpenTab {
+  url: string;
+  tabId: number;
+  lastAccessed: number;
+}
+
 /**
- * 监听当前窗口已打开的 tab，返回「规范化 host+pathname → tabId」映射。
+ * 监听当前窗口已打开的 tab，返回「按最近活跃降序」的 OpenTab 列表。
  *
  * 用于 BookmarkCard 的「已打开 Tab」左侧竖线标识（设计 §2.2）+ Phase 2 点击跳转。
  *
  * - 挂载时 query 一次当前窗口全部 tab
  * - 监听 tabs.onCreated/onUpdated/onRemoved 实时刷新（tab 开关/导航后同步）
  * - 卸载时移除监听
- * - chrome 不可用时（测试 / 非扩展环境）返回空 Map，不抛错
- * - 同一 host+pathname 匹配多个 tab 时，取 lastAccessed 最大的（最近活跃）
+ * - chrome 不可用时（测试 / 非扩展环境）返回空列表，不抛错
  *
- * 匹配规则见 matchUrl.ts（host + pathname 精确比较）。
+ * 返回降序列表：Content 的 handleCardClick 用 find 取首个匹配，即最近活跃的同站 tab。
+ * 匹配规则（段边界前缀）见 matchUrl.ts 的 bookmarkMatchesOpenTab。
  */
-export function useOpenTabs(): Map<string, number> {
-  const [openTabs, setOpenTabs] = useState<Map<string, number>>(new Map());
+export function useOpenTabs(): OpenTab[] {
+  const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
 
   useEffect(() => {
     const c = chrome as unknown as ChromeLike | undefined;
@@ -54,20 +60,14 @@ export function useOpenTabs(): Map<string, number> {
       try {
         const tabs = await c.tabs.query({ currentWindow: true });
         if (!active) return;
-        const map = new Map<string, number>();
-        const lastSeen = new Map<string, number>();
+        const list: OpenTab[] = [];
         for (const t of tabs) {
-          if (t.id == null) continue;
-          const key = normalizeUrl(t.url ?? '');
-          if (!key) continue;
-          // 同 key 多 tab：保留 lastAccessed 最大的（最近活跃）
-          const ts = t.lastAccessed ?? 0;
-          if (ts >= (lastSeen.get(key) ?? -1)) {
-            lastSeen.set(key, ts);
-            map.set(key, t.id);
-          }
+          if (t.id == null || !t.url) continue;
+          list.push({ url: t.url, tabId: t.id, lastAccessed: t.lastAccessed ?? 0 });
         }
-        setOpenTabs(map);
+        // 按最近活跃降序：handleCardClick 的 find 取首个即最近活跃同站 tab
+        list.sort((a, b) => b.lastAccessed - a.lastAccessed);
+        setOpenTabs(list);
       } catch {
         // query 失败（权限 / 环境问题）保持上次状态，不抛错
       }
