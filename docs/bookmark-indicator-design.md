@@ -1,6 +1,6 @@
 # Octane 书签状态标识系统设计方案
 
-> 状态：已评审 | 适用版本：v0.1.4.2+ | 作者：Sisyphus (AI Design Agent)
+> 状态：已评审 | 适用版本：v0.1.4.3+ | 作者：Sisyphus (AI Design Agent)
 
 ---
 
@@ -276,6 +276,8 @@ const handleCardClick = (bookmark: Bookmark) => {
 
 ## 5. 实施清单
 
+> 实施状态见 §7.1：前 4 块（BookmarkCard 组件/样式、Content、测试）已完成；Side Panel BookmarkGroup（§5 末项，可选）未实施。
+
 - [ ] **BookmarkCard 组件**
   - [ ] 移除 `noteRow` 及其相关样式（`notePreview`, `noteText`, `noteIcon`）
   - [ ] 在 Favicon 容器内添加 `ContextBadge` 组件
@@ -333,7 +335,7 @@ const handleCardClick = (bookmark: Bookmark) => {
 
 ### 7.2 与设计的偏差（用户决策 + 实现细化）
 
-1. **URL 匹配策略（§2.2）**：设计未定义匹配规则，实现采用用户决策的 **host + pathname 精确比较**（忽略 protocol/query/hash），非 hostname 模糊匹配。工具：`src/shared/tabs/matchUrl.ts`。
+1. **URL 匹配策略（§2.2）**：设计未定义匹配规则，实现采用用户决策的 **host + pathname 精确比较**（忽略 protocol/query/hash），非 hostname 模糊匹配。工具：`src/shared/tabs/matchUrl.ts`。**注**：该精确匹配方案后在 §9 修正为段边界前缀匹配（修复 tab 导航子路径后竖线失配）。
 2. **contextPreviews 死代码清理（超出 §5 清单）**：设计只提移除 noteRow 样式，实际还清理了 `useBookmarks` 的整个 `contextPreviews` 数据层（state + loadBookmarks 批量加载段 + deleteBookmark 清理段）+ Content 的 `contextPreview` prop + BookmarkCard 的 `contextPreview` prop。遵循 CLAUDE.md「删除因修改而未使用的变量」。
 3. **useOpenTabs hook 新建（§2.2 细化）**：设计只说"从 useBookmarks 或新 hook 获取"，实际新建独立 `src/newtab/hooks/useOpenTabs.ts`（挂载 query + 监听 tabs.onCreated/onUpdated/onRemoved 实时刷新），不污染 useBookmarks 职责。
 4. **aria-label 分层（§5 细化）**：设计说 Card aria-label 含上下文数量，实际改为分层——Card 承载「书签名 + 已打开」，徽章 role="img" 承载「上下文数量 + 加密状态」。避免屏幕阅读器重复读。
