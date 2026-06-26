@@ -5,6 +5,8 @@ import { useWorkspace } from '@/store/useWorkspace';
 import { useCrypto } from '@/store/useCrypto';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
+import { IconPicker } from '@/shared/components/IconPicker';
+import { ManagePanel } from '@/newtab/components/ManagePanel';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -25,21 +27,26 @@ export const Sidebar: React.FC = () => {
 
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('📂');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
+  const [newWorkspaceIcon, setNewWorkspaceIcon] = useState('📁');
   const [showSettings, setShowSettings] = useState(false);
+  const [showManage, setShowManage] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
-    await createCategory(newCategoryName.trim(), '📂');
+    await createCategory(newCategoryName.trim(), newCategoryIcon);
     setNewCategoryName('');
+    setNewCategoryIcon('📂');
     setShowNewCategory(false);
   };
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
-    await createWorkspace(newWorkspaceName.trim(), '📁');
+    await createWorkspace(newWorkspaceName.trim(), newWorkspaceIcon);
     setNewWorkspaceName('');
+    setNewWorkspaceIcon('📁');
     setShowNewWorkspace(false);
   };
 
@@ -80,6 +87,14 @@ export const Sidebar: React.FC = () => {
       >
         + 新建工作区
       </Button>
+      <Button
+        block
+        size="small"
+        theme="borderless"
+        onClick={() => setShowManage(true)}
+      >
+        管理
+      </Button>
 
       <Modal
         title="新建工作区"
@@ -93,6 +108,9 @@ export const Sidebar: React.FC = () => {
           onChange={setNewWorkspaceName}
           onEnterPress={handleCreateWorkspace}
         />
+        <div style={{ marginTop: 12 }}>
+          <IconPicker value={newWorkspaceIcon} onChange={setNewWorkspaceIcon} />
+        </div>
       </Modal>
 
       {/* 分类 */}
@@ -191,7 +209,13 @@ export const Sidebar: React.FC = () => {
           onChange={setNewCategoryName}
           onEnterPress={handleCreateCategory}
         />
+        <div style={{ marginTop: 12 }}>
+          <IconPicker value={newCategoryIcon} onChange={setNewCategoryIcon} />
+        </div>
       </Modal>
+
+      {/* 工作区与分类管理：编辑名称与图标 */}
+      <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
     </div>
   );
 };
