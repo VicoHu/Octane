@@ -1,0 +1,48 @@
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.itemDisplay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  padding: var(--space-xs) 0;
+}
+
+.itemDisplay:hover {
+  color: var(--semi-color-primary);
+}
+
+.itemIcon {
+  font-size: 18px;
+}
+
+.editRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.section {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--semi-color-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: var(--space-md) 0 var(--space-xs);
+}
+
+.section:first-child {
+  margin-top: 0;
+}

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   focusOrCreateHomeTab,
   ensureHomeTabInAllWindows,
+  dedupeHomeTabsInWindow,
 } from '../focusOrCreateHomeTab';
 
 const HOME_URL = 'chrome-extension://octane/home.html';
@@ -39,6 +40,7 @@ function mockChrome() {
           windowId?: number;
         }) => undefined,
       ),
+      remove: vi.fn(async (_id: number) => undefined),
     },
     windows: {
       getCurrent: vi.fn(async () => ({ id: 100 })),
@@ -120,5 +122,39 @@ describe('ensureHomeTabInAllWindows', () => {
     ] as never);
     await ensureHomeTabInAllWindows();
     expect(c.tabs.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('dedupeHomeTabsInWindow', () => {
+  let c: ReturnType<typeof mockChrome>;
+  beforeEach(() => {
+    c = mockChrome();
+  });
+
+  it('同窗口 2 个 pinned home tab（session restore 竞态）→ 移除多余，保留首个', async () => {
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      tab({ id: 11, windowId: 100, pinned: true }),
+      tab({ id: 22, windowId: 100, pinned: true }),
+    ] as never);
+    await dedupeHomeTabsInWindow(100);
+    expect(c.tabs.remove).toHaveBeenCalledTimes(1);
+    expect(c.tabs.remove).toHaveBeenCalledWith(22);
+  });
+
+  it('同窗口仅 1 个 pinned home tab → 不移除', async () => {
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      tab({ id: 11, windowId: 100, pinned: true }),
+    ] as never);
+    await dedupeHomeTabsInWindow(100);
+    expect(c.tabs.remove).not.toHaveBeenCalled();
+  });
+
+  it('未 pinned 的 home tab 不参与去重', async () => {
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      tab({ id: 11, windowId: 100, pinned: true }),
+      tab({ id: 22, windowId: 100, pinned: false }),
+    ] as never);
+    await dedupeHomeTabsInWindow(100);
+    expect(c.tabs.remove).not.toHaveBeenCalled();
   });
 });

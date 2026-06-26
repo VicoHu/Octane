@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.4.3] - 2026-06-23
+
+### Added
+
+- **NewTab 书签「已打开」状态标识与一键跳转**：BookmarkCard 左侧竖线标识当前窗口已打开的书签站点；点击已打开书签直接聚焦对应 Tab（取最近活跃），未打开则新建标签
+  - 新增 `src/shared/tabs/matchUrl.ts`（URL 规范化与匹配）、`useOpenTabs` hook（监听当前窗口 tab、按最近活跃降序）、`focusTab`（聚焦指定 tab）
+  - Phase 3：跳转时竖线脉冲动效，强化「即将聚焦该 Tab」的视觉反馈
+  - BookmarkCard 新增上下文徽章
+
+### Changed
+
+- **品牌视觉升级**：Sidebar logo 改用 `icon-128.png`（替换渐变字母占位）；扩展图标资产升级为更高清版本（带圆角，icon-128 由 307B 提升至 13KB）
+
+### Fixed
+
+- **书签竖线在 tab 页内导航后失配**：原 host+pathname 精确匹配导致书签打开后导航到子路径（如 `vicohu.com` → `/archives/hello-halo`）时竖线消失。改为段边界前缀匹配（host 相等 + tab 路径等于书签路径或在其整段之下），导航子路径后竖线仍亮，同时消除 `/blog` 误匹配 `/blogger` 的隐患
+
 ## [0.1.4.2] - 2026-06-22
 
 ### Changed

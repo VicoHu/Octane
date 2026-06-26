@@ -65,20 +65,22 @@ octane/
 │   │   └── sidepanel/          # Side Panel（hostname 联动书签 + 上下文预览）
 │   ├── newtab/                 # 新标签页
 │   │   ├── App.tsx
-│   │   └── components/
-│   │       ├── Sidebar/        # 侧边栏（工作区 + 分类列表）
-│   │       ├── Content/        # 主内容区（搜索栏 + 卡片网格）
-│   │       ├── BookmarkCard/   # 书签卡片
-│   │       ├── ContextList/    # 上下文列表（列表/编辑视图切换）
-│   │       ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
-│   │       ├── UnlockModal/    # 主密码输入弹窗
-│   │       └── EmptyState/     # 空状态组件
+│   │   ├── components/
+│   │   │   ├── Sidebar/        # 侧边栏（工作区 + 分类列表）
+│   │   │   ├── Content/        # 主内容区（搜索栏 + 卡片网格）
+│   │   │   ├── BookmarkCard/   # 书签卡片
+│   │   │   ├── ContextList/    # 上下文列表（列表/编辑视图切换）
+│   │   │   ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
+│   │   │   ├── UnlockModal/    # 主密码输入弹窗
+│   │   │   └── EmptyState/     # 空状态组件
+│   │   └── hooks/              # NewTab hooks（useOpenTabs：已打开 tab 监听）
 │   ├── components/
 │   │   └── backup/             # 共享备份组件（本地导入导出 + 云备份，popup/newtab 复用）
 │   ├── services/               # 业务服务层
 │   ├── store/                  # Zustand 状态管理
 │   └── shared/
 │       ├── db/                 # IndexedDB 封装（连接管理 + 级联删除 + 配额监控）
+│       ├── tabs/               # Tab 操作（URL 匹配、聚焦、pinned home tab 唤起）
 │       ├── types/              # TypeScript 类型定义
 │       └── utils/              # 工具函数（Markdown 渲染）
 ├── tests/                      # 集成测试
@@ -136,7 +138,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.4.2**（MVP 开发阶段）
+当前版本：**0.1.4.3**（MVP 开发阶段）
 
 ## 许可
 

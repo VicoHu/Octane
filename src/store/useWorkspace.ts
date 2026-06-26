@@ -12,11 +12,13 @@ interface WorkspaceState {
 
   loadWorkspaces: () => Promise<void>;
   createWorkspace: (name: string, icon: string) => Promise<void>;
+  updateWorkspace: (id: string, updates: Partial<Pick<Workspace, 'name' | 'icon' | 'order'>>) => Promise<void>;
   deleteWorkspace: (id: string) => Promise<void>;
   selectWorkspace: (id: string) => Promise<void>;
 
   loadCategories: () => Promise<void>;
   createCategory: (name: string, icon: string) => Promise<void>;
+  updateCategory: (id: string, updates: Partial<Pick<Category, 'name' | 'icon' | 'order'>>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   selectCategory: (id: string) => void;
 }
@@ -51,6 +53,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
+  updateWorkspace: async (id, updates) => {
+    await WorkspaceService.updateWorkspace(id, updates);
+    set((s) => ({
+      workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, ...updates } : w)),
+    }));
+  },
+
   deleteWorkspace: async (id) => {
     await WorkspaceService.deleteWorkspace(id);
     const workspaces = await WorkspaceService.listWorkspaces();
@@ -82,6 +91,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     if (!workspaceId) return;
     const category = await CategoryService.createCategory(workspaceId, name, icon);
     set((s) => ({ categories: [...s.categories, category] }));
+  },
+
+  updateCategory: async (id, updates) => {
+    await CategoryService.updateCategory(id, updates);
+    set((s) => ({
+      categories: s.categories.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+    }));
   },
 
   deleteCategory: async (id) => {
