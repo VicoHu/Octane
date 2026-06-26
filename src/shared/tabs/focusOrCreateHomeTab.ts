@@ -8,6 +8,8 @@
  *   home tab 则聚焦，否则创建 pinned。
  * - ensureHomeTabInAllWindows：background 的 onStartup / onInstalled(update) 用，
  *   遍历所有窗口，给缺 pinned home tab 的窗口补建。
+ * - dedupeHomeTabsInWindow：background 的 tabs.onUpdated 用，session restore
+ *   竞态导致同窗口出现重复 pinned home tab 时，保留首个移除其余。
  *
  * 实现注意：chrome 引用必须在函数体内读取（运行时 globalThis.chrome），
  * 不能在模块顶层 const 绑定，否则测试覆盖 chrome 后不生效。
@@ -26,6 +28,7 @@ interface ChromeLike {
       pinned?: boolean;
       windowId?: number;
     }): Promise<unknown>;
+    remove(id: number): Promise<unknown>;
   };
   windows: {
     getCurrent(): Promise<{ id?: number }>;
@@ -73,5 +76,26 @@ export async function ensureHomeTabInAllWindows(): Promise<void> {
     if (!tabs.some((t) => t.pinned)) {
       await c.tabs.create({ url, pinned: true, windowId: w.id });
     }
+  }
+}
+
+/**
+ * 去重：同一窗口若存在多个 pinned home tab，保留首个，移除其余。
+ *
+ * 背景：windows.onCreated 触发早于浏览器 session restore 完成，
+ * focusOrCreateHomeTab 此时 query 查不到恢复中的 pinned tab 而误建第二个，
+ * 待 restore 完成后窗口内出现重复 logo tab。本函数在 home tab 加载完成
+ * （tabs.onUpdated status=complete）后调用，可靠兜底去重。
+ */
+export async function dedupeHomeTabsInWindow(windowId: number): Promise<void> {
+  const c = chrome as unknown as ChromeLike;
+  const url = c.runtime.getURL('home.html');
+  const tabs = await c.tabs.query({ url, windowId });
+  const dups = tabs.filter((t) => t.pinned && t.id != null);
+  if (dups.length <= 1) return;
+  for (let i = 1; i < dups.length; i++) {
+    const t = dups[i];
+    if (t?.id == null) continue;
+    await c.tabs.remove(t.id);
   }
 }

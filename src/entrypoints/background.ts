@@ -2,6 +2,7 @@ import { handleMessage } from '@/services/BackupMessaging';
 import {
   focusOrCreateHomeTab,
   ensureHomeTabInAllWindows,
+  dedupeHomeTabsInWindow,
 } from '@/shared/tabs/focusOrCreateHomeTab';
 
 // onMessage listener 顶层注册：service worker 一加载即注册，
@@ -36,6 +37,18 @@ browser.windows.onCreated.addListener((window) => {
       console.error('[octane] windows.onCreated 唤起 logo tab 失败', e),
     );
   }
+});
+
+// logo tab 去重：windows.onCreated 早于 session restore，可能误建第二个 pinned
+// home tab。监听 home tab 加载完成（complete），对所在窗口去重，保留首个。
+// 顶层注册（与上面 listener 同策略，避免 SW 唤醒时序丢事件）。
+const HOME_URL = browser.runtime.getURL('/home.html');
+browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete' || tab.url !== HOME_URL) return;
+  if (tab.windowId == null) return;
+  dedupeHomeTabsInWindow(tab.windowId).catch((e) =>
+    console.error('[octane] tabs.onUpdated 去重 logo tab 失败', e),
+  );
 });
 
 export default defineBackground({
