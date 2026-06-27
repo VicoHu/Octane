@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
-    "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
-    "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox",
+    "build": "timeout 10 wxt build",
+    "build:firefox": "timeout 10 wxt build -b firefox",
+    "zip": "timeout 10 wxt zip",
+    "zip:firefox": "timeout 10 wxt zip -b firefox",
     "test": "vitest run",
     "test:watch": "vitest"
   },

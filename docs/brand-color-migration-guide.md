@@ -494,7 +494,7 @@ Logo 的书签飘带元素可以作为装饰性图标在 UI 中复用：
 
 ### 7.4 Favicon 与浏览器标签
 NewTab 页面的 `<title>` 和 favicon 应保持一致：
-- favicon 使用 `public/icons/icon-16.png`（已符合）
+- favicon 使用 `public/icons/icon-128.png`（已符合）
 - 页面标题建议：`Octane · 书签 + 笔记`
 
 ---
