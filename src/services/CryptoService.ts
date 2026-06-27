@@ -1,4 +1,4 @@
-import { getByKey, putRecord } from '@/shared/db/database';
+import { getByKey, putRecord, deleteRecord } from '@/shared/db/database';
 import type { CryptoMetadata } from '@/shared/types';
 
 const ALGORITHM = 'AES-GCM';
@@ -7,6 +7,8 @@ const IV_LENGTH = 12;
 const SALT_LENGTH = 16;
 const DEFAULT_ITERATIONS = 600_000;
 const SESSION_KEY_STORAGE_KEY = 'octane-derived-key';
+/** verifier 固定明文：setup 时加密、unlock 时解密以校验密码正确性。_V1 预留算法升级空间。 */
+const VERIFIER_PLAINTEXT = 'OCTANE_VERIFIER_V1';
 
 // ========== 工具函数 ==========
 
@@ -70,6 +72,36 @@ async function deriveKey(
     true,
     ['encrypt', 'decrypt'],
   );
+}
+
+// ========== 对称加密原语（基于显式 key） ==========
+
+/** 用显式 key 加密明文，返回 base64 的 { encryptedData, iv } */
+export async function encryptWithKey(
+  key: CryptoKey,
+  plaintext: string,
+): Promise<{ encryptedData: string; iv: string }> {
+  const iv = randomBytes(IV_LENGTH);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: ALGORITHM, iv },
+    key,
+    toBuffer(new TextEncoder().encode(plaintext)),
+  );
+  return { encryptedData: toBase64(ciphertext), iv: toBase64(iv) };
+}
+
+/** 用显式 key 解密。AES-GCM 失败抛 OperationError，调用方需 try/catch。 */
+export async function decryptWithKey(
+  key: CryptoKey,
+  encryptedData: string,
+  iv: string,
+): Promise<string> {
+  const plaintext = await crypto.subtle.decrypt(
+    { name: ALGORITHM, iv: fromBase64(iv) },
+    key,
+    fromBase64(encryptedData),
+  );
+  return new TextDecoder().decode(plaintext);
 }
 
 // ========== 会话密钥管理 ==========
@@ -153,6 +185,7 @@ export async function setupPassword(password: string): Promise<void> {
 
   const salt = randomBytes(SALT_LENGTH);
   const key = await deriveKey(password, salt, DEFAULT_ITERATIONS);
+  const verifier = await encryptWithKey(key, VERIFIER_PLAINTEXT);
 
   const meta: CryptoMetadata = {
     id: 'singleton',
@@ -160,22 +193,54 @@ export async function setupPassword(password: string): Promise<void> {
     iterations: DEFAULT_ITERATIONS,
     algorithm: `${ALGORITHM}-${KEY_LENGTH}`,
     createdAt: Date.now(),
+    verifier,
   };
   await putRecord('cryptoMetadata', meta);
   await storeKeyInSession(key);
 }
 
-/** 解锁：用主密码派生密钥并存入 session */
+/** 解锁：用主密码派生密钥，校验 verifier 通过后存入 session */
 export async function unlock(password: string): Promise<boolean> {
   const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
   if (!meta) {
     throw new Error('未设置主密码，请先调用 setupPassword');
   }
+  // 旧版 meta 无 verifier：无法校验密码，由上层引导重设。不写入 session key。
+  if (!meta.verifier) {
+    return false;
+  }
 
   const salt = fromBase64(meta.salt);
   const key = await deriveKey(password, salt, meta.iterations);
+  try {
+    const decrypted = await decryptWithKey(
+      key,
+      meta.verifier.encryptedData,
+      meta.verifier.iv,
+    );
+    if (decrypted !== VERIFIER_PLAINTEXT) {
+      return false;
+    }
+  } catch {
+    // AES-GCM 解密失败抛 OperationError = 密码错误
+    return false;
+  }
+
   await storeKeyInSession(key);
   return true;
+}
+
+/** 当前 meta 是否含 verifier（用于检测旧版数据并引导重设密码） */
+export async function hasVerifier(): Promise<boolean> {
+  const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+  return Boolean(meta?.verifier);
+}
+
+/** 清除主密码 meta 与 session key（重设密码前置步骤） */
+export async function clearMeta(): Promise<void> {
+  await deleteRecord('cryptoMetadata', 'singleton');
+  _testKey = null;
+  await clearKeyFromSession();
 }
 
 /** 锁定：清除密钥 */
@@ -198,18 +263,7 @@ export async function encrypt(
   if (!key) {
     throw new Error('密钥不可用，请先解锁');
   }
-
-  const iv = randomBytes(IV_LENGTH);
-  const ciphertext = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv },
-    key,
-    toBuffer(new TextEncoder().encode(plaintext)),
-  );
-
-  return {
-    encryptedData: toBase64(ciphertext),
-    iv: toBase64(iv),
-  };
+  return encryptWithKey(key, plaintext);
 }
 
 /** 解密密文，返回明文 */
@@ -218,31 +272,60 @@ export async function decrypt(encryptedData: string, iv: string): Promise<string
   if (!key) {
     throw new Error('密钥不可用，请先解锁');
   }
-
-  const plaintext = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv: fromBase64(iv) },
-    key,
-    fromBase64(encryptedData),
-  );
-
-  return new TextDecoder().decode(plaintext);
+  return decryptWithKey(key, encryptedData, iv);
 }
 
-/** 修改主密码（调用方需重新加密所有加密笔记） */
-export async function changePassword(newPassword: string): Promise<void> {
+/**
+ * 修改主密码（原子）。
+ * 职责边界：本函数只管密钥/meta/verifier；笔记重加密由 reencrypt 回调注入
+ * （调用方在回调里用 oldKey 解密、newKey 重加密并写回，避免本模块依赖 ContextService）。
+ *
+ * 原子顺序：先校验旧密码 → 派生新 key（不写 meta）→ 执行 reencrypt → 最后写 meta。
+ * reencrypt 抛错则不写 meta，旧密码仍可用，保证可重试回滚。
+ */
+export async function changePassword(
+  oldPassword: string,
+  newPassword: string,
+  reencrypt: (oldKey: CryptoKey, newKey: CryptoKey) => Promise<void>,
+): Promise<void> {
   const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
   if (!meta) {
     throw new Error('未设置主密码');
   }
+  if (!meta.verifier) {
+    throw new Error('当前主密码未启用校验，请先重设密码');
+  }
 
+  // 1. 校验旧密码
+  const oldSalt = fromBase64(meta.salt);
+  const oldKey = await deriveKey(oldPassword, oldSalt, meta.iterations);
+  try {
+    const decrypted = await decryptWithKey(
+      oldKey,
+      meta.verifier.encryptedData,
+      meta.verifier.iv,
+    );
+    if (decrypted !== VERIFIER_PLAINTEXT) {
+      throw new Error('旧密码错误');
+    }
+  } catch {
+    throw new Error('旧密码错误');
+  }
+
+  // 2. 派生新 key（不写 meta，保证可回滚）
   const newSalt = randomBytes(SALT_LENGTH);
   const newKey = await deriveKey(newPassword, newSalt, meta.iterations);
 
-  const updatedMeta: CryptoMetadata = {
+  // 3. 调用方重加密（用 oldKey 解密、newKey 加密、写回 IndexedDB）。回调抛错则直接传播，不写 meta。
+  await reencrypt(oldKey, newKey);
+
+  // 4. 最后写 meta + verifier + session —— 此前任何失败都保留旧 meta
+  const verifier = await encryptWithKey(newKey, VERIFIER_PLAINTEXT);
+  await putRecord('cryptoMetadata', {
     ...meta,
     salt: toBase64(newSalt),
-  };
-  await putRecord('cryptoMetadata', updatedMeta);
+    verifier,
+  });
   await storeKeyInSession(newKey);
 }
 

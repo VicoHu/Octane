@@ -1,0 +1,36 @@
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.badge {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.35);
+}
+
+.body {
+  padding: var(--space-sm) 0;
+}
+
+.input {
+  margin-bottom: var(--space-md);
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--danger);
+  font-size: var(--font-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: var(--radius-sm);
+}

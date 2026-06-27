@@ -79,6 +79,15 @@ export interface CryptoMetadata {
   salt: string;
   iterations: number;
   algorithm: string;
+  /**
+   * 密码验证器：setup 时用派生 key 加密固定明文得到。
+   * unlock 时尝试解密它来校验密码正确性（解密失败=密码错）。
+   * 旧版本 meta 无此字段，检测到需引导重设密码。
+   */
+  verifier?: {
+    encryptedData: string;
+    iv: string;
+  };
   createdAt: number;
 }
 

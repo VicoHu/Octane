@@ -1,8 +1,35 @@
-import { getByKey, getByIndex, putRecord, deleteRecord } from '@/shared/db/database';
-import { encrypt, decrypt } from '@/services/CryptoService';
+import { getByKey, getByIndex, getAll, putRecord, deleteRecord } from '@/shared/db/database';
+import { encrypt, decrypt, encryptWithKey, decryptWithKey } from '@/services/CryptoService';
 import { updateBookmark } from '@/services/BookmarkService';
 import type { Context } from '@/shared/types';
 import { ContextType } from '@/shared/types';
+
+/** 获取所有上下文（不解密，原始记录）。用于密码迁移/重置遍历。 */
+export async function getAllContexts(): Promise<Context[]> {
+  return getAll<Context>('contexts');
+}
+
+/**
+ * 用显式 oldKey/newKey 重加密所有加密上下文（供 changePassword 编排）。
+ * 用 oldKey 解密 → 用 newKey 重加密 → 写回。非加密上下文跳过。
+ */
+export async function reencryptAllContexts(
+  oldKey: CryptoKey,
+  newKey: CryptoKey,
+): Promise<void> {
+  const all = await getAll<Context>('contexts');
+  for (const ctx of all) {
+    if (!ctx.isEncrypted || !ctx.encryptedData || !ctx.iv) continue;
+    const plaintext = await decryptWithKey(oldKey, ctx.encryptedData, ctx.iv);
+    const { encryptedData, iv } = await encryptWithKey(newKey, plaintext);
+    await putRecord('contexts', {
+      ...ctx,
+      encryptedData,
+      iv,
+      updatedAt: Date.now(),
+    });
+  }
+}
 
 /** 获取书签的所有上下文（明文），按 createdAt 升序 */
 export async function getContexts(bookmarkId: string): Promise<Context[]> {

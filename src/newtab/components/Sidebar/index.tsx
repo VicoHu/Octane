@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { Select, Button, Input, Modal, SideSheet, Dropdown, List } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconSetting, IconKey, IconSave } from '@douyinfe/semi-icons';
+import { IconPlus, IconDelete, IconSetting, IconKey, IconSave, IconEdit } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useCrypto } from '@/store/useCrypto';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import { IconPicker } from '@/shared/components/IconPicker';
 import { ManagePanel } from '@/newtab/components/ManagePanel';
+import { ChangePasswordModal } from '@/newtab/components/ChangePasswordModal';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -33,6 +34,7 @@ export const Sidebar: React.FC = () => {
   const [newWorkspaceIcon, setNewWorkspaceIcon] = useState('📁');
   const [showSettings, setShowSettings] = useState(false);
   const [showManage, setShowManage] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -169,6 +171,11 @@ export const Sidebar: React.FC = () => {
               <Dropdown.Item icon={<IconKey />} onClick={handlePasswordClick}>
                 {passwordLabel}
               </Dropdown.Item>
+              {unlocked && passwordSet && (
+                <Dropdown.Item icon={<IconEdit />} onClick={() => setShowChangePassword(true)}>
+                  修改主密码
+                </Dropdown.Item>
+              )}
               <Dropdown.Item icon={<IconSave />} onClick={() => setShowSettings(true)}>
                 数据备份和同步
               </Dropdown.Item>
@@ -216,6 +223,9 @@ export const Sidebar: React.FC = () => {
 
       {/* 工作区与分类管理：编辑名称与图标 */}
       <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
+
+      {/* 修改主密码 */}
+      <ChangePasswordModal visible={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </div>
   );
 };
