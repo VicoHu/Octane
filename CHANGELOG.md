@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 - **系统设置中心**：Sidebar「设置」入口改为弹出 Semi Modal 统一设置中心，左侧分类（快捷键 / 数据备份和同步 / 主密码）右侧详情，收纳原本散落的设置项
 - **全局快捷键**：`Alt+Shift+H` 打开 Octane 首页、`Alt+Shift+S` 打开侧边栏（浏览器所有标签页生效）；按键可在 `chrome://extensions/shortcuts` 自定义
 - **快捷键设置页**：只读展示当前绑定 + 跳转浏览器快捷键设置页（Chrome 不允许扩展运行时改键）
+- **分类删除二次确认**：删除分类改为弹窗二次确认，明确提示将级联删除该分类下所有书签及其上下文且不可恢复，需输入完整短语「我确认删除{分类名} 分类」才解锁删除按钮，防止误触清空数据
 
 ### Fixed
 
