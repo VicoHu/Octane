@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Select, Button, Input, Modal, List } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
+import type { Category } from '@/shared/types';
 import { IconPicker } from '@/shared/components/IconPicker';
 import { ManagePanel } from '@/newtab/components/ManagePanel';
 import { SettingsModal } from '@/newtab/components/SettingsModal';
@@ -24,6 +25,9 @@ export const Sidebar: React.FC = () => {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceIcon, setNewWorkspaceIcon] = useState('📁');
   const [showManage, setShowManage] = useState(false);
+  // 待删除的分类（非 null 时显示二次确认 Modal）；确认短语输入
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [confirmText, setConfirmText] = useState('');
   // 系统设置中心（统一收纳快捷键 / 数据备份 / 主密码，见 SettingsModal）
   const [showSettings, setShowSettings] = useState(false);
 
@@ -41,6 +45,25 @@ export const Sidebar: React.FC = () => {
     setNewWorkspaceName('');
     setNewWorkspaceIcon('📁');
     setShowNewWorkspace(false);
+  };
+
+  // 删除分类二次确认：要求输入完整短语才解锁删除按钮（去掉所有空白以容忍空格差异）
+  const expectedPhrase = deleteTarget ? `我确认删除${deleteTarget.name} 分类` : '';
+  const normalize = (s: string) => s.replace(/\s+/g, '');
+  const canConfirmDelete =
+    deleteTarget !== null && normalize(confirmText) === normalize(expectedPhrase);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || !canConfirmDelete) return;
+    await deleteCategory(deleteTarget.id);
+    setConfirmText('');
+    // Modal 由 visible={deleteTarget !== null} 控制，清空即关闭
+    setDeleteTarget(null);
+  };
+
+  const cancelDelete = () => {
+    setDeleteTarget(null);
+    setConfirmText('');
   };
 
   const getPopupContainer = useCallback(
@@ -124,9 +147,11 @@ export const Sidebar: React.FC = () => {
                   extra={
                     <IconDelete
                       className={styles.deleteIcon}
+                      aria-label={`删除分类 ${cat.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteCategory(cat.id);
+                        setConfirmText('');
+                        setDeleteTarget(cat);
                       }}
                     />
                   }
@@ -171,6 +196,47 @@ export const Sidebar: React.FC = () => {
         />
         <div style={{ marginTop: 12 }}>
           <IconPicker value={newCategoryIcon} onChange={setNewCategoryIcon} />
+        </div>
+      </Modal>
+
+      {/* 删除分类二次确认：级联删除书签与上下文，要求输入短语解锁 */}
+      <Modal
+        title="删除分类"
+        visible={deleteTarget !== null}
+        onOk={handleConfirmDelete}
+        onCancel={cancelDelete}
+        okType="danger"
+        okText="删除"
+        okButtonProps={{ disabled: !canConfirmDelete }}
+        maskClosable={false}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+          <div style={{ color: 'var(--semi-color-text-0)', lineHeight: 1.7 }}>
+            删除分类「{deleteTarget?.icon} {deleteTarget?.name}」将
+            <strong style={{ color: 'var(--semi-color-danger)' }}>同时删除该分类下的所有书签及其上下文</strong>
+            ，且此操作<strong>不可恢复</strong>。
+          </div>
+          <div style={{ color: 'var(--semi-color-text-1)', fontSize: 'var(--font-sm)' }}>
+            请输入下方短语以确认（可忽略空格）：
+          </div>
+          <code
+            style={{
+              padding: '6px 10px',
+              background: 'var(--semi-color-fill-0)',
+              borderRadius: 4,
+              fontSize: 'var(--font-sm)',
+              userSelect: 'all',
+            }}
+          >
+            {expectedPhrase}
+          </code>
+          <Input
+            value={confirmText}
+            onChange={setConfirmText}
+            placeholder={expectedPhrase}
+            aria-label="确认删除短语"
+            autoFocus
+          />
         </div>
       </Modal>
 

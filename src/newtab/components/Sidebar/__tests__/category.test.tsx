@@ -66,3 +66,69 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
     expect(selectCategory).toHaveBeenCalledWith('c2');
   });
 });
+
+describe('Sidebar 删除分类二次确认', () => {
+  const setupWithCategory = (name = '工作', icon = '💼') => {
+    useWorkspace.setState({
+      categories: [{ id: 'c1', name, icon }],
+      currentCategoryId: 'c1',
+      currentWorkspaceId: 'w1',
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }],
+    });
+    const deleteCategory = vi.fn();
+    useWorkspace.setState({ deleteCategory });
+    return { deleteCategory };
+  };
+
+  // Semi Modal OK 按钮带 aria-label="confirm"，按可见文本「删除」定位
+  const getOkButton = () => screen.getByText('删除').closest('button') as HTMLButtonElement;
+  const openConfirm = (container: HTMLElement, name = '工作') =>
+    fireEvent.click(container.querySelector(`[aria-label="删除分类 ${name}"]`)!);
+
+  it('点击删除图标不立即删除，而是弹出二次确认', () => {
+    const { deleteCategory } = setupWithCategory();
+    const { container } = render(<Sidebar />);
+    openConfirm(container);
+    expect(deleteCategory).not.toHaveBeenCalled();
+    // 警示文案：级联删除书签 + 上下文 + 不可恢复
+    expect(screen.getByText(/同时删除该分类下的所有书签及其上下文/)).toBeTruthy();
+    expect(screen.getByText(/不可恢复/)).toBeTruthy();
+  });
+
+  it('未输入正确短语时删除按钮禁用', () => {
+    setupWithCategory();
+    const { container } = render(<Sidebar />);
+    openConfirm(container);
+    expect(getOkButton().disabled).toBe(true);
+  });
+
+  it('输入正确短语后启用删除并执行级联删除', () => {
+    const { deleteCategory } = setupWithCategory();
+    const { container } = render(<Sidebar />);
+    openConfirm(container);
+    const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '我确认删除工作 分类' } });
+    expect(getOkButton().disabled).toBe(false);
+    fireEvent.click(getOkButton());
+    expect(deleteCategory).toHaveBeenCalledWith('c1');
+  });
+
+  it('短语匹配忽略空格差异', () => {
+    setupWithCategory();
+    const { container } = render(<Sidebar />);
+    openConfirm(container);
+    const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
+    // 故意不输入中间空格
+    fireEvent.change(input, { target: { value: '我确认删除工作分类' } });
+    expect(getOkButton().disabled).toBe(false);
+  });
+
+  it('短语错误时删除按钮保持禁用', () => {
+    setupWithCategory();
+    const { container } = render(<Sidebar />);
+    openConfirm(container);
+    const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '我确认删除' } });
+    expect(getOkButton().disabled).toBe(true);
+  });
+});
