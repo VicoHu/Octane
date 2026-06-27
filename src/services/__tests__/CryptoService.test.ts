@@ -7,6 +7,10 @@ import {
   setTestKey,
   setupTestKey,
   isUnlocked,
+  setupPassword,
+  unlock,
+  changePassword,
+  hasVerifier,
 } from '@/services/CryptoService';
 
 async function clearAllStores(): Promise<void> {
@@ -97,5 +101,74 @@ describe('会话密钥容错（M5：storage.session 不可用）', () => {
     } finally {
       g['chrome'] = origChrome;
     }
+  });
+});
+
+describe('密码校验（verifier 机制，#4 安全修复）', () => {
+  it('setupPassword 后用正确密码 unlock 返回 true', async () => {
+    await setupPassword('correct-password-123');
+    const ok = await unlock('correct-password-123');
+    expect(ok).toBe(true);
+  });
+
+  it('错误密码 unlock 返回 false（#4 回归核心）', async () => {
+    await setupPassword('correct-password-123');
+    const ok = await unlock('wrong-password-xxx');
+    expect(ok).toBe(false);
+  });
+
+  it('setupPassword 写入的 meta 含 verifier', async () => {
+    await setupPassword('correct-password-123');
+    expect(await hasVerifier()).toBe(true);
+  });
+
+  it('hasVerifier：无 verifier 的旧 meta 返回 false', async () => {
+    const { putRecord, getByKey } = await import('@/shared/db/database');
+    // 手动写入无 verifier 的旧版 meta，模拟升级前数据
+    await putRecord('cryptoMetadata', {
+      id: 'singleton',
+      salt: 'b64salt==',
+      iterations: 600_000,
+      algorithm: 'AES-GCM-256',
+      createdAt: 0,
+    });
+    const meta = await getByKey<import('@/shared/types').CryptoMetadata>('cryptoMetadata', 'singleton');
+    expect(meta?.verifier).toBeUndefined();
+    expect(await hasVerifier()).toBe(false);
+  });
+
+  it('changePassword：旧密码错误时抛错且不改 meta', async () => {
+    await setupPassword('old-password-123');
+    await expect(
+      changePassword('wrong-old', 'new-password-456', async () => {}),
+    ).rejects.toThrow();
+    // 旧密码仍可用，说明 meta 未被破坏
+    expect(await unlock('old-password-123')).toBe(true);
+  });
+
+  it('changePassword：旧密码正确则更新 meta，新密码可解锁、旧密码失效', async () => {
+    await setupPassword('old-password-123');
+    let reencryptCalled = false;
+    await changePassword('old-password-123', 'new-password-456', async (oldKey, newKey) => {
+      // 回调拿到两个不同的 key
+      expect(oldKey).toBeTruthy();
+      expect(newKey).toBeTruthy();
+      expect(oldKey).not.toBe(newKey);
+      reencryptCalled = true;
+    });
+    expect(reencryptCalled).toBe(true);
+    expect(await unlock('new-password-456')).toBe(true);
+    expect(await unlock('old-password-123')).toBe(false);
+  });
+
+  it('changePassword 回调抛错时不写 meta（原子回滚）', async () => {
+    await setupPassword('old-password-123');
+    await expect(
+      changePassword('old-password-123', 'new-password-456', async () => {
+        throw new Error('重加密失败');
+      }),
+    ).rejects.toThrow('重加密失败');
+    // meta 未改，旧密码仍可用
+    expect(await unlock('old-password-123')).toBe(true);
   });
 });

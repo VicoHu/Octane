@@ -8,6 +8,7 @@ import { UnlockModal } from '@/newtab/components/UnlockModal';
 import { IMPORT_CHANNEL_NAME } from '@/shared/db/database';
 import '@/styles/global.css';
 import '@/newtab/App.css';
+import '@/styles/semi-theme-override.css';
 
 const App: React.FC = () => {
   const loadWorkspaces = useWorkspace((s) => s.loadWorkspaces);

@@ -1,0 +1,35 @@
+/* === Semi Design 品牌色覆盖 ===
+ * 必须 win over Semi 的 body / body .semi-always-dark 声明（特异性 (0,0,1) / (0,1,1)）。
+ * :root 覆盖无效——Semi 把 --semi-color-primary 声明在 body 上，body 自身声明优先于
+ * 从 :root(<html>) 继承的值。故用 html body (0,0,2) / html body .semi-always-dark (0,1,2)。
+ *
+ * --semi-color-primary 取 #00755C（深绿）而非 #00B894（鲜绿）：
+ * Semi 的 primary 同时驱动 solid button 底色和 borderless 文字按钮文字色。
+ * #00B894 配白字仅 2.58:1（不及 AA），#00755C 配白字 ≈4.7:1、作文字 on 白底 ≈6.4:1，均达 AA。
+ * 自定义 accent（图标/描边/渐变）仍用 --primary #00B894，见 global.css。
+ */
+
+/* 浅色：html body 特异性 (0,0,2) > body (0,0,1) */
+html body {
+  --semi-color-primary: #00755c;
+  --semi-color-primary-hover: #00634e;
+  --semi-color-primary-active: #005440;
+  --semi-color-primary-disabled: rgba(0, 117, 92, 0.35);
+  --semi-color-primary-light-default: rgba(0, 184, 148, 0.15);
+  --semi-color-primary-light-hover: rgba(0, 184, 148, 0.25);
+  --semi-color-primary-light-active: rgba(0, 184, 148, 0.35);
+}
+
+/* 暗色：html body .semi-always-dark 特异性 (0,1,2) > body .semi-always-dark (0,1,1)。
+ * 项目 Sidebar 渲染在 .semi-always-dark scope（src/newtab/App.tsx），
+ * 不覆盖此处则暗色侧栏的 Semi 组件全部留蓝。 */
+html body .semi-always-dark {
+  --semi-color-primary: #00b894;
+  --semi-color-primary-hover: #00a383;
+  --semi-color-primary-active: #008f72;
+  --semi-color-primary-disabled: rgba(0, 184, 148, 0.35);
+  /* 暗底下浅色档透明度略提，保证可见 */
+  --semi-color-primary-light-default: rgba(0, 184, 148, 0.2);
+  --semi-color-primary-light-hover: rgba(0, 184, 148, 0.3);
+  --semi-color-primary-light-active: rgba(0, 184, 148, 0.4);
+}

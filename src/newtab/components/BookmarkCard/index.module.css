@@ -25,7 +25,7 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--primary), #818cf8);
+  background: linear-gradient(135deg, var(--primary-dark), #1ad6a8);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -42,7 +42,7 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--primary);
+  background: var(--primary-dark);
   border: 2px solid var(--card-bg);
   display: flex;
   align-items: center;

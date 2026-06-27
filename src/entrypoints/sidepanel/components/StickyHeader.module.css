@@ -37,7 +37,7 @@
   flex-shrink: 0;
   border: none;
   border-radius: 8px;
-  background: #0077fa;
+  background: var(--primary-dark);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -45,5 +45,5 @@
   justify-content: center;
 }
 .addBtn:hover {
-  background: #0066d6;
+  background: var(--primary-active);
 }

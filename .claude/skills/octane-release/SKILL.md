@@ -56,10 +56,13 @@ ls -lh "$ZIP"
 ### 3. 提取当前版本的 CHANGELOG 段（只发本版本，非整个文件）
 
 ```bash
-NOTES="$(awk -v v="$VERSION" '
-  /^## \[/ { if ($0 ~ "\\["v"\\]") p=1; else if (p) exit }
-  p { print }
-' CHANGELOG.md)"
+NOTES=$(node -e '
+  const v = process.argv[1];
+  const md = require("fs").readFileSync("CHANGELOG.md", "utf8");
+  const re = new RegExp("## \\[" + v + "\\][\\s\\S]*?(?=\\n## \\[|$)");
+  const m = md.match(re);
+  process.stdout.write(m ? m[0].trimEnd() : "");
+' "$VERSION")
 test -n "$NOTES" || { echo "CHANGELOG 找不到版本 $VERSION 段"; exit 1; }
 ```
 
@@ -87,7 +90,7 @@ gh release view "v$VERSION" --json assets --jq '.assets[].name'
 | 错误 | 结果 | 正解 |
 |---|---|---|
 | 用 `dist/*.zip` | 匹配为空，Release 没有扩展包 | 用 `.output/*.zip` |
-| `--notes-file CHANGELOG.md` | 整个 changelog 当 notes，历史全堆上去 | 用 awk 截取当前版本段 |
+| `--notes-file CHANGELOG.md` | 整个 changelog 当 notes，历史全堆上去 | 用 node 截取当前版本段（awk 的整行位置参数在 skill 加载时会被管道清空，node 不受影响） |
 | 忘了 `npm run build` 直接 zip | zip 为空或旧产物 | 先 build 再 zip |
 | 没打 tag 就 create | `gh` 自动建 tag 但指向当前 HEAD，可能错位 | 先在目标 commit 打 tag 并 push |
 | 想发 Firefox 包 | 只有 chrome | 另跑 `npm run zip:firefox`，asset 多传一个 `.output/*-firefox.zip` |
@@ -99,6 +102,6 @@ gh release view "v$VERSION" --json assets --jq '.assets[].name'
 VERSION=$(node -p "require('./package.json').version") && \
 npm run build && npm run zip && \
 ZIP=".output/octane-${VERSION}-chrome.zip" && test -s "$ZIP" && \
-NOTES="$(awk -v v="$VERSION" '/^## \[/ { if ($0 ~ "\\["v"\\]") p=1; else if (p) exit } p{print}' CHANGELOG.md)" && \
+NOTES="$(node -e 'const v=process.argv[1],md=require("fs").readFileSync("CHANGELOG.md","utf8"),m=md.match(new RegExp("## \\["+v+"\\][\\s\\S]*?(?=\\n## \\[|$)"));process.stdout.write(m?m[0].trimEnd():"")' "$VERSION")" && \
 gh release create "v$VERSION" "$ZIP" --title "v$VERSION" --notes "$NOTES"
 ```

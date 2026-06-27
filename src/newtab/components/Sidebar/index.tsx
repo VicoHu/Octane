@@ -1,12 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Select, Button, Input, Modal, SideSheet, Dropdown, List } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconSetting, IconKey, IconSave } from '@douyinfe/semi-icons';
+import { Select, Button, Input, Modal, List } from '@douyinfe/semi-ui';
+import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
-import { useCrypto } from '@/store/useCrypto';
-import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
-import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
+import type { Category } from '@/shared/types';
 import { IconPicker } from '@/shared/components/IconPicker';
 import { ManagePanel } from '@/newtab/components/ManagePanel';
+import { SettingsModal } from '@/newtab/components/SettingsModal';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -19,20 +18,18 @@ export const Sidebar: React.FC = () => {
   const deleteCategory = useWorkspace((s) => s.deleteCategory);
   const createWorkspace = useWorkspace((s) => s.createWorkspace);
 
-  // 主密码状态：驱动设置菜单「主密码」项的文案与动作
-  const passwordSet = useCrypto((s) => s.passwordSet);
-  const unlocked = useCrypto((s) => s.unlocked);
-  const openUnlockModal = useCrypto((s) => s.openUnlockModal);
-  const lockSession = useCrypto((s) => s.lockSession);
-
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('📂');
   const [showNewWorkspace, setShowNewWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceIcon, setNewWorkspaceIcon] = useState('📁');
-  const [showSettings, setShowSettings] = useState(false);
   const [showManage, setShowManage] = useState(false);
+  // 待删除的分类（非 null 时显示二次确认 Modal）；确认短语输入
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  // 系统设置中心（统一收纳快捷键 / 数据备份 / 主密码，见 SettingsModal）
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
@@ -50,14 +47,29 @@ export const Sidebar: React.FC = () => {
     setShowNewWorkspace(false);
   };
 
-  const getPopupContainer = useCallback(() => document.getElementById('sidebar-container') || document.body, []);
+  // 删除分类二次确认：要求输入完整短语才解锁删除按钮（去掉所有空白以容忍空格差异）
+  const expectedPhrase = deleteTarget ? `我确认删除${deleteTarget.name} 分类` : '';
+  const normalize = (s: string) => s.replace(/\s+/g, '');
+  const canConfirmDelete =
+    deleteTarget !== null && normalize(confirmText) === normalize(expectedPhrase);
 
-  // 主密码项自适应：未设置→设置；已设未解锁→解锁；已解锁→锁定
-  const passwordLabel = !passwordSet ? '设置主密码' : unlocked ? '锁定主密码' : '解锁主密码';
-  const handlePasswordClick = () => {
-    if (unlocked) lockSession();
-    else openUnlockModal();
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || !canConfirmDelete) return;
+    await deleteCategory(deleteTarget.id);
+    setConfirmText('');
+    // Modal 由 visible={deleteTarget !== null} 控制，清空即关闭
+    setDeleteTarget(null);
   };
+
+  const cancelDelete = () => {
+    setDeleteTarget(null);
+    setConfirmText('');
+  };
+
+  const getPopupContainer = useCallback(
+    () => document.getElementById('sidebar-container') || document.body,
+    [],
+  );
 
   return (
     <div className={styles.sidebar}>
@@ -135,9 +147,11 @@ export const Sidebar: React.FC = () => {
                   extra={
                     <IconDelete
                       className={styles.deleteIcon}
+                      aria-label={`删除分类 ${cat.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteCategory(cat.id);
+                        setConfirmText('');
+                        setDeleteTarget(cat);
                       }}
                     />
                   }
@@ -156,46 +170,17 @@ export const Sidebar: React.FC = () => {
         >
           添加分类
         </Button>
-        {/* 设置：前置选项（主密码 / 数据备份和同步），Dropdown 点击展开。
-            getPopupContainer 锚定 sidebar-container（dark scope + position:relative），
-            防 Portal 跳出变亮色。 */}
-        <Dropdown
-          trigger="click"
-          position="bottomLeft"
-          clickToHide
-          getPopupContainer={getPopupContainer}
-          render={
-            <Dropdown.Menu>
-              <Dropdown.Item icon={<IconKey />} onClick={handlePasswordClick}>
-                {passwordLabel}
-              </Dropdown.Item>
-              <Dropdown.Item icon={<IconSave />} onClick={() => setShowSettings(true)}>
-                数据备份和同步
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          }
+        {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}
+        <Button
+          icon={<IconSetting />}
+          block
+          className={styles.settingsButton}
+          aria-label="设置"
+          onClick={() => setShowSettings(true)}
         >
-          <Button
-            icon={<IconSetting />}
-            block
-            className={styles.settingsButton}
-            aria-label="设置"
-          >
-            设置
-          </Button>
-        </Dropdown>
+          设置
+        </Button>
       </div>
-
-      {/* 设置侧边抽屉：本地 + 云数据备份（newtab 主管理页的备份入口） */}
-      <SideSheet
-        title="数据备份和同步"
-        visible={showSettings}
-        onCancel={() => setShowSettings(false)}
-        width={380}
-      >
-        <LocalBackupSection />
-        <CloudBackupSection />
-      </SideSheet>
 
       <Modal
         title="新建分类"
@@ -214,8 +199,55 @@ export const Sidebar: React.FC = () => {
         </div>
       </Modal>
 
+      {/* 删除分类二次确认：级联删除书签与上下文，要求输入短语解锁 */}
+      <Modal
+        title="删除分类"
+        visible={deleteTarget !== null}
+        onOk={handleConfirmDelete}
+        onCancel={cancelDelete}
+        okType="danger"
+        okText="删除"
+        okButtonProps={{ disabled: !canConfirmDelete }}
+        maskClosable={false}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+          <div style={{ color: 'var(--semi-color-text-0)', lineHeight: 1.7 }}>
+            删除分类「{deleteTarget?.icon} {deleteTarget?.name}」将
+            <strong style={{ color: 'var(--semi-color-danger)' }}>同时删除该分类下的所有书签及其上下文</strong>
+            ，且此操作<strong>不可恢复</strong>。
+          </div>
+          <div style={{ color: 'var(--semi-color-text-1)', fontSize: 'var(--font-sm)' }}>
+            请输入下方短语以确认（可忽略空格）：
+          </div>
+          <code
+            style={{
+              padding: '6px 10px',
+              background: 'var(--semi-color-fill-0)',
+              borderRadius: 4,
+              fontSize: 'var(--font-sm)',
+              userSelect: 'all',
+            }}
+          >
+            {expectedPhrase}
+          </code>
+          <Input
+            value={confirmText}
+            onChange={setConfirmText}
+            placeholder={expectedPhrase}
+            aria-label="确认删除短语"
+            autoFocus
+          />
+        </div>
+      </Modal>
+
       {/* 工作区与分类管理：编辑名称与图标 */}
       <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
+
+      {/* 系统设置中心 */}
+      <SettingsModal
+        visible={showSettings}
+        onCancel={() => setShowSettings(false)}
+      />
     </div>
   );
 };
