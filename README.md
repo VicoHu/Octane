@@ -16,6 +16,8 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 - **分类组织** — 书签按分类组织，支持增删改
 - **全文搜索** — 搜索书签名称、URL、描述（加密上下文内容不参与搜索）
 - **数据备份与同步** — 本地全量导入导出（JSON，覆盖式）+ 阿里云 OSS / 腾讯云 COS 云备份恢复（凭证经主密码加密存储，策略模式可扩展其他服务商）
+- **系统设置中心** — Sidebar「设置」入口弹出统一设置 Modal（左 Nav 右详情：快捷键 / 数据备份 / 主密码），收纳所有设置项
+- **全局快捷键** — `Alt+Shift+H` 打开首页、`Alt+Shift+S` 打开侧边栏（所有标签页生效）；按键可在 `chrome://extensions/shortcuts` 自定义
 
 ## 技术栈
 
@@ -72,6 +74,7 @@ octane/
 │   │   │   ├── ContextList/    # 上下文列表（列表/编辑视图切换）
 │   │   │   ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
 │   │   │   ├── UnlockModal/    # 主密码输入弹窗
+│   │   │   ├── SettingsModal/   # 系统设置中心 Modal（快捷键 / 数据备份 / 主密码）
 │   │   │   └── EmptyState/     # 空状态组件
 │   │   └── hooks/              # NewTab hooks（useOpenTabs：已打开 tab 监听）
 │   ├── components/
@@ -138,7 +141,7 @@ npm run test:watch
 
 ## 版本
 
-当前版本：**0.1.4.3**（MVP 开发阶段）
+当前版本：**0.1.5.0**（MVP 开发阶段）
 
 ## 许可
 
