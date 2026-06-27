@@ -2,7 +2,9 @@
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* 高于 Semi Modal 默认 zIndex(1000)：UnlockModal 常嵌套在设置 Modal 内触发，
+     需确保解锁/重设弹窗在最上层（Bug 修复：原 1000 与 SettingsModal 同层被压下）。 */
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;

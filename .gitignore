@@ -12,3 +12,4 @@ dist/
 # python
 __pycache__/
 web-ext.config.ts
+.gstack/

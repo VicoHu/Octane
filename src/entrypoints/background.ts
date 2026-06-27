@@ -1,13 +1,41 @@
 import { handleMessage } from '@/services/BackupMessaging';
+import { handleCommand } from '@/services/CommandHandler';
 import {
   focusOrCreateHomeTab,
   ensureHomeTabInAllWindows,
   dedupeHomeTabsInWindow,
 } from '@/shared/tabs/focusOrCreateHomeTab';
 
+// 项目无 @types/chrome：声明全局 chrome（运行时 globalThis.chrome），最小子集断言（参考 CommandHandler.ts）。
+declare const chrome: unknown;
+
 // onMessage listener 顶层注册：service worker 一加载即注册，
 // 避免 listener 在 main() 内因 SW 唤醒时序导致首次 sendMessage 收到 "Receiving end does not exist"。
 browser.runtime.onMessage.addListener((msg) => handleMessage(msg));
+
+// 快捷键命令分发（commands API）：顶层注册避 SW 唤醒时序丢首次按键（plan-eng-review A1）。
+// try/catch：wxt 0.20 build 期 import background 顶层时注入 fakeBrowser（commands.onCommand
+// 未实现，runtime.onMessage 已实现故 onMessage 不报）；runtime(SW) 真实 chrome.commands 不会抛。
+const chromeApi = (
+  globalThis as unknown as {
+    chrome?: {
+      commands?: {
+        onCommand?: {
+          addListener(fn: (command: string) => void): void;
+        };
+      };
+    };
+  }
+).chrome;
+try {
+  chromeApi?.commands?.onCommand?.addListener((command) =>
+    handleCommand(command).catch((e) =>
+      console.error('[octane] onCommand handler 异常', e),
+    ),
+  );
+} catch {
+  // wxt build 期 fakeBrowser stub 未实现 commands.onCommand；忽略，SW runtime 正常注册。
+}
 
 // logo tab 常驻保证：顶层注册（与 onMessage 同策略，避免 SW 唤醒时序丢事件）。
 // 放弃 newtab override 后，改为每窗口常驻一个 pinned home tab（见 home entrypoint + focusOrCreateHomeTab）。
