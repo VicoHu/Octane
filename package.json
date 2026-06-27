@@ -1,6 +1,6 @@
 {
   "name": "octane",
-  "version": "0.1.4.3",
+  "version": "0.1.4.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -35,8 +35,8 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
+    "vite": "^8.1.0",
     "vitest": "^4.1.8",
-    "wxt": "^0.20.26"
+    "wxt": "^0.20.27"
   }
 }
