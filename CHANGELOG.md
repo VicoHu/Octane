@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.4.4] - 2026-06-27
+
+### Added
+
+- **`octane-release` 发版 skill**：项目无 CI release pipeline，新增 `.claude/skills/octane-release/` 手动发版流程——打包 chrome MV3 扩展（`.output/octane-<version>-chrome.zip`）并发布到 GitHub Release，附该版本 CHANGELOG 说明
+
+### Changed
+
+- **依赖 patch 升级**：`vite` 8.0.16 → 8.1.0、`wxt` 0.20.26 → 0.20.27
+
+### Fixed
+
+- **`wxt build` 完成后进程挂起不退出**：Vite 8 的 worker pool（MessagePort）在 build 完成后不会关闭，导致 `wxt build` 产物落盘后进程一直挂着（CI / 脚本化构建卡死）。新增 `wxt.config.ts` 的 `build:done` hook，在所有产物写入 `.output/chrome-mv3/` 后 `process.exit(0)`；`wxt zip` 内部也会先 build，通过 `process.argv` 检测放行以免打断后续打包
+
 ## [0.1.4.3] - 2026-06-23
 
 ### Added
