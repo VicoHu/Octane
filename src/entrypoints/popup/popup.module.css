@@ -45,8 +45,8 @@
 }
 
 .backBtn:hover {
-  background: var(--primary-light, rgba(99, 102, 241, 0.1));
-  color: var(--primary, #6366f1);
+  background: var(--primary-light, rgba(0, 184, 148, 0.1));
+  color: var(--primary, #00b894);
 }
 
 .subPageTitle {
@@ -116,17 +116,17 @@
 }
 
 .featureItem:hover {
-  background: var(--primary-light, rgba(99, 102, 241, 0.1));
+  background: var(--primary-light, rgba(0, 184, 148, 0.1));
 }
 
 /* 主操作行：indigo 左边框 + 浅底强调 */
 .featureItemPrimary {
   cursor: pointer;
-  border-left: 3px solid var(--primary, #6366f1);
-  background: var(--primary-light, rgba(99, 102, 241, 0.06));
+  border-left: 3px solid var(--primary, #00b894);
+  background: var(--primary-light, rgba(0, 184, 148, 0.06));
   transition: background var(--transition-fast, 150ms ease);
 }
 
 .featureItemPrimary:hover {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(0, 184, 148, 0.12);
 }

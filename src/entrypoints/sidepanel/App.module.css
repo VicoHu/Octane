@@ -29,13 +29,13 @@
 }
 .manageBtn {
   padding: 8px 16px;
-  border: 1px solid #0077fa;
+  border: 1px solid var(--primary-text);
   border-radius: 8px;
   background: transparent;
-  color: #0077fa;
+  color: var(--primary-text);
   font-size: 13px;
   cursor: pointer;
 }
 .manageBtn:hover {
-  background: rgba(0, 119, 250, 0.06);
+  background: var(--primary-light);
 }

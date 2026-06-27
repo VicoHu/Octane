@@ -9,7 +9,7 @@
   padding: var(--space-lg);
   /* slate-900 半透明 + 品牌色微染，叠加高斯模糊让背景书签页不可读 */
   background:
-    radial-gradient(circle at 50% 35%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(circle at 50% 35%, rgba(0, 184, 148, 0.18), transparent 60%),
     rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(24px) saturate(140%);
   -webkit-backdrop-filter: blur(24px) saturate(140%);
@@ -50,7 +50,7 @@
   justify-content: center;
   border-radius: 16px;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 8px 20px rgba(0, 184, 148, 0.4);
   margin-bottom: var(--space-lg);
   color: #fff;
 }
