@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findBookmarksByHost } from '@/services/BookmarkService';
+import { findBookmarksByHost, getFaviconUrl } from '@/services/BookmarkService';
 import type { Bookmark } from '@/shared/types';
 
 /** 书签测试工厂：补全所有必填字段，允许按用例覆盖 */
@@ -66,5 +66,37 @@ describe('findBookmarksByHost — 按 hostname 严格匹配书签', () => {
     const result = findBookmarksByHost(bookmarks, 'www.google.com');
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe('bm-ok');
+  });
+});
+
+describe('getFaviconUrl — 公网走 Google，本机/内网回退源站', () => {
+  it('公网域名 → Google Favicon API', () => {
+    expect(getFaviconUrl('https://github.com/user/repo')).toBe(
+      'https://www.google.com/s2/favicons?domain=github.com&sz=32',
+    );
+  });
+
+  it('localhost（带端口+hash）→ 回退源站 origin/favicon.ico', () => {
+    expect(getFaviconUrl('http://localhost:8648/#/hermes/chat')).toBe(
+      'http://localhost:8648/favicon.ico',
+    );
+  });
+
+  it('内网 IPv4 → 回退源站', () => {
+    expect(getFaviconUrl('http://192.168.1.10:8080/app')).toBe(
+      'http://192.168.1.10:8080/favicon.ico',
+    );
+  });
+
+  it('回环地址 127.0.0.1 → 回退源站', () => {
+    expect(getFaviconUrl('http://127.0.0.1:3000')).toBe('http://127.0.0.1:3000/favicon.ico');
+  });
+
+  it('*.local 局域网域名 → 回退源站', () => {
+    expect(getFaviconUrl('http://nas.local')).toBe('http://nas.local/favicon.ico');
+  });
+
+  it('非法 url → 空串', () => {
+    expect(getFaviconUrl('不是网址')).toBe('');
   });
 });

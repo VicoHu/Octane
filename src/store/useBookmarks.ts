@@ -20,14 +20,13 @@ export const useBookmarks = create<BookmarksState>((set) => ({
   loadBookmarks: async (categoryId) => {
     set({ loading: true });
     const bookmarks = await BookmarkService.listBookmarks(categoryId);
-    // 为缺少 favicon 的书签补充 URL
+    // 补充/修正 favicon：缺失，或策略过期（如旧 localhost 书签存了 Google 占位 URL）
     for (const b of bookmarks) {
-      if (!b.faviconUrl && b.url) {
-        const faviconUrl = BookmarkService.getFaviconUrl(b.url);
-        if (faviconUrl) {
-          await BookmarkService.updateBookmark(b.id, { faviconUrl });
-          b.faviconUrl = faviconUrl;
-        }
+      if (!b.url) continue;
+      const expected = BookmarkService.getFaviconUrl(b.url);
+      if (expected && b.faviconUrl !== expected) {
+        await BookmarkService.updateBookmark(b.id, { faviconUrl: expected });
+        b.faviconUrl = expected;
       }
     }
     set({ bookmarks, loading: false });

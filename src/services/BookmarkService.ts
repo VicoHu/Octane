@@ -52,11 +52,36 @@ export async function deleteBookmark(id: string): Promise<void> {
   await deleteBookmarkCascade(id);
 }
 
-/** 获取 favicon URL（使用 Google Favicon API） */
+/**
+ * hostname 是否为本机/内网地址（Google Favicon API 无法索引）。
+ * - localhost
+ * - *.local（mDNS 局域网域名）
+ * - IPv4 / IPv6 字面量（含 127.0.0.1、192.168.x、10.x 等所有 IP）
+ */
+function isLocalHostname(hostname: string): boolean {
+  if (hostname === 'localhost') return true;
+  if (hostname.endsWith('.local')) return true;
+  // IPv4 字面量
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true;
+  // IPv6 字面量（含冒号；new URL().hostname 已剥离端口）
+  if (hostname.includes(':')) return true;
+  return false;
+}
+
+/**
+ * 获取 favicon URL。
+ *
+ * 公网域名走 Google Favicon API；本机/内网地址（localhost、IP、*.local）
+ * Google 不可能索引，回退到源站 `${origin}/favicon.ico`——若源站无 favicon，
+ * 由 UI 层（BookmarkCard）onError 回退首字母。
+ */
 export function getFaviconUrl(url: string): string {
   try {
-    const domain = new URL(url).hostname;
-    return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    const u = new URL(url);
+    if (isLocalHostname(u.hostname)) {
+      return `${u.origin}/favicon.ico`;
+    }
+    return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`;
   } catch {
     return '';
   }
