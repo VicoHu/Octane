@@ -2,6 +2,8 @@
 
 > 状态：已评审 | 适用版本：v0.1.4.3+ | 作者：Sisyphus (AI Design Agent)
 
+> ⚠️ **历史快照注记（2026-06-30）**：本文档记录的是 v0.1.4.3 的原始设计。其中 §8.1 / §9.3 关于 `useOpenTabs` 排序与书签跳转匹配的描述已在 **v0.1.6.0** 更新——`useOpenTabs` 改为按浏览器位置（`index`）排序（不再按 `lastAccessed` 降序），书签点击跳转改用 `matchUrl.ts` 的 `pickMostRecentMatchingTab` 显式取最近活跃。详见 CHANGELOG `[0.1.6.0]`。下文保留原设计内容作历史记录。
+
 ---
 
 ## 1. 设计背景
@@ -354,7 +356,7 @@ const handleCardClick = (bookmark: Bookmark) => {
 
 ### 8.1 Phase 2：点击已打开书签直接跳转 Tab
 
-- **useOpenTabs 扩展**：返回 `Set<string>` → `Map<host+pathname, tabId>`，同 key 多 tab 取 `lastAccessed` 最新（最近活跃）。
+- **useOpenTabs 扩展**：返回 `Set<string>` → `Map<host+pathname, tabId>`，同 key 多 tab 取 `lastAccessed` 最新（最近活跃）。<!-- v0.1.6.0 已更新：useOpenTabs 改按 index 排序，「最近活跃」改由 pickMostRecentMatchingTab 显式取，见文档头部注记 -->
 - **新建 focusTab helper**（`src/shared/tabs/focusTab.ts`）：`chrome.tabs.update(tabId, {active:true})`。tab 来自 currentWindow 查询，无需 windows.update。
 - **Content handleCardClick**：有匹配 tab → `focusTab(tabId)`；无 → `window.open(url,'_blank')`。
 
@@ -389,7 +391,7 @@ const handleCardClick = (bookmark: Bookmark) => {
 ### 9.3 最终实现（50 行单轨）
 
 - **`matchUrl.ts`**：保留 `normalizeUrl`，新增 `bookmarkMatchesOpenTab(bmUrl, tabUrl)`：host 相等 + 段边界前缀（`tabPath===bmPath || tabPath.startsWith(bmPath+'/')`，`normPath` 归一末尾斜杠、根 `/`→`''`）。
-- **`useOpenTabs.ts`**：返回 `Array<{url,tabId,lastAccessed}>`（替代 §8.1 的 `Map`），按 `lastAccessed` 降序——`handleCardClick` 的 `find` 取首个即最近活跃。
+- **`useOpenTabs.ts`**：返回 `Array<{url,tabId,lastAccessed}>`（替代 §8.1 的 `Map`），按 `lastAccessed` 降序——`handleCardClick` 的 `find` 取首个即最近活跃。<!-- v0.1.6.0 已更新：改为按 index 升序（浏览器 tab 栏顺序），handleCardClick 改用 pickMostRecentMatchingTab 显式取最近活跃，见文档头部注记 -->
 - **`Content/index.tsx`**：`hasOpenTab` 用 `some`、`handleCardClick` 用 `find`，无 binding，未匹配走 `window.open`。
 
 ### 9.4 接受的权衡
