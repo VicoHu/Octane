@@ -1,0 +1,115 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  /* 50+ tab:限高滚动,不做虚拟化(v1) */
+  max-height: calc(100vh - var(--space-2xl) * 3);
+  overflow-y: auto;
+  padding-right: var(--space-xs);
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: background var(--transition-fast, 0.15s);
+}
+.card:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.favicon {
+  position: relative;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.faviconImg {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+.fallback {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--semi-color-primary-light-default, var(--semi-color-fill-1));
+  color: var(--semi-color-text-2);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.savedBadge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--semi-color-success);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--content-bg, var(--semi-color-bg-0));
+}
+.savedBadgeIcon {
+  font-size: 10px;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.title {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-primary, var(--semi-color-text-0));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.host {
+  font-size: var(--font-xs);
+  color: var(--muted, var(--semi-color-text-2));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  opacity: 0.6;
+  transition: opacity var(--transition-fast, 0.15s);
+}
+.card:hover .actions {
+  opacity: 1;
+}
+.pinIcon {
+  color: var(--semi-color-text-2);
+  font-size: 14px;
+}
+.saveBtn {
+  flex-shrink: 0;
+}
+
+.empty {
+  padding: var(--space-2xl);
+  text-align: center;
+  color: var(--muted, var(--semi-color-text-2));
+  font-size: var(--font-sm);
+}
