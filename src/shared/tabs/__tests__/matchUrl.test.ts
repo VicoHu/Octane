@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bookmarkMatchesOpenTab, normalizeUrl } from '../matchUrl';
+import { bookmarkMatchesOpenTab, normalizeUrl, pickMostRecentMatchingTab } from '../matchUrl';
 
 describe('bookmarkMatchesOpenTab — 书签与已打开 Tab 的前缀匹配（段边界）', () => {
   it('[REGRESSION] 根书签匹配同站子路径：导航到 /archives 后竖线仍亮', () => {
@@ -90,5 +90,33 @@ describe('normalizeUrl（保留：精确 host+pathname key）', () => {
 
   it('非法 URL → null', () => {
     expect(normalizeUrl('not-a-url')).toBeNull();
+  });
+});
+
+describe('pickMostRecentMatchingTab — 显式取"最近活跃"匹配 tab', () => {
+  // 用例背景:useOpenTabs 数据源改为按 index 排序后,书签点击跳转不能再靠数组首位
+  // 取"最近活跃",需显式按 lastAccessed 取最大,保持原 Phase 2 语义。
+  it('多个匹配 tab → 返回 lastAccessed 最大者(最近活跃)', () => {
+    const tabs = [
+      { url: 'https://example.com/a', lastAccessed: 100, id: 1 },
+      { url: 'https://example.com/b', lastAccessed: 300, id: 2 },
+      { url: 'https://example.com/c', lastAccessed: 200, id: 3 },
+    ];
+    // 根书签匹配同站任意页 → 三者都匹配,应取 lastAccessed=300
+    expect(pickMostRecentMatchingTab(tabs, 'https://example.com')?.id).toBe(2);
+  });
+
+  it('无匹配 → undefined', () => {
+    const tabs = [{ url: 'https://other.com', lastAccessed: 100, id: 1 }];
+    expect(pickMostRecentMatchingTab(tabs, 'https://example.com')).toBeUndefined();
+  });
+
+  it('不依赖数组顺序:乱序输入仍取 lastAccessed 最大者', () => {
+    const tabs = [
+      { url: 'https://example.com/x', lastAccessed: 50, id: 1 },
+      { url: 'https://example.com/y', lastAccessed: 500, id: 2 },
+      { url: 'https://example.com/z', lastAccessed: 200, id: 3 },
+    ];
+    expect(pickMostRecentMatchingTab(tabs, 'https://example.com')?.id).toBe(2);
   });
 });
