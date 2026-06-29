@@ -5,9 +5,13 @@ import * as BookmarkService from '@/services/BookmarkService';
 
 interface BookmarksState {
   bookmarks: Bookmark[];
+  /** 当前工作区全量书签(跨分类),供 TabList 跨分类去重判定,独立于 bookmarks */
+  allBookmarks: Bookmark[];
   loading: boolean;
 
   loadBookmarks: (categoryId: string) => Promise<void>;
+  /** 加载当前工作区全量书签(跨分类),作为 TabList 跨分类去重数据源 */
+  loadAllByWorkspace: (workspaceId: string) => Promise<void>;
   createBookmark: (workspaceId: string, categoryId: string, data: { name: string; url: string; description?: string }) => Promise<Bookmark>;
   deleteBookmark: (id: string) => Promise<void>;
   refreshBookmark: (id: string) => Promise<void>;
@@ -15,6 +19,7 @@ interface BookmarksState {
 
 export const useBookmarks = create<BookmarksState>((set) => ({
   bookmarks: [],
+  allBookmarks: [],
   loading: false,
 
   loadBookmarks: async (categoryId) => {
@@ -32,6 +37,13 @@ export const useBookmarks = create<BookmarksState>((set) => ({
     set({ bookmarks, loading: false });
   },
 
+  loadAllByWorkspace: async (workspaceId) => {
+    // 跨分类全量书签:TabList 跨分类去重数据源。不触碰 bookmarks(当前分类切片),
+    // 不触发 loading(与当前分类列表加载解耦)。
+    const allBookmarks = await BookmarkService.listBookmarksByWorkspace(workspaceId);
+    set({ allBookmarks });
+  },
+
   createBookmark: async (workspaceId, categoryId, data) => {
     const bookmark = await BookmarkService.createBookmark(workspaceId, categoryId, data);
     // 补充 favicon
@@ -40,7 +52,11 @@ export const useBookmarks = create<BookmarksState>((set) => ({
       await BookmarkService.updateBookmark(bookmark.id, { faviconUrl });
       bookmark.faviconUrl = faviconUrl;
     }
-    set((s) => ({ bookmarks: [...s.bookmarks, bookmark] }));
+    set((s) => ({
+      bookmarks: [...s.bookmarks, bookmark],
+      // 同步追加到跨分类切片:保存后 TabList 去重即时生效,避免数据陈旧
+      allBookmarks: [...s.allBookmarks, bookmark],
+    }));
     return bookmark;
   },
 
