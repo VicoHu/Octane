@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 // Semi 组件链间接拉入 lottie-web；jsdom 无 canvas 会崩，mock 掉
 vi.mock('lottie-web', () => ({
   default: {
@@ -6,22 +7,32 @@ vi.mock('lottie-web', () => ({
     destroy() {}, registerAnimation() {},
   },
 }));
-// 隔离子组件依赖，聚焦 loading 骨架分支
+// 隔离子组件依赖
 vi.mock('@/newtab/components/ContextList', () => ({ ContextList: () => null }));
 vi.mock('@/newtab/components/BookmarkCard', () => ({ BookmarkCard: () => null }));
+
+// 可控 useBookmarks 状态(测试间重置)
+let bookmarksState: Record<string, unknown>;
 vi.mock('@/store/useBookmarks', () => ({
-  useBookmarks: (sel: (s: Record<string, unknown>) => unknown) =>
-    sel({ loading: true, bookmarks: [], contextPreviews: {}, loadBookmarks: vi.fn(), createBookmark: vi.fn() }),
+  useBookmarks: (sel: (s: Record<string, unknown>) => unknown) => sel(bookmarksState),
 }));
 vi.mock('@/store/useSearch', () => ({
   useSearch: (sel: (s: Record<string, unknown>) => unknown) => sel({ query: '', setQuery: vi.fn() }),
 }));
 
-import { render } from '@testing-library/react';
 import { Content } from '@/newtab/components/Content';
 import { useWorkspace } from '@/store/useWorkspace';
 
 beforeEach(() => {
+  bookmarksState = {
+    loading: false,
+    bookmarks: [],
+    allBookmarks: [],
+    loadBookmarks: vi.fn(),
+    loadAllByWorkspace: vi.fn(),
+    createBookmark: vi.fn(async () => ({ id: 'b1' })),
+    refreshBookmark: vi.fn(),
+  };
   useWorkspace.setState({
     categories: [{ id: 'c1', name: '工作', icon: '💼' }],
     currentCategoryId: 'c1',
@@ -31,8 +42,41 @@ beforeEach(() => {
 });
 
 describe('Content 骨架屏（T2）', () => {
-  it('loading=true 时渲染 Semi Skeleton 骨架', () => {
+  it('loading=true 且书签视图时渲染 Semi Skeleton 骨架', () => {
+    bookmarksState.loading = true;
     const { container } = render(<Content />);
     expect(container.querySelector('.semi-skeleton')).toBeTruthy();
+  });
+});
+
+describe('Content 视图切换状态机(Tabs type=card)', () => {
+  // Semi Tabs:每个切换项 role="tab";[0]=书签 [1]=标签页
+  const tab = (container: HTMLElement, index: number) =>
+    container.querySelectorAll('[role="tab"]')[index] as HTMLElement;
+
+  it('默认书签视图:Tabs 含「书签」与「标签页(N)」两项', () => {
+    const { container } = render(<Content />);
+    expect(container.querySelectorAll('[role="tab"]').length).toBe(2);
+    // jsdom 无 chrome → useOpenTabs 返回 [] → 标签页计数 0
+    expect(container.textContent).toContain('标签页(0)');
+    // 默认书签视图:不应出现 tabs 视图的空状态文案(keepDOM=false 仅渲染活动面板)
+    expect(container.textContent).not.toContain('当前窗口没有其他标签页');
+  });
+
+  it('切到标签页视图:点击 标签页 tab → 渲染 TabList 空状态 + 保存至提示', () => {
+    const { container } = render(<Content />);
+    fireEvent.click(tab(container, 1));
+
+    expect(container.textContent).toContain('当前窗口没有其他标签页');
+    expect(container.textContent).toContain('保存至');
+  });
+
+  it('切回书签视图:不再渲染 TabList', () => {
+    const { container } = render(<Content />);
+    fireEvent.click(tab(container, 1));
+    expect(container.textContent).toContain('当前窗口没有其他标签页');
+
+    fireEvent.click(tab(container, 0));
+    expect(container.textContent).not.toContain('当前窗口没有其他标签页');
   });
 });
