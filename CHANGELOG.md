@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.6.0] - 2026-06-29
+
+### Added
+
+- **home 页「打开的标签页」视图**：Content 工具栏加卡片式 Tabs（书签 / 标签页），默认书签（100% 向后兼容）；标签页视图列出当前窗口所有打开的 tab（紧凑列表，顺序与浏览器 tab 栏一致），点击直达对应 tab，可从 tab 一键保存为书签到当前分类
+- **tab↔书签联动（护城河漏斗）**：tab 列表带「已收藏」角标（跨分类去重判定）；保存 tab 时带分类选择器（默认当前，防存错桶），保存成功后引导添加上下文笔记（save→context 漏斗，把 tab 视图变成引流进 Octane 加密上下文护城河的入口）
+- **跨分类去重数据源**：`useBookmarks` 新增 `allBookmarks` slice（`loadAllByWorkspace`），TabList 跨分类去重不再因仅加载当前分类而静默失效
+
+### Changed
+
+- **`useOpenTabs` 数据源改按浏览器位置（index）排序**：tab 列表与浏览器 tab 栏顺序一致，修复「多个相同 tab 点击跳转随机」（原按 `lastAccessed` 排序，聚焦会刷新其值致列表重排）；`lastAccessed` 降级为字段，书签点击跳转改用新增的 `pickMostRecentMatchingTab` 显式取最近活跃
+- **`useOpenTabs` 默认过滤浏览器内部页**：`chrome://` `edge://` `about:` `chrome-extension://` 不进列表；新增 `title` / `favIconUrl` / `pinned` / `index` 字段投影（为 0.2.x 会话保存做数据前置）
+
+### Fixed
+
+- **`focusTab` stale tabId**：tab 在列表渲染与点击跳转之间被关闭时不再产生未捕获的 promise rejection，改用 url 回退 `window.open`
+
 ## [0.1.5.1] - 2026-06-29
 
 ### Fixed
