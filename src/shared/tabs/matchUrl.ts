@@ -65,3 +65,28 @@ export function bookmarkMatchesOpenTab(bmUrl: string, tabUrl: string): boolean {
   const tabPath = normPath(tab.pathname);
   return tabPath === bmPath || tabPath.startsWith(bmPath + '/');
 }
+
+/**
+ * 在一组 tab 中,挑出与书签 URL 匹配且最近活跃(lastAccessed 最大)的那个。
+ *
+ * 用途:书签点击跳转——当一个书签对应多个已打开 tab 时,聚焦"最近活跃"的那个
+ * (原 Phase 2 语义)。
+ *
+ * 显式按 lastAccessed 取最大,**不依赖传入数组顺序**:useOpenTabs 数据源已改为按
+ * 浏览器位置(index)排序,书签跳转不能再靠数组首位取最近活跃,故提取此纯函数。
+ * 无匹配返回 undefined。
+ */
+export function pickMostRecentMatchingTab<T extends { url: string; lastAccessed: number }>(
+  tabs: T[],
+  bmUrl: string,
+): T | undefined {
+  let best: T | undefined;
+  let bestTs = -Infinity;
+  for (const t of tabs) {
+    if (bookmarkMatchesOpenTab(bmUrl, t.url) && t.lastAccessed > bestTs) {
+      best = t;
+      bestTs = t.lastAccessed;
+    }
+  }
+  return best;
+}

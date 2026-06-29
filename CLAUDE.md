@@ -90,10 +90,17 @@
 4. 除非仍然缺少某个特定文件细节，否则应将 CodeGraph 返回的源码/上下文视为足够信息。
 对于简单的字面量字符串匹配，可以使用 grep。
 
-## 页面UI/UX优化
-当任务涉及页面交互优化时：
-1. 优先考虑使用 Semi Design 组件库，而不是手动实现。使用 Semi Design组件库，可以使用 semi-ui-skills skill。
-2. 优先使用 ui-ux-pro-max skill。
-对于简单的页面交互优化，可以使用手动优化。
+## 页面 UI/UX 优化
+涉及前端 UI/UX 工作时，按场景选工具，避免无依据地手写样式：
+
+1. **Semi 组件选用与用法** → `semi-ui-skills` skill。本项目以 Semi Design 为组件基座，先查组件再动手。
+2. **单点 / 通用设计决策**（挑风格 / 配色 / 字体配对 / 图表选型，或任意页面的 UI/UX 优化）→ `ui-ux-pro-max` skill。基于数据库检索给推荐 + 配套 UX 规则，跨栈、不限页面类型。系统性代码 review 另用 `design-review` skill，不是它。
+3. **落地页 / 作品集 / 营销页 / 现有页面 redesign 的端到端设计落地** → `taste-skill`（install name `design-taste-frontend`，Anti-slop，读 brief 推断整体设计语言、调 VARIANCE / MOTION / DENSITY 三旋钮，产出连贯界面）。它偏整体方向落地（不是 `ui-ux-pro-max` 那种单点推荐）；默认栈 React + Tailwind v4，而本项目是 React + Semi Design（无 Tailwind），引入时样式需改用 Semi token；**明确不适用**于仪表盘、数据表格、多步产品 UI。
+
+判断原则：
+- 产品型 UI（newtab / sidepanel / 设置等）默认走 Semi + `semi-ui-skills`；需要设计决策时叠加 `ui-ux-pro-max`。
+- 落地页 / 作品集类页面才用 `taste-skill` 做整体设计落地（其 Tailwind 默认栈需替换为本项目 Semi token）；扩展内功能型 UI 不要用 `taste-skill`，挑配色 / 字体等单点决策用 `ui-ux-pro-max`。
+- 极简微调（改间距 / 颜色 token 等）可直接手动，无需调用 skill。
+
 ### Semi Design 定制规范（Token 参考手册）
 [Semi Design 定制规范（Token 参考手册）](docs/semi-design-spec.md)
