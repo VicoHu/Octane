@@ -81,10 +81,13 @@ export const Content: React.FC = () => {
     if (!editingBookmark) return;
     try {
       const { updateBookmark } = await import('@/services/BookmarkService');
+      // description 允许清空：Semi Form 清空字段提交值为 undefined，
+      // 不能用 `?? editingBookmark.description` 回退（会把"清空"误判为"未改动"）。
+      // name/url 保留原值兜底（url 必填；name 清空时回退原名，避免空名）。
       await updateBookmark(editingBookmark.id, {
         name: values['name'] ?? editingBookmark.name,
         url: values['url'] ?? editingBookmark.url,
-        description: values['description'] ?? editingBookmark.description,
+        description: values['description'] ?? '',
       });
       await useBookmarks.getState().refreshBookmark(editingBookmark.id);
       setEditingBookmark(null);

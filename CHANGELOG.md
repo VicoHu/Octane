@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.5.1] - 2026-06-29
+
+### Fixed
+
+- **书签备注清空不生效**：编辑书签弹窗清空「描述」字段后保存，备注仍显示旧值——Semi Form 清空字段提交值为 `undefined`，原代码误用 `??` 回退原值。改为允许清空为空串
+- **本机/内网地址 favicon 失败**：`localhost`、IP（`127.0.0.1`、`192.168.x`、`10.x` 等）、`*.local` 不再走 Google Favicon API（其无法索引这些地址必然返回占位图），改为回退源站 `${origin}/favicon.ico`（如 `http://localhost:8648/favicon.ico`），加载失败仍由 UI 层回退书签首字母；已存在的旧内网书签在打开对应分类时自动收敛到新策略
+
 ## [0.1.5.0] - 2026-06-28
 
 ### Added
