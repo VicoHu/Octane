@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.7.0] - 2026-06-30
+
+### Added
+
+- **Side Panel 来源辨识**：同 hostname 跨多工作区/分类命中时，按工作区段 → 分类段 → 书签卡分组渲染，零点击可辨来源（此前同 host 多书签 header 几乎相同，分不清属哪个工作区/分类）。`groupBookmarksByWorkspace` 纯函数按 `Workspace.order → Category.order → Bookmark.createdAt` 排序，孤儿引用归入「未知」段。
+- **Side Panel 折叠收纳**：≥2 个工作区命中时包成 Semi Collapse（默认 ≤6 全展开 / >6 仅展开命中最多者；单工作区免 Collapse）。展开态按工作区记忆，刷新/编辑后不跳段。
+- **Side Panel 就地创建上下文**：每个书签 header 「+」内联展开编辑器（标题 + Markdown 正文 + 加密 Switch），免去跳 newtab 往返。加密走 `isUnlocked()` gate（未解锁 Toast 提示、输入保留）；idle/saving/saved/error 四态，防双击重复创建；创建后新卡经既有 `BroadcastChannel` 闭环即时出现。
+- 书签卡 header 增加分类 chip（来源辨识常驻）。
+
+### Fixed
+
+- **未加密上下文创建后不出现**（预存 bug）：`useEncryptedContexts` 依赖数组缺 `contextCount`，创建未加密上下文时 effect 不重跑、新卡不渲染。现已加入依赖，就地创建闭环生效。
+
+### Changed
+
+- Side Panel 顶栏布局紧凑化：工作区段头去自身 padding（依赖 Collapse 内边距），修内容垂直未居中 + 省空间。
+
 ## [0.1.6.0] - 2026-06-29
 
 ### Added

@@ -1,5 +1,10 @@
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { Collapse } from '@douyinfe/semi-ui';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
+import { useSourceMap } from './hooks/useSourceMap';
+import { groupBookmarksByWorkspace, defaultExpandedIds, groupHitCount } from './utils/grouping';
+import type { WorkspaceGroup } from './utils/grouping';
 import { StickyHeader } from './components/StickyHeader';
 import { BookmarkGroup } from './components/BookmarkGroup';
 import { focusOrCreateHomeTab } from '@/shared/tabs/focusOrCreateHomeTab';
@@ -11,18 +16,49 @@ function openNewtab() {
 }
 
 /**
- * Side Panel 根组件：四状态编排 + 按书签分组渲染。
+ * Side Panel 根组件：四状态编排 + 按工作区/分类分组渲染（来源辨识）。
  *
  * 状态机：
  * - tab loading → 加载中
  * - hostname null（非 http(s)）→ 此页面不支持联动
  * - useHostBookmarks loading → 匹配中
  * - matched 空 → 空状态
- * - matched 有 → StickyHeader + BookmarkGroup[]
+ * - matched 有 → StickyHeader + 按工作区→分类分组（sourceMap 就绪后）
+ *
+ * 来源辨识：sourceMap 未就绪时退化为平铺（不渲染来源名，避免闪烁 undefined）；
+ * 就绪后渲染工作区段头 + 分类段头 + 书签卡（卡上常驻分类 chip，R1）。
+ *
+ * Collapse（≥2 工作区才包）：
+ * - 默认展开：T2（总命中≤6 全展开 / >6 仅展开命中最多者），按 hostname 初始化一次
+ * - activeKeys 用 useMemo 派生（保留与当前 groups 的交集），避免刷新闪烁/编辑后跳段（R4）
+ * - 单工作区免 Collapse 包裹（R8）
  */
 export default function App() {
   const { hostname, loading: tabLoading } = useCurrentTabContext();
   const { matched, loading: matching } = useHostBookmarks(hostname);
+  const { workspaces, categories, ready } = useSourceMap();
+
+  const groups = useMemo(
+    () => (ready ? groupBookmarksByWorkspace(matched, workspaces, categories) : []),
+    [matched, workspaces, categories, ready],
+  );
+
+  // Collapse 展开态：用户手动 toggle 后由 expandedIds 接管；activeKeys 派生时与当前 groups 取交集
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const initedHostRef = useRef<string | null>(null);
+
+  // 默认展开初始化（每个 hostname 一次）：sourceMap 就绪、groups 非空时按 T2 设默认
+  useEffect(() => {
+    if (groups.length === 0) return;
+    if (initedHostRef.current === hostname) return;
+    initedHostRef.current = hostname;
+    setExpandedIds(new Set(defaultExpandedIds(groups)));
+  }, [groups, hostname]);
+
+  const activeKeys = useMemo(
+    () => groups.filter((g) => expandedIds.has(g.workspaceId)).map((g) => g.workspaceId),
+    [groups, expandedIds],
+  );
 
   if (tabLoading) {
     return <div className={styles.state}>加载中…</div>;
@@ -42,13 +78,54 @@ export default function App() {
     );
   }
 
+  /** 渲染一个工作区内的分类段 + 书签卡（Collapse / 平铺共用） */
+  const renderBookmarkList = (ws: WorkspaceGroup) =>
+    ws.categories.map((cat) => (
+      <div key={cat.categoryId} className={styles.catSection} data-testid="cat-section">
+        {cat.bookmarks.map((b) => (
+          <BookmarkGroup
+            key={b.id}
+            bookmark={b}
+            categoryName={cat.category?.name}
+            categoryIcon={cat.category?.icon}
+          />
+        ))}
+      </div>
+    ));
+
+  /** 工作区段头（icon + 名 + 命中数） */
+  const wsHeader = (ws: WorkspaceGroup) => (
+    <div className={styles.wsHeader}>
+      <span className={styles.wsIcon}>{ws.workspace?.icon ?? '❓'}</span>
+      <span className={styles.wsName}>{ws.workspace?.name ?? '未知工作区'}</span>
+      <span className={styles.wsCount}>{groupHitCount(ws)} 个书签</span>
+    </div>
+  );
+
   return (
     <div className={styles.app}>
       <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} />
       <div className={styles.list} role="list">
-        {matched.map((b) => (
-          <BookmarkGroup key={b.id} bookmark={b} />
-        ))}
+        {groups.length >= 2 ? (
+          <Collapse
+            activeKey={activeKeys}
+            motion={false}
+            onChange={(keys) => setExpandedIds(new Set(keys as string[]))}
+          >
+            {groups.map((ws) => (
+              <Collapse.Panel header={wsHeader(ws)} itemKey={ws.workspaceId} key={ws.workspaceId}>
+                {renderBookmarkList(ws)}
+              </Collapse.Panel>
+            ))}
+          </Collapse>
+        ) : (
+          groups.map((ws) => (
+            <section key={ws.workspaceId} className={styles.wsSection}>
+              {wsHeader(ws)}
+              {renderBookmarkList(ws)}
+            </section>
+          ))
+        )}
       </div>
     </div>
   );

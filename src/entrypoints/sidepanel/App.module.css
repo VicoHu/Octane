@@ -5,6 +5,38 @@
 .list {
   padding-bottom: 16px;
 }
+.wsSection {
+  /* 平铺（单工作区）路径：提供水平内边距；wsHeader 自身无 padding */
+  padding: 8px 12px 0;
+}
+.wsHeader {
+  position: relative; /* 普通（非 sticky）段头：Semi Collapse 内 sticky 失效（R1） */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0; /* 无自身 padding：Collapse panel header 已有内边距，避免双 padding 浪费空间 */
+  line-height: 1.2;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--semi-color-text-0, #1c1c1c);
+}
+.wsIcon {
+  font-size: 14px;
+}
+.wsName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wsCount {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--semi-color-text-2, #999);
+}
+.catSection {
+  padding: 0;
+}
 .state {
   display: flex;
   align-items: center;
