@@ -19,7 +19,7 @@
 - 批量 triage(批量关闭、save-and-close、重复检测清理)
 - 50+ tab 虚拟化/分组
 
-## 0.1.6.1 — side panel 来源辨识 + 就地创建（autoplan 推迟项）
+## 0.1.7.0 — side panel 来源辨识 + 就地创建（autoplan 推迟项）
 
 > 来源：autoplan CEO/Eng review（2026-06-30），用户坚持方案 C 主体，以下为推迟/已知风险。
 
