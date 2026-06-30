@@ -25,10 +25,12 @@ export interface EncryptedContextsState {
  *
  * @param bookmarkId 书签 id
  * @param hasEncryptedContext 书签是否含加密 context（冗余字段，决定是否需解锁 gate）
+ * @param contextCount 书签的上下文条数（冗余字段；变化时重新拉取，捕获就地创建的新上下文）
  */
 export function useEncryptedContexts(
   bookmarkId: string,
   hasEncryptedContext: boolean,
+  contextCount: number,
 ): EncryptedContextsState {
   const [state, setState] = useState<EncryptedContextsState>({
     contexts: [],
@@ -69,7 +71,7 @@ export function useEncryptedContexts(
     return () => {
       active = false;
     };
-  }, [bookmarkId, hasEncryptedContext]);
+  }, [bookmarkId, hasEncryptedContext, contextCount]);
 
   return state;
 }
