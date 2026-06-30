@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Semi Collapse 依赖 lottie-web，在 jsdom 模块加载时触发 canvas null 错误。
 // 用轻量 mock 替代：所有 panel header 恒渲染，仅 active panel 的 children 渲染
@@ -16,7 +16,22 @@ vi.mock('@douyinfe/semi-ui', () => {
     ));
   };
   Collapse.Panel = () => null;
-  return { Collapse };
+  // RadioGroup：button 形态，options 渲染为按钮，onChange 给 {target:{value}}
+  const RadioGroup: any = ({ value, onChange, options }: any) => (
+    <div role="radiogroup">
+      {(options ?? []).map((opt: any) => (
+        <button
+          key={opt.value}
+          aria-label={opt.label}
+          data-checked={value === opt.value ? 'true' : 'false'}
+          onClick={() => onChange?.({ target: { value: opt.value } })}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+  return { Collapse, RadioGroup };
 });
 
 vi.mock('../hooks/useCurrentTabContext', () => ({
@@ -55,6 +70,10 @@ describe('App — 四状态 + 分组渲染', () => {
     vi.clearAllMocks();
     // 默认 sourceMap 就绪空数据（四状态测试不依赖来源）
     sourceMock.mockReturnValue({ workspaces: [], categories: [], ready: true });
+    // chrome.storage.local 桩（RadioGroup 分组模式持久化）
+    (globalThis as any).chrome = {
+      storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
+    };
   });
 
   it('tab loading → 显示加载中', () => {
@@ -132,5 +151,68 @@ describe('App — 四状态 + 分组渲染', () => {
     expect(screen.getByText('WS1-0')).toBeTruthy();
     // ws2 折叠 → 内容不可见（keepDOM=false，折叠面板内容不在 DOM）
     expect(screen.queryByText('WS2-ONLY')).toBeNull();
+  });
+});
+
+describe('App — RadioGroup 分组模式切换 + 持久化', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (globalThis as any).chrome = {
+      storage: { local: { get: vi.fn().mockResolvedValue({}), set: vi.fn().mockResolvedValue(undefined) } },
+    };
+  });
+  const tabMock2 = useCurrentTabContext as ReturnType<typeof vi.fn>;
+  const hostMock2 = useHostBookmarks as ReturnType<typeof vi.fn>;
+  const sourceMock2 = useSourceMap as ReturnType<typeof vi.fn>;
+
+  it('默认「工作区分类」二级模式 → 渲染分类段头', () => {
+    tabMock2.mockReturnValue({ hostname: 'a.com', loading: false });
+    hostMock2.mockReturnValue({ matched: [makeBookmark('b1', 'Google')], loading: false });
+    sourceMock2.mockReturnValue({
+      workspaces: [{ id: 'w1', name: '工作区1', icon: '🗂', createdAt: 0, order: 0 }],
+      categories: [{ id: 'c1', workspaceId: 'w1', name: '分类1', icon: '📁', order: 0, createdAt: 0 }],
+      ready: true,
+    });
+    render(<App />);
+    // RadioGroup 默认选中「工作区分类」
+    expect(screen.getByLabelText('工作区分类').getAttribute('data-checked')).toBe('true');
+    // 二级模式 → 分类段头存在
+    expect(screen.getAllByTestId('cat-section').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('切到「工作区」一级模式 → 持久化 + 不渲染分类段头', async () => {
+    const { storage } = (globalThis as any).chrome;
+    tabMock2.mockReturnValue({ hostname: 'a.com', loading: false });
+    hostMock2.mockReturnValue({ matched: [makeBookmark('b1', 'Google')], loading: false });
+    sourceMock2.mockReturnValue({
+      workspaces: [{ id: 'w1', name: '工作区1', icon: '🗂', createdAt: 0, order: 0 }],
+      categories: [{ id: 'c1', workspaceId: 'w1', name: '分类1', icon: '📁', order: 0, createdAt: 0 }],
+      ready: true,
+    });
+    render(<App />);
+    // 默认有分类段头
+    expect(screen.getAllByTestId('cat-section').length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getByLabelText('工作区'));
+    // 持久化写入
+    await waitFor(() => expect(storage.local.set).toHaveBeenCalledWith({ 'sidepanel.groupMode': 'workspace' }));
+    // 一级模式 → 无分类段头（书签卡平铺，chip 仍显示分类）
+    expect(screen.queryAllByTestId('cat-section')).toHaveLength(0);
+  });
+
+  it('启动时读取持久化的分组模式', async () => {
+    const { storage } = (globalThis as any).chrome;
+    storage.local.get.mockResolvedValue({ 'sidepanel.groupMode': 'workspace' });
+    tabMock2.mockReturnValue({ hostname: 'a.com', loading: false });
+    hostMock2.mockReturnValue({ matched: [makeBookmark('b1', 'Google')], loading: false });
+    sourceMock2.mockReturnValue({
+      workspaces: [{ id: 'w1', name: '工作区1', icon: '🗂', createdAt: 0, order: 0 }],
+      categories: [{ id: 'c1', workspaceId: 'w1', name: '分类1', icon: '📁', order: 0, createdAt: 0 }],
+      ready: true,
+    });
+    render(<App />);
+    await waitFor(() => expect(storage.local.get).toHaveBeenCalledWith('sidepanel.groupMode'));
+    // 恢复到一级模式 → 无分类段头
+    await waitFor(() => expect(screen.queryAllByTestId('cat-section')).toHaveLength(0));
   });
 });

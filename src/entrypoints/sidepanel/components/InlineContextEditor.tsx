@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Input, TextArea, Switch, Button, Toast } from '@douyinfe/semi-ui';
-import { IconPlus } from '@douyinfe/semi-icons';
 import { isUnlocked } from '@/services/CryptoService';
 import { createContext } from '@/services/ContextService';
 import { ContextType } from '@/shared/types';
