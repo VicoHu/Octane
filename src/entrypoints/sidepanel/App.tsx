@@ -82,10 +82,6 @@ export default function App() {
   const renderBookmarkList = (ws: WorkspaceGroup) =>
     ws.categories.map((cat) => (
       <div key={cat.categoryId} className={styles.catSection} data-testid="cat-section">
-        <div className={styles.catHeader}>
-          <span className={styles.catIcon}>{cat.category?.icon ?? '❓'}</span>
-          <span className={styles.catName}>{cat.category?.name ?? '未知分类'}</span>
-        </div>
         {cat.bookmarks.map((b) => (
           <BookmarkGroup
             key={b.id}
