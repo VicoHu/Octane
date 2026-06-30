@@ -37,6 +37,18 @@ describe('BookmarkGroup — 单书签四态', () => {
     expect(screen.getByText(/2 条上下文/)).toBeTruthy();
   });
 
+  it('传入 categoryName → header 渲染分类 chip（R1 来源辨识）', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    render(<BookmarkGroup bookmark={makeBookmark()} categoryName="开发工具" categoryIcon="📁" />);
+    expect(screen.getByText(/开发工具/)).toBeTruthy();
+  });
+
+  it('未传 categoryName → 不渲染 chip（向后兼容）', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.queryByText('开发工具')).toBeNull();
+  });
+
   it('locked 态 → 显示解锁提示，不渲染明文', () => {
     mock.mockReturnValue({ contexts: [makeContext({ content: '明文' })], locked: true, error: null, loading: false });
     render(<BookmarkGroup bookmark={makeBookmark()} />);

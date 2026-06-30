@@ -6,17 +6,19 @@ import styles from './BookmarkGroup.module.css';
 
 interface BookmarkGroupProps {
   bookmark: Bookmark;
+  /** 分类名（来源辨识 chip）。二级模式下段头已显示分类时可省略，避免重复 */
+  categoryName?: string;
+  /** 分类 icon，与 categoryName 配对 */
+  categoryIcon?: string;
 }
 
 /**
- * 单书签分组：header（书签名 + 加密锁标识 + 命中数）+ 四态内容。
+ * 单书签分组：header（书签名 + 加密锁标识 + 命中数 + 可选分类 chip）+ 四态内容。
  * 内调 useEncryptedContexts 按解锁状态 gate 解密渲染。
  *
  * 四态：locked（暖色解锁卡）/ loading（骨架）/ error（错误）/ contexts（ContextCard 列表）
- *
- * 注：分类名 Tag 需额外 getAll('categories') 取数，P2 先用书签名 + 加密锁标识替代。
  */
-export function BookmarkGroup({ bookmark }: BookmarkGroupProps) {
+export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: BookmarkGroupProps) {
   const { contexts, locked, error, loading } = useEncryptedContexts(bookmark.id, bookmark.hasEncryptedContext, bookmark.contextCount);
 
   return (
@@ -24,6 +26,11 @@ export function BookmarkGroup({ bookmark }: BookmarkGroupProps) {
       <div className={styles.header}>
         <span className={styles.name}>{bookmark.name}</span>
         {bookmark.hasEncryptedContext && <IconLock className={styles.lock} aria-label="含加密上下文" />}
+        {categoryName && (
+          <span className={styles.chip} title={categoryName}>
+            {categoryIcon ? `${categoryIcon} ` : ''}{categoryName}
+          </span>
+        )}
         <span className={styles.count}>{bookmark.contextCount} 条上下文</span>
       </div>
       {locked ? (
