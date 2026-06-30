@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Collapse, RadioGroup } from '@douyinfe/semi-ui';
+import { Collapse } from '@douyinfe/semi-ui';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
 import { useSourceMap } from './hooks/useSourceMap';
@@ -14,10 +14,6 @@ import styles from './App.module.css';
 function openNewtab() {
   void focusOrCreateHomeTab();
 }
-
-/** 分组模式：工作区（一级）/ 工作区分类（二级，默认）。持久化于 chrome.storage.local */
-type GroupMode = 'workspace' | 'workspaceCategory';
-const GROUP_MODE_KEY = 'sidepanel.groupMode';
 
 /**
  * Side Panel 根组件：四状态编排 + 按工作区/分类分组渲染（来源辨识）。
@@ -64,25 +60,6 @@ export default function App() {
     [groups, expandedIds],
   );
 
-  // 分组模式持久化（启动读一次；切换即写）
-  const [mode, setMode] = useState<GroupMode>('workspaceCategory');
-  const modeLoadedRef = useRef(false);
-  useEffect(() => {
-    if (modeLoadedRef.current) return;
-    modeLoadedRef.current = true;
-    chrome.storage.local
-      .get(GROUP_MODE_KEY)
-      .then((r: Record<string, unknown>) => {
-        const v = r[GROUP_MODE_KEY];
-        if (v === 'workspace' || v === 'workspaceCategory') setMode(v);
-      })
-      .catch(() => {/* storage 不可用时静默用默认 */});
-  }, []);
-  const handleModeChange = (v: GroupMode) => {
-    setMode(v);
-    chrome.storage.local.set({ [GROUP_MODE_KEY]: v }).catch(() => {});
-  };
-
   if (tabLoading) {
     return <div className={styles.state}>加载中…</div>;
   }
@@ -101,23 +78,9 @@ export default function App() {
     );
   }
 
-  /** 渲染一个工作区内的书签（Collapse / 平铺共用；按 mode 决定是否显示分类段头） */
-  const renderBookmarkList = (ws: WorkspaceGroup) => {
-    if (mode === 'workspace') {
-      // 一级：平铺所有书签，分类由卡上 chip 显示（R1 常驻），不渲染分类段头
-      return ws.categories.flatMap((cat) =>
-        cat.bookmarks.map((b) => (
-          <BookmarkGroup
-            key={b.id}
-            bookmark={b}
-            categoryName={cat.category?.name}
-            categoryIcon={cat.category?.icon}
-          />
-        )),
-      );
-    }
-    // 二级：分类段头 + 卡片
-    return ws.categories.map((cat) => (
+  /** 渲染一个工作区内的分类段 + 书签卡（Collapse / 平铺共用） */
+  const renderBookmarkList = (ws: WorkspaceGroup) =>
+    ws.categories.map((cat) => (
       <div key={cat.categoryId} className={styles.catSection} data-testid="cat-section">
         <div className={styles.catHeader}>
           <span className={styles.catIcon}>{cat.category?.icon ?? '❓'}</span>
@@ -133,7 +96,6 @@ export default function App() {
         ))}
       </div>
     ));
-  };
 
   /** 工作区段头（icon + 名 + 命中数） */
   const wsHeader = (ws: WorkspaceGroup) => (
@@ -147,19 +109,6 @@ export default function App() {
   return (
     <div className={styles.app}>
       <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} />
-      <div className={styles.modeBar}>
-        <RadioGroup
-          type="button"
-          buttonSize="small"
-          value={mode}
-          aria-label="分组模式"
-          onChange={(e) => handleModeChange((e.target as HTMLInputElement).value as GroupMode)}
-          options={[
-            { value: 'workspace', label: '工作区' },
-            { value: 'workspaceCategory', label: '工作区分类' },
-          ]}
-        />
-      </div>
       <div className={styles.list} role="list">
         {groups.length >= 2 ? (
           <Collapse
