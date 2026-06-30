@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 vi.mock('../../hooks/useEncryptedContexts', () => ({
   useEncryptedContexts: vi.fn(),
+}));
+// InlineContextEditor 引 semi-ui barrel（jsdom 崩 lottie）；BookmarkGroup 测试只关注入口
+vi.mock('../InlineContextEditor', () => ({
+  InlineContextEditor: () => <div>editor-stub</div>,
 }));
 
 import { BookmarkGroup } from '../BookmarkGroup';
@@ -76,5 +80,13 @@ describe('BookmarkGroup — 单书签四态', () => {
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.getByText('笔记A')).toBeTruthy();
     expect(screen.getByText('笔记B')).toBeTruthy();
+  });
+
+  it('点击「+ 上下文」→ 展开就地创建编辑器', () => {
+    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: false });
+    render(<BookmarkGroup bookmark={makeBookmark()} />);
+    expect(screen.queryByText('editor-stub')).toBeNull();
+    fireEvent.click(screen.getByLabelText('添加上下文'));
+    expect(screen.getByText('editor-stub')).toBeTruthy();
   });
 });

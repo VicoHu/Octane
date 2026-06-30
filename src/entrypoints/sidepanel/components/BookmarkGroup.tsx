@@ -1,6 +1,8 @@
-import { IconLock } from '@douyinfe/semi-icons';
+import { useState } from 'react';
+import { IconLock, IconPlus } from '@douyinfe/semi-icons';
 import { useEncryptedContexts } from '../hooks/useEncryptedContexts';
 import { ContextCard } from './ContextCard';
+import { InlineContextEditor } from './InlineContextEditor';
 import type { Bookmark } from '@/shared/types';
 import styles from './BookmarkGroup.module.css';
 
@@ -20,6 +22,7 @@ interface BookmarkGroupProps {
  */
 export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: BookmarkGroupProps) {
   const { contexts, locked, error, loading } = useEncryptedContexts(bookmark.id, bookmark.hasEncryptedContext, bookmark.contextCount);
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className={styles.group} role="listitem" aria-label={bookmark.name}>
@@ -32,7 +35,18 @@ export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: Bookmark
           </span>
         )}
         <span className={styles.count}>{bookmark.contextCount} 条上下文</span>
+        <button
+          className={styles.addBtn}
+          onClick={() => setEditing(true)}
+          aria-label="添加上下文"
+          title="就地创建上下文"
+        >
+          <IconPlus />
+        </button>
       </div>
+      {editing && (
+        <InlineContextEditor bookmarkId={bookmark.id} onDone={() => setEditing(false)} />
+      )}
       {locked ? (
         <div className={styles.locked}>含加密上下文，点击解锁查看</div>
       ) : loading ? (
