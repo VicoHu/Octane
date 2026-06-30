@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupBookmarksByWorkspace } from '../grouping';
+import { groupBookmarksByWorkspace, defaultExpandedIds } from '../grouping';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
 
 /** Workspace 工厂 */
@@ -87,5 +87,33 @@ describe('groupBookmarksByWorkspace — 来源分组纯函数', () => {
 
   it('TG4 空 matched → 空分组', () => {
     expect(groupBookmarksByWorkspace([], [makeWs()], [makeCat()])).toEqual([]);
+  });
+});
+
+describe('defaultExpandedIds — Collapse 默认展开策略（T2）', () => {
+  /** 构造一个含 N 条书签的工作区分组（单分类） */
+  function groupWith(wsId: string, count: number): ReturnType<typeof groupBookmarksByWorkspace>[number] {
+    const bookmarks = Array.from({ length: count }, (_, i) =>
+      makeBm({ id: `${wsId}-b${i}`, workspaceId: wsId, categoryId: `${wsId}-c`, createdAt: i }),
+    );
+    return {
+      workspaceId: wsId,
+      workspace: { name: wsId, icon: '🗂' },
+      categories: [{ categoryId: `${wsId}-c`, category: { name: 'cat', icon: '📁' }, bookmarks }],
+    };
+  }
+
+  it('T2-a 总命中 ≤6 → 全部工作区展开', () => {
+    const groups = [groupWith('w1', 2), groupWith('w2', 3)]; // total 5
+    expect(defaultExpandedIds(groups).sort()).toEqual(['w1', 'w2']);
+  });
+
+  it('T2-b 总命中 >6 → 仅展开命中最多的工作区', () => {
+    const groups = [groupWith('w1', 6), groupWith('w2', 1)]; // total 7
+    expect(defaultExpandedIds(groups)).toEqual(['w1']);
+  });
+
+  it('T2-c 空分组 → 空展开集', () => {
+    expect(defaultExpandedIds([])).toEqual([]);
   });
 });

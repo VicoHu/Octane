@@ -1,6 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
+// Semi Collapse 依赖 lottie-web，在 jsdom 模块加载时触发 canvas null 错误。
+// 用轻量 mock 替代：所有 panel header 恒渲染，仅 active panel 的 children 渲染
+// （匹配 Semi Collapse keepDOM=false 的折叠语义，用于验证默认展开/折叠逻辑）。
+vi.mock('@douyinfe/semi-ui', () => {
+  const Collapse: any = ({ activeKey, children }: any) => {
+    const active = Array.isArray(activeKey) ? activeKey : activeKey ? [activeKey] : [];
+    const arr = Array.isArray(children) ? children : children ? [children] : [];
+    return arr.map((p: any, i: number) => (
+      <div key={p.props.itemKey ?? i}>
+        {p.props.header}
+        {active.includes(p.props.itemKey) ? p.props.children : null}
+      </div>
+    ));
+  };
+  Collapse.Panel = () => null;
+  return { Collapse };
+});
+
 vi.mock('../hooks/useCurrentTabContext', () => ({
   useCurrentTabContext: vi.fn(),
 }));
@@ -21,9 +39,9 @@ import { useHostBookmarks } from '../hooks/useHostBookmarks';
 import { useSourceMap } from '../hooks/useSourceMap';
 import type { Bookmark } from '@/shared/types';
 
-function makeBookmark(id: string, name: string): Bookmark {
+function makeBookmark(id: string, name: string, wsId = 'w1', catId = 'c1'): Bookmark {
   return {
-    id, workspaceId: 'w1', categoryId: 'c1', name, url: `https://${id}.com`,
+    id, workspaceId: wsId, categoryId: catId, name, url: `https://${id}.com`,
     description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: false,
     createdAt: 0, updatedAt: 0,
   };
@@ -85,5 +103,34 @@ describe('App — 四状态 + 分组渲染', () => {
     expect(screen.getAllByText(/分类1/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Google')).toBeTruthy();
     expect(screen.getByText('Gmail')).toBeTruthy();
+  });
+
+  it('≥2 工作区 + 总命中>6 → Collapse 默认仅展开命中最多者，其余折叠（T2）', () => {
+    tabMock.mockReturnValue({ hostname: 'a.com', loading: false });
+    // ws1: 6 书签，ws2: 1 书签 → 总命中 7 >6 → 默认仅展开 ws1
+    const matched = [
+      ...Array.from({ length: 6 }, (_, i) => makeBookmark(`b1-${i}`, `WS1-${i}`, 'w1', 'c1')),
+      makeBookmark('b2-0', 'WS2-ONLY', 'w2', 'c2'),
+    ];
+    hostMock.mockReturnValue({ matched, loading: false });
+    sourceMock.mockReturnValue({
+      workspaces: [
+        { id: 'w1', name: '工作区1', icon: '🗂', createdAt: 0, order: 0 },
+        { id: 'w2', name: '工作区2', icon: '🗂', createdAt: 0, order: 1 },
+      ],
+      categories: [
+        { id: 'c1', workspaceId: 'w1', name: '分类1', icon: '📁', order: 0, createdAt: 0 },
+        { id: 'c2', workspaceId: 'w2', name: '分类2', icon: '📁', order: 0, createdAt: 0 },
+      ],
+      ready: true,
+    });
+    render(<App />);
+    // 两个段头恒在（Collapse panel header）
+    expect(screen.getByText(/工作区1/)).toBeTruthy();
+    expect(screen.getByText(/工作区2/)).toBeTruthy();
+    // ws1 展开 → 内容可见
+    expect(screen.getByText('WS1-0')).toBeTruthy();
+    // ws2 折叠 → 内容不可见（keepDOM=false，折叠面板内容不在 DOM）
+    expect(screen.queryByText('WS2-ONLY')).toBeNull();
   });
 });

@@ -79,3 +79,26 @@ export function groupBookmarksByWorkspace(
   });
   return groups;
 }
+
+/** 工作区分组命中书签总数 */
+export function groupHitCount(g: WorkspaceGroup): number {
+  return g.categories.reduce((n, c) => n + c.bookmarks.length, 0);
+}
+
+/**
+ * Collapse 默认展开策略（T2）：
+ * - 总命中 ≤6 → 全部工作区展开（一屏放得下，免点）
+ * - 总命中 >6 → 仅展开命中最多的工作区（减少初始滚动）
+ *
+ * 用于 App 在「无用户记忆」时初始化 activeKeys；用户手动 toggle 后由 expandedIds 接管。
+ */
+export function defaultExpandedIds(groups: WorkspaceGroup[]): string[] {
+  if (groups.length === 0) return [];
+  const total = groups.reduce((n, g) => n + groupHitCount(g), 0);
+  if (total <= 6) return groups.map((g) => g.workspaceId);
+  let top = groups[0]!;
+  for (const g of groups) {
+    if (groupHitCount(g) > groupHitCount(top)) top = g;
+  }
+  return [top.workspaceId];
+}
