@@ -1,0 +1,7 @@
+.section {
+  margin-bottom: var(--space-lg);
+}
+
+.banner {
+  margin-top: var(--space-sm);
+}

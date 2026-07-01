@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Button, Tooltip } from '@douyinfe/semi-ui';
-import { IconLock, IconComment, IconEdit } from '@douyinfe/semi-icons';
+import { Card, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
+import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -11,9 +11,10 @@ interface BookmarkCardProps {
   onClick: (bookmark: Bookmark) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
+  onDelete: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark }) => {
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark, onDelete }) => {
   const [faviconError, setFaviconError] = useState(false);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
@@ -89,7 +90,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       </div>
 
       {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
-      <div className={styles.actions}>
+      {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触） */}
+      <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
         <Tooltip content="查看上下文">
           <Button
             theme="borderless"
@@ -116,6 +118,31 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
             }}
           />
         </Tooltip>
+        {/* 删除：级联删上下文，Popconfirm 二次确认。文案按 contextCount 分支（0 条时不显示无意义计数）。
+            onConfirm 用 body block 不返回 Promise——否则 Semi Popconfirm 进入异步 loading 模式，
+            其 overlay(z-index 1030) 遮挡 Toast(1010)，导致删除成功 Toast 不可见。 */}
+        <Popconfirm
+          title="删除书签"
+          content={
+            bookmark.contextCount > 0
+              ? `将同时删除 ${bookmark.contextCount} 条上下文，不可撤销`
+              : '确定删除该书签？'
+          }
+          okType="danger"
+          position="bottomRight"
+          onConfirm={() => {
+            onDelete(bookmark);
+          }}
+        >
+          <Button
+            theme="borderless"
+            type="danger"
+            icon={<IconDelete />}
+            aria-label="删除书签"
+            className={styles.actionBtn}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Popconfirm>
       </div>
     </Card>
   );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Input, Button, Modal, Form, Toast, Skeleton, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
@@ -8,7 +8,13 @@ import { useOpenTabs } from '@/newtab/hooks/useOpenTabs';
 import type { OpenTab } from '@/newtab/hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
+import * as CategoryService from '@/services/CategoryService';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
+import {
+  BookmarkOpsPanel,
+  type BookmarkOpsPanelHandle,
+  type BookmarkOpsPanelSubmit,
+} from '@/newtab/components/BookmarkOpsPanel';
 import { EmptyState } from '@/newtab/components/EmptyState';
 import { ContextList } from '@/newtab/components/ContextList';
 import { TabList } from '@/newtab/components/TabList';
@@ -34,13 +40,20 @@ export const Content: React.FC = () => {
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
   const [addFormApi, setAddFormApi] = useState<any>(null);
-  const [editFormApi, setEditFormApi] = useState<any>(null);
   // 视图切换:默认「书签」(向后兼容);「标签页」= 打开的 tab 一等视图
   const [activeView, setActiveView] = useState<View>('bookmarks');
   // 从 tab 触发保存时携带的预填源(null=手动「添加书签」)
   const [saveFromTab, setSaveFromTab] = useState<OpenTab | null>(null);
 
   const currentCategory = categories.find((c) => c.id === currentCategoryId);
+
+  // 编辑面板：工作区列表 + 异步分类加载器（级联 Select 数据源）+ ref（footer 保存按钮调 submit）
+  const workspaces = useWorkspace((s) => s.workspaces);
+  const editPanelRef = useRef<BookmarkOpsPanelHandle>(null);
+  const categoriesLoader = useCallback(
+    (wsId: string) => CategoryService.listCategories(wsId),
+    [],
+  );
 
   // 跨分类去重数据源:进入工作区即加载全量书签(独立于当前分类切片 bookmarks)
   useEffect(() => {
@@ -128,23 +141,64 @@ export const Content: React.FC = () => {
     setEditingBookmark(bookmark);
   };
 
-  const handleBookmarkUpdate = async (values: Record<string, string>) => {
+  const handleBookmarkSubmit = async (values: BookmarkOpsPanelSubmit) => {
     if (!editingBookmark) return;
     try {
       const { updateBookmark } = await import('@/services/BookmarkService');
-      // description 允许清空：Semi Form 清空字段提交值为 undefined，
-      // 不能用 `?? editingBookmark.description` 回退（会把"清空"误判为"未改动"）。
-      // name/url 保留原值兜底（url 必填；name 清空时回退原名，避免空名）。
-      await updateBookmark(editingBookmark.id, {
-        name: values['name'] ?? editingBookmark.name,
-        url: values['url'] ?? editingBookmark.url,
-        description: values['description'] ?? '',
-      });
-      await useBookmarks.getState().refreshBookmark(editingBookmark.id);
+      const wsChanged = values.workspaceId !== editingBookmark.workspaceId;
+      const catChanged = values.categoryId !== editingBookmark.categoryId;
+      const moved = wsChanged || catChanged;
+      // name 清空回退原名（与原编辑逻辑一致）；description 清空为 ''
+      const nextName = values.name || editingBookmark.name;
+      const nextUrl = values.url || editingBookmark.url;
+      const nextDesc = values.description ?? '';
+      const propsChanged =
+        nextName !== editingBookmark.name ||
+        nextUrl !== editingBookmark.url ||
+        nextDesc !== editingBookmark.description;
+
+      // 1. 属性更新（name/url/description）写库
+      if (propsChanged) {
+        await updateBookmark(editingBookmark.id, { name: nextName, url: nextUrl, description: nextDesc });
+      }
+      // 2. 移动（workspaceId/categoryId 变）——moveBookmark 内部 update ws+cat 并按方向同步双切片
+      //    不能用 refreshBookmark 处理移动:map 语义无法移除,且会破坏 ContextEditor 第二 caller
+      if (moved) {
+        await useBookmarks
+          .getState()
+          .moveBookmark(editingBookmark.id, values.workspaceId, values.categoryId);
+      }
+      // 3. 属性改后刷新切片。纯编辑→refreshBookmark 刷双切片;
+      //    移动+改属性→moveBookmark 用切片旧数据(旧 name),需 refresh 重读 DB 最新:
+      //      同ws跨cat:allBookmarks 保留该条,refresh map 拿到新 name ✓
+      //      跨ws:allBookmarks 已被 moveBookmark filter 移除,refresh map 无匹配(无害,书签已离开当前视图)
+      if (propsChanged) {
+        await useBookmarks.getState().refreshBookmark(editingBookmark.id);
+      }
+
       setEditingBookmark(null);
-      Toast.success('书签已更新');
+      // 移动三分支 Toast
+      if (moved) {
+        if (wsChanged) {
+          const ws = workspaces.find((w) => w.id === values.workspaceId);
+          Toast.success(`已移动到「${ws?.name ?? '其他工作区'}」`);
+        } else {
+          Toast.success('已移动到其他分类');
+        }
+      } else {
+        Toast.success('书签已更新');
+      }
     } catch (e) {
       Toast.error('更新失败：' + (e as Error).message);
+    }
+  };
+
+  const handleDeleteBookmark = async (bookmark: Bookmark) => {
+    try {
+      await useBookmarks.getState().deleteBookmark(bookmark.id);
+      Toast.success('已删除书签');
+    } catch (e) {
+      Toast.error('删除失败：' + (e as Error).message);
     }
   };
 
@@ -245,6 +299,7 @@ export const Content: React.FC = () => {
                   onClick={handleCardClick}
                   onViewContexts={handleViewContexts}
                   onEditBookmark={handleEditBookmark}
+                  onDelete={handleDeleteBookmark}
                 />
               ))}
             </div>
@@ -302,7 +357,7 @@ export const Content: React.FC = () => {
         onClose={() => setSelectedBookmark(null)}
       />
 
-      {/* 书签信息编辑弹窗 */}
+      {/* 书签编辑弹窗（归属位置 + 书签信息） */}
       <Modal
         title="编辑书签"
         visible={!!editingBookmark}
@@ -310,24 +365,20 @@ export const Content: React.FC = () => {
         footer={
           <>
             <Button onClick={() => setEditingBookmark(null)}>取消</Button>
-            <Button theme="solid" onClick={() => editFormApi?.submitForm()}>保存</Button>
+            <Button theme="solid" onClick={() => editPanelRef.current?.submit()}>保存</Button>
           </>
         }
       >
-        <Form
-          key={editingBookmark?.id}
-          getFormApi={setEditFormApi}
-          onSubmit={(values) => handleBookmarkUpdate(values as Record<string, string>)}
-          initValues={{
-            url: editingBookmark?.url ?? '',
-            name: editingBookmark?.name ?? '',
-            description: editingBookmark?.description ?? '',
-          }}
-        >
-          <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
-          <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
-          <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
-        </Form>
+        {editingBookmark && (
+          <BookmarkOpsPanel
+            ref={editPanelRef}
+            key={editingBookmark.id}
+            bookmark={editingBookmark}
+            workspaces={workspaces}
+            categoriesLoader={categoriesLoader}
+            onSubmit={handleBookmarkSubmit}
+          />
+        )}
       </Modal>
     </div>
   );
