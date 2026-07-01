@@ -1,19 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { installChromeStorageLocal } from '@/test/storageMock';
 
 // mock WorkspaceService / CategoryService
 const ws = vi.hoisted(() => ({
   listWorkspaces: vi.fn(),
   updateWorkspace: vi.fn(),
+  deleteWorkspace: vi.fn(),
 }));
 vi.mock('@/services/WorkspaceService', () => ws);
 
 const cat = vi.hoisted(() => ({
   listCategories: vi.fn(),
   updateCategory: vi.fn(),
+  deleteCategory: vi.fn(),
 }));
 vi.mock('@/services/CategoryService', () => cat);
 
 import { useWorkspace } from '@/store/useWorkspace';
+
+const wsOf = (id: string, name = 'WS') =>
+  ({ id, name, icon: '📁', createdAt: 1, order: 0 }) as never;
+const catOf = (id: string, wsId: string) =>
+  ({ id, workspaceId: wsId, name: 'CAT', icon: '📂', order: 0, createdAt: 1 }) as never;
 
 beforeEach(() => {
   useWorkspace.setState({
@@ -23,18 +31,19 @@ beforeEach(() => {
     currentCategoryId: null,
     loading: false,
   });
+  installChromeStorageLocal();
   ws.listWorkspaces.mockReset();
   ws.updateWorkspace.mockReset();
+  ws.deleteWorkspace.mockReset();
   cat.listCategories.mockReset();
   cat.updateCategory.mockReset();
+  cat.deleteCategory.mockReset();
 });
 
 describe('useWorkspace — updateWorkspace', () => {
   it('调用 Service 并同步本地 workspaces', async () => {
     useWorkspace.setState({
-      workspaces: [
-        { id: 'w1', name: '旧名', icon: '📁', createdAt: 1, order: 0 },
-      ],
+      workspaces: [wsOf('w1', '旧名')],
       currentWorkspaceId: 'w1',
     });
 
@@ -49,9 +58,7 @@ describe('useWorkspace — updateWorkspace', () => {
 
   it('保留未更新字段（createdAt / order）', async () => {
     useWorkspace.setState({
-      workspaces: [
-        { id: 'w1', name: '旧名', icon: '📁', createdAt: 99, order: 2 },
-      ],
+      workspaces: [{ id: 'w1', name: '旧名', icon: '📁', createdAt: 99, order: 2 }],
       currentWorkspaceId: 'w1',
     });
 
@@ -68,9 +75,7 @@ describe('useWorkspace — updateCategory', () => {
   it('调用 Service 并同步本地 categories', async () => {
     useWorkspace.setState({
       currentWorkspaceId: 'w1',
-      categories: [
-        { id: 'c1', workspaceId: 'w1', name: '旧', icon: '📂', order: 0, createdAt: 1 },
-      ],
+      categories: [catOf('c1', 'w1', '旧') as never],
       currentCategoryId: 'c1',
     });
 
@@ -81,5 +86,164 @@ describe('useWorkspace — updateCategory', () => {
     const updated = useWorkspace.getState().categories.find((c) => c.id === 'c1');
     expect(updated?.name).toBe('新');
     expect(updated?.icon).toBe('🎯');
+  });
+});
+
+describe('useWorkspace — loadWorkspaces 持久化恢复', () => {
+  it('无 last-selected → 落第一个工作区和第一个分类', async () => {
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1'), wsOf('w2')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w1');
+    expect(useWorkspace.getState().currentCategoryId).toBe('c1');
+  });
+
+  it('有 last-ws 且仍存在 → 恢复该工作区', async () => {
+    installChromeStorageLocal({ initial: { lastWorkspaceId: 'w2' } });
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1'), wsOf('w2')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w2')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w2');
+    expect(cat.listCategories).toHaveBeenCalledWith('w2');
+  });
+
+  it('last-ws 失效 → 回退第一个', async () => {
+    installChromeStorageLocal({ initial: { lastWorkspaceId: 'wGhost' } });
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w1');
+  });
+
+  it('per-ws map 命中 → 恢复该工作区上次的分类', async () => {
+    installChromeStorageLocal({
+      initial: { lastWorkspaceId: 'w1', lastCategoryIdByWs: { w1: 'c2' } },
+    });
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1'), catOf('c2', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentCategoryId).toBe('c2');
+  });
+
+  it('per-ws map 里的分类已被删 → 回退第一个', async () => {
+    installChromeStorageLocal({
+      initial: { lastWorkspaceId: 'w1', lastCategoryIdByWs: { w1: 'cGhost' } },
+    });
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentCategoryId).toBe('c1');
+  });
+
+  it('storage.get 抛错 → 不抛出，回退第一个（A1 容错）', async () => {
+    installChromeStorageLocal({
+      getImpl: async () => {
+        throw new Error('quota exceeded');
+      },
+    });
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await expect(useWorkspace.getState().loadWorkspaces()).resolves.toBeUndefined();
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w1');
+    expect(useWorkspace.getState().currentCategoryId).toBe('c1');
+  });
+});
+
+describe('useWorkspace — selectWorkspace 持久化', () => {
+  it('切换工作区 → persist last-ws + 恢复该工作区 last-cat（不在切换时 persist cat）', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: { lastCategoryIdByWs: { w2: 'c2' } },
+    });
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w2'), catOf('c2', 'w2')]);
+
+    await useWorkspace.getState().selectWorkspace('w2');
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w2');
+    expect(useWorkspace.getState().currentCategoryId).toBe('c2');
+    expect(store.lastWorkspaceId).toBe('w2');
+    // T2：selectWorkspace 读 map 恢复 cat，但不写入 map（避免 fallback 值污染偏好）
+    expect(store.lastCategoryIdByWs).toEqual({ w2: 'c2' });
+  });
+
+  it('切到无 last-cat 的工作区 → cat 落第一个', async () => {
+    installChromeStorageLocal({ initial: {} });
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w3')]);
+
+    await useWorkspace.getState().selectWorkspace('w3');
+
+    expect(useWorkspace.getState().currentCategoryId).toBe('c1');
+  });
+});
+
+describe('useWorkspace — selectCategory persist', () => {
+  it('显式选分类 → persist map[当前ws]=cat', async () => {
+    const { store } = installChromeStorageLocal({ initial: {} });
+    useWorkspace.setState({ currentWorkspaceId: 'w1', currentCategoryId: 'c1' });
+
+    useWorkspace.getState().selectCategory('c2');
+
+    expect(useWorkspace.getState().currentCategoryId).toBe('c2');
+    // selectCategory 接口是 sync（UI 立即更新），persist 为后台 async：等其落定
+    await vi.waitFor(() => expect(store.lastCategoryIdByWs).toEqual({ w1: 'c2' }));
+  });
+});
+
+describe('useWorkspace — per-workspace cat 独立性（Codex #1 回归）', () => {
+  it('A→B→A 切换：回到 A 时仍恢复 A 的 last-cat', async () => {
+    installChromeStorageLocal({
+      initial: { lastCategoryIdByWs: { wA: 'cA2', wB: 'cB1' } },
+    });
+
+    cat.listCategories.mockResolvedValueOnce([catOf('cB1', 'wB'), catOf('cB2', 'wB')]);
+    await useWorkspace.getState().selectWorkspace('wB');
+    expect(useWorkspace.getState().currentCategoryId).toBe('cB1');
+
+    cat.listCategories.mockResolvedValueOnce([catOf('cA1', 'wA'), catOf('cA2', 'wA')]);
+    await useWorkspace.getState().selectWorkspace('wA');
+    expect(useWorkspace.getState().currentCategoryId).toBe('cA2');
+  });
+});
+
+describe('useWorkspace — delete 持久化', () => {
+  it('删除当前工作区 → 回退第一个 + persist 更新 last-ws', async () => {
+    const { store } = installChromeStorageLocal({ initial: { lastWorkspaceId: 'w1' } });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('w2')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w2')]);
+    useWorkspace.setState({
+      workspaces: [wsOf('w1'), wsOf('w2')],
+      currentWorkspaceId: 'w1',
+    });
+
+    await useWorkspace.getState().deleteWorkspace('w1');
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w2');
+    expect(store.lastWorkspaceId).toBe('w2');
+  });
+
+  it('删除当前分类 → 回退第一个剩余分类 + persist 更新 map', async () => {
+    const { store } = installChromeStorageLocal({ initial: {} });
+    cat.deleteCategory.mockResolvedValue(undefined);
+    useWorkspace.setState({
+      currentWorkspaceId: 'w1',
+      categories: [catOf('c1', 'w1'), catOf('c2', 'w1')],
+      currentCategoryId: 'c1',
+    });
+
+    await useWorkspace.getState().deleteCategory('c1');
+
+    expect(useWorkspace.getState().currentCategoryId).toBe('c2');
+    expect(store.lastCategoryIdByWs).toEqual({ w1: 'c2' });
   });
 });

@@ -12,9 +12,13 @@ import {
 import { isUrlValid, findDuplicateUrl } from '../utils';
 import styles from '../popup.module.css';
 import SubPageHeader from './SubPageHeader';
+import {
+  LAST_WS_KEY,
+  LAST_CAT_BY_WS_KEY,
+  resolveLastWs,
+  resolveLastCat,
+} from '@/shared/lastSelection';
 
-const LAST_WS_KEY = 'lastWorkspaceId';
-const LAST_CAT_KEY = 'lastCategoryId';
 /** Q1：保存成功后的短反馈展示时长，随后自动关闭 popup */
 const CLOSE_DELAY_MS = 800;
 
@@ -44,7 +48,7 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
         const [wss, tabs, stored] = await Promise.all([
           listWorkspaces(),
           chrome.tabs.query({ active: true, currentWindow: true }),
-          chrome.storage.local.get([LAST_WS_KEY, LAST_CAT_KEY]),
+          chrome.storage.local.get([LAST_WS_KEY, LAST_CAT_BY_WS_KEY]),
         ]);
         if (cancelled) return;
         setWorkspaces(wss);
@@ -55,8 +59,7 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
 
         // 确定工作区：上次记忆（若仍存在）> 第一个
         const lastWs = stored[LAST_WS_KEY] as string | undefined;
-        const wsId =
-          lastWs && wss.some((w) => w.id === lastWs) ? lastWs : (wss[0]?.id ?? '');
+        const wsId = resolveLastWs(lastWs, wss) ?? '';
         setSelectedWorkspaceId(wsId);
 
         // 加载该工作区的分类
@@ -64,9 +67,9 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
           const cats = await listCategories(wsId);
           if (cancelled) return;
           setCategories(cats);
-          const lastCat = stored[LAST_CAT_KEY] as string | undefined;
-          const catId =
-            lastCat && cats.some((c) => c.id === lastCat) ? lastCat : (cats[0]?.id ?? '');
+          // per-workspace：取该工作区上次的分类
+          const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};
+          const catId = resolveLastCat(wsId, cats, catMap) ?? '';
           setSelectedCategoryId(catId);
         }
       } finally {
@@ -78,14 +81,18 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
     };
   }, []);
 
-  // 工作区切换：重新加载分类，重置选中
+  // 工作区切换：重新加载分类，恢复该工作区上次的分类（per-workspace）
   const handleWorkspaceChange = async (wsId: string) => {
     setSelectedWorkspaceId(wsId);
     setSelectedCategoryId('');
     setDuplicate(null);
+    // 切工作区即 persist（未保存就关闭也不再丢上次切到的工作区）
+    void chrome.storage.local.set({ [LAST_WS_KEY]: wsId }).catch(() => {});
     const cats = await listCategories(wsId);
     setCategories(cats);
-    setSelectedCategoryId(cats[0]?.id ?? '');
+    const stored = await chrome.storage.local.get(LAST_CAT_BY_WS_KEY);
+    const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};
+    setSelectedCategoryId(resolveLastCat(wsId, cats, catMap) ?? '');
   };
 
   const handleSave = async (forceSave = false) => {
@@ -118,9 +125,13 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
       if (faviconUrl) {
         await updateBookmark(bookmark.id, { faviconUrl });
       }
+      // persist ws + per-workspace cat map（read-modify-write，避免覆盖其它工作区条目）
+      const stored = await chrome.storage.local.get(LAST_CAT_BY_WS_KEY);
+      const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};
+      catMap[selectedWorkspaceId] = selectedCategoryId;
       await chrome.storage.local.set({
         [LAST_WS_KEY]: selectedWorkspaceId,
-        [LAST_CAT_KEY]: selectedCategoryId,
+        [LAST_CAT_BY_WS_KEY]: catMap,
       });
       // Q1：保存成功 → 短反馈 → 自动关闭 popup
       setSaving(false);

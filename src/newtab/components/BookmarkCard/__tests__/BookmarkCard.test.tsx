@@ -8,7 +8,7 @@ vi.mock('lottie-web', () => ({
     destroy() {}, registerAnimation() {},
   },
 }));
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
 import type { Bookmark } from '@/shared/types';
 
@@ -34,6 +34,7 @@ const renderCard = (overrides: Partial<Bookmark> = {}, handlers = {}, hasOpenTab
       onClick={handlers.onClick ?? vi.fn()}
       onViewContexts={handlers.onViewContexts ?? vi.fn()}
       onEditBookmark={handlers.onEditBookmark ?? vi.fn()}
+      onDelete={handlers.onDelete ?? vi.fn()}
     />,
   );
 
@@ -97,5 +98,33 @@ describe('BookmarkCard', () => {
   it('hasOpenTab 缺省时 Card aria-label 仅书签名', () => {
     const { container } = renderCard();
     expect(container.querySelector('[aria-label="GitHub"]')).toBeTruthy();
+  });
+
+  it('T9 渲染删除按钮且带 aria-label="删除书签"', () => {
+    renderCard();
+    expect(screen.getByRole('button', { name: '删除书签' })).toBeTruthy();
+  });
+
+  it('T8a 无上下文(count=0)时 Popconfirm 文案不含计数', async () => {
+    renderCard({ contextCount: 0 });
+    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+    await waitFor(() => {
+      expect(screen.getByText('确定删除该书签？')).toBeTruthy();
+    });
+  });
+
+  it('T8b 有上下文(count>0)时 Popconfirm 文案显示计数', async () => {
+    renderCard({ contextCount: 3 });
+    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+    await waitFor(() => {
+      expect(screen.getByText(/将同时删除 3 条上下文/)).toBeTruthy();
+    });
+  });
+
+  it('删除按钮点击不冒泡到卡片 onClick（容器级 stopPropagation）', () => {
+    const onClick = vi.fn();
+    renderCard({}, { onClick });
+    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

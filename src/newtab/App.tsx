@@ -34,8 +34,8 @@ const App: React.FC = () => {
     const onMessage = async () => {
       checkStatus(); // salt 可能变更，重置解锁态
       await loadWorkspaces();
-      // 兜底：loadWorkspaces 会重置 currentCategoryId 为 categories[0]?.id。
-      // 自备份自恢复场景下 ID 不变 → useEffect([currentCategoryId]) 不触发 →
+      // 兜底：loadWorkspaces 现从 storage 恢复 currentCategoryId（per-workspace last-cat）。
+      // 自备份自恢复场景下若恢复的 ID 与当前一致 → useEffect([currentCategoryId]) 不触发 →
       // loadBookmarks 不调，书签列表陈旧。这里手动补一次。
       const cat = useWorkspace.getState().currentCategoryId;
       if (cat) loadBookmarks(cat);
