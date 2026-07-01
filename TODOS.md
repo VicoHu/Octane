@@ -27,6 +27,7 @@
 - **痛点频率未量化**：「同 hostname 跨多工作区命中」占比未统计；方案 C 的 Collapse 分组若命中率低则为过度工程。动工前可跑一次 `findBookmarksByHost` distinct workspaceId 统计验证。
 - **0.2.x 可能拆改**：若 0.2.x 将 side panel 改工作区/会话作用域，全局 Collapse 分组层部分变死代码（Premise 2「匹配范围不变」是赌注）。
 - **`bookmark.workspaceId` 前瞻 guard**：`updateBookmark` 类型不含 `workspaceId`。今日无跨工作区 move 流程故一致；若未来加「移动书签到其他分类」功能，需加 workspaceId 一致性不变量（或运行时以 `category.workspaceId` 反查）。
+  - **✓ 已在 0.1.7.1 实现**：`updateBookmark` 白名单加了 `workspaceId`；新增 `moveBookmark(id, targetWsId, targetCatId)` action，一致性由 `BookmarkOpsPanel` 级联 Select（categoriesLoader 加载目标 ws 的分类）在 UI 层保证。service 层仍无运行时 guard（信任 caller），若未来其他调用方传入 ws/cat 不一致组合需补 guard。
 
 ### 推迟的功能项（taste / 后续）
 - **抓取当前页面选区/整页 markdown → 上下文**：双 voice 共识这是 side panel 结构性优势（喂养加密护城河），但本期就地创建先做 inline；页面抓取列后续。

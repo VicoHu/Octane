@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.7.1] - 2026-07-01
+
+### Added
+
+- **书签移动工作区/分类**：编辑书签弹窗新增「归属位置」级联选择（先选目标工作区、再选该工作区下分类），可把书签重新归到任意工作区/分类；改名/URL/描述可同时修改。换工作区异步加载目标分类（loading 态、防残留），目标工作区无分类时禁用保存并提示，防孤儿书签。
+- **书签删除**：书签卡操作区新增删除按钮（Popconfirm 二次确认），文案按上下文计数分支显示；级联删除其下所有上下文。
+- **工作区/分类选中态持久化**：切换工作区/分类后记忆，重开 newtab 自动恢复（工作区全局记忆 + 分类 per-workspace 记忆）。
+
+### Fixed
+
+- **React 19 下 Semi Toast/Modal/Notification 静态方法失效**（项目级遗留 bug）：React 19 移除了 `react-dom` 的 `createRoot` 导出，导致 Toast.success 等静态方法无法自建 portal、静默不显示（控制台报 `createRoot is not available`）。三入口（newtab/popup/sidepanel）注入 `@douyinfe/semi-ui/react19-adapter` 修复，此前所有 Toast 静态调用（备份/云配置/删除等）一并恢复。
+- **`useBookmarks` 双切片同步遗漏**（历史 bug）：`deleteBookmark`、`refreshBookmark` 此前只同步当前分类切片（`bookmarks`），漏同步跨分类去重切片（`allBookmarks`），导致删除/编辑后「打开的标签页」视图跨分类去重用到陈旧数据。新增独立 `moveBookmark` action 按移动方向（跨工作区 / 同工作区跨分类）正确同步双切片。
+- **移动书签 + 改名组合时 name 陈旧**：移动后切片持旧数据，补充 `refreshBookmark` 重读 DB 最新，避免 `allBookmarks` 的 name/url 陈旧。
+- **删除书签后 Toast 不显示**：Popconfirm `onConfirm` 此前返回 Promise 触发 Semi 异步 loading 模式遮挡 Toast，改 body block 不返回 Promise。
+
 ## [0.1.7.0] - 2026-06-30
 
 ### Added
