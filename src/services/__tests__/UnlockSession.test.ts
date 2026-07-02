@@ -49,6 +49,7 @@ describe('UnlockSession — sidepanel surface 独立解锁标记（T1 切断联�
   it('sidepanel 标记 unlocked=true → isUnlocked("sidepanel") 返回 true', async () => {
     installChromeStorage({
       'octane-unlock-sidepanel': { unlocked: true, unlockedAt: Date.now(), hiddenAt: null },
+      'octane-derived-key': 'shared-key',
     });
     expect(await isUnlocked('sidepanel')).toBe(true);
   });
@@ -154,6 +155,7 @@ describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
   /** 直接写 sidepanel 已解锁状态（绕过真实 PBKDF2，专注 TTL 判定） */
   function setUnlockedState(state: { unlockedAt: number; hiddenAt: number | null }) {
     sessionStore['octane-unlock-sidepanel'] = { unlocked: true, ...state };
+    sessionStore['octane-derived-key'] = 'shared-key'; // 模拟 home 已派生共享 key
   }
 
   it('T3 失焦超 grace → isUnlocked false 且清标记（再次查仍 false）', async () => {
@@ -189,6 +191,63 @@ describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
       unlockedAt: now - 25 * 60 * 1000, // 解锁 25min 前（hardCap=30 没到）
       hiddenAt: now - 25 * 60 * 1000, // 失焦 25min（grace=5 早超）
     });
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+});
+
+describe('home lock 连带 + key 复活不自动解锁 + 重启清空（T7-T9）', () => {
+  let sessionStore: Record<string, unknown>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage(
+      {},
+      { 'octane-ttl-config': { grace: 5 * 60 * 1000, hardCap: 30 * 60 * 1000 } },
+    );
+    sessionStore = installed.sessionStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  /** 模拟 sidepanel 已解锁（标记 + 共享 key 俱在，TTL 未超） */
+  function unlockBoth() {
+    const now = Date.now();
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: now, hiddenAt: null };
+    sessionStore['octane-derived-key'] = 'shared-key';
+  }
+
+  it('T7 sidepanel 解锁态 + octane-derived-key 在 + TTL 未超 → true（key 检查不影响正常态）', async () => {
+    unlockBoth();
+    expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+
+  it('T7 home lockSession 清 octane-derived-key → sidepanel 连带 locked 且清标记', async () => {
+    unlockBoth();
+    expect(await isUnlocked('sidepanel')).toBe(true);
+    delete sessionStore['octane-derived-key']; // home 主动 lockSession() 清共享 key
+    expect(await isUnlocked('sidepanel')).toBe(false);
+    // 连带锁清 sidepanel 标记：key 复活也不会自动解锁（T8 前置）
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+  });
+
+  it('T8 home 重新 unlock 写回 key，但 sidepanel 标记已被清 → 仍 locked（key 复活不自动解锁）', async () => {
+    unlockBoth();
+    delete sessionStore['octane-derived-key']; // home lock → 连带清 sidepanel 标记
+    await isUnlocked('sidepanel');
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+
+    sessionStore['octane-derived-key'] = 'resurrected-key'; // home 重新 unlock 写回共享 key
+    // sidepanel 必须自己再 unlock('sidepanel', pwd)，key 复活不自动解锁
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('T9 浏览器重启（chrome.storage.session 天然清空）→ sidepanel locked', async () => {
+    unlockBoth();
+    expect(await isUnlocked('sidepanel')).toBe(true);
+    // 模拟浏览器重启：session 会话级存储清空
+    delete sessionStore['octane-unlock-sidepanel'];
+    delete sessionStore['octane-derived-key'];
     expect(await isUnlocked('sidepanel')).toBe(false);
   });
 });

@@ -20,6 +20,9 @@ export type Surface = 'home' | 'sidepanel';
 /** sidepanel surface 的解锁标记（存 chrome.storage.session，会话级） */
 const SIDE_PANEL_STATE_KEY = 'octane-unlock-sidepanel';
 
+/** 共享派生密钥（home/sidepanel 共用，CryptoService 写入；home lockSession 清除） */
+const DERIVED_KEY = 'octane-derived-key';
+
 /** TTL 用户配置（存 chrome.storage.local，跨会话保留） */
 const TTL_CONFIG_KEY = 'octane-ttl-config';
 
@@ -96,9 +99,10 @@ async function clearSidePanelState(): Promise<void> {
  *
  * sidepanel：读独立标记 octane-unlock-sidepanel，**与 home 解锁态无关**（切断联动）。
  * 标记之上叠加 TTL 规则（每次调用都校验，不依赖外部触发）：
+ *   - 共享 key：octane-derived-key 不在（home lockSession 清除）→ 连带锁 + 清 sidepanel 标记
  *   - hardCap：`now - unlockedAt >= hardCap` → 锁
  *   - grace：当 hiddenAt != null（曾失焦）且 `now - hiddenAt >= grace` → 锁
- * 任一超时即判定 locked 并清标记。hiddenAt == null（当前可见/从未失焦）时 grace 项 pass。
+ * 任一超时/缺失即判定 locked 并清标记。hiddenAt == null（当前可见/从未失焦）时 grace 项 pass。
  *
  * @throws home surface 尚未纳入 UnlockSession（沿用 CryptoService 会话级行为），后续 T 迁移
  */
@@ -108,9 +112,15 @@ export async function isUnlocked(surface: Surface): Promise<boolean> {
   }
   const session = getChromeStorage('session');
   if (!session) return false;
-  const result = await session.get([SIDE_PANEL_STATE_KEY]);
+  const result = await session.get([SIDE_PANEL_STATE_KEY, DERIVED_KEY]);
   const state = result[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
   if (!state?.unlocked) return false;
+
+  // home 主动 lockSession() 清共享 key → sidepanel 连带失能并清标记（key 复活不自动解锁）
+  if (!result[DERIVED_KEY]) {
+    await clearSidePanelState();
+    return false;
+  }
 
   const now = Date.now();
   const { grace, hardCap } = await readTtlConfig();
