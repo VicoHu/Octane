@@ -206,9 +206,12 @@ describe('加密上下文流程', () => {
 
     await createContext(bm.id, ContextType.NOTE, '加密笔记', '秘密内容', true);
 
-    // 换一个密钥
+    // 换一个密钥：错密钥无法解密，getContexts 容错返回占位（明文不泄露）
     await setupTestKey('password-B');
-    await expect(getContexts(bm.id)).rejects.toThrow();
+    const ctxs = await getContexts(bm.id);
+    expect(ctxs).toHaveLength(1);
+    expect(ctxs[0]!.isEncrypted).toBe(true);
+    expect(ctxs[0]!.content).toBe(''); // 错密钥：占位，不解密不泄露
   });
 
   it('同一上下文：明文 → 加密 → 更新内容', async () => {

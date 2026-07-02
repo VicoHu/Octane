@@ -4,6 +4,22 @@
   background: var(--semi-color-bg-1, #fff);
   border: 1px solid var(--semi-color-border, #e5e5e5);
 }
+.locked {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff7e6;
+  color: #fa8c16;
+  border: 1px dashed #ffd591;
+  font-size: 13px;
+  cursor: pointer;
+}
+.lockIcon {
+  color: #fa8c16;
+  flex-shrink: 0;
+}
 .title {
   font-weight: 600;
   font-size: 13px;

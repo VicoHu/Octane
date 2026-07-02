@@ -20,11 +20,11 @@ vi.mock('@douyinfe/semi-ui', () => ({
   Toast: { warning: vi.fn(), error: vi.fn() },
 }));
 vi.mock('@/services/ContextService', () => ({ createContext: vi.fn() }));
-vi.mock('@/services/CryptoService', () => ({ isUnlocked: vi.fn() }));
+vi.mock('@/services/UnlockSession', () => ({ isUnlocked: vi.fn() })); vi.mock('@/services/CryptoService', () => ({}));
 
 import { InlineContextEditor } from '../InlineContextEditor';
 import { createContext } from '@/services/ContextService';
-import { isUnlocked } from '@/services/CryptoService';
+import { isUnlocked } from '@/services/UnlockSession';
 import { Toast } from '@douyinfe/semi-ui';
 
 const createContextMock = createContext as ReturnType<typeof vi.fn>;
@@ -72,7 +72,7 @@ describe('InlineContextEditor — 就地创建上下文', () => {
 
     const sw = screen.getByLabelText('encrypt') as HTMLInputElement;
     fireEvent.click(sw); // 尝试开启加密
-    await waitFor(() => expect(Toast.warning).toHaveBeenCalledWith('请先解锁主密码'));
+    await waitFor(() => expect(Toast.warning).toHaveBeenCalledWith('请先解锁加密上下文'));
     // switch 回滚（encrypted 仍 false）→ 保存时 sensitive=false
     fireEvent.change(screen.getByLabelText('content'), { target: { value: 'x' } });
     fireEvent.click(screen.getByLabelText('保存'));

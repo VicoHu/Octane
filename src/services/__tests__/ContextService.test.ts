@@ -6,7 +6,7 @@ import {
   encryptWithKey,
   decryptWithKey,
 } from '@/services/CryptoService';
-import { reencryptAllContexts } from '@/services/ContextService';
+import { reencryptAllContexts, getContexts, getContextsRaw } from '@/services/ContextService';
 import { ContextType } from '@/shared/types';
 import type { Context } from '@/shared/types';
 
@@ -96,5 +96,69 @@ describe('reencryptAllContexts（changePassword 重加密）', () => {
     // 非加密上下文保持不变
     expect(after3!.isEncrypted).toBe(false);
     expect(after3!.content).toBe('明文');
+  });
+});
+
+describe('getContexts 上下文级容错（未解锁密文保留占位）', () => {
+  it('未解锁时：明文正常返回，密文保留占位不解密（content 空，isEncrypted 保留）', async () => {
+    setTestKey(null); // 模拟未解锁（无派生 key）
+    const key = await deriveKeyLocal('pwd', crypto.getRandomValues(new Uint8Array(16)), 10_000);
+    const enc = await encryptWithKey(key, '秘密内容');
+
+    await putRecord('contexts', {
+      id: 'c-plain', bookmarkId: 'bm1', type: ContextType.NOTE, title: '明文条目',
+      content: '明文内容', isEncrypted: false, order: 0, createdAt: 1, updatedAt: 1,
+    });
+    await putRecord('contexts', {
+      id: 'c-enc', bookmarkId: 'bm1', type: ContextType.NOTE, title: '密文条目',
+      content: '', isEncrypted: true,
+      encryptedData: enc.encryptedData, iv: enc.iv, order: 0, createdAt: 2, updatedAt: 2,
+    });
+
+    const ctxs = await getContexts('bm1');
+    expect(ctxs).toHaveLength(2);
+    const plain = ctxs.find((c) => c.id === 'c-plain')!;
+    expect(plain.content).toBe('明文内容');
+    const encRow = ctxs.find((c) => c.id === 'c-enc')!;
+    expect(encRow.isEncrypted).toBe(true);
+    expect(encRow.content).toBe(''); // 占位，未解密
+  });
+
+  it('已解锁时：密文正常解密', async () => {
+    const key = await deriveKeyLocal('pwd', crypto.getRandomValues(new Uint8Array(16)), 10_000);
+    setTestKey(key); // 已解锁
+    const enc = await encryptWithKey(key, '秘密内容');
+    await putRecord('contexts', {
+      id: 'c-enc', bookmarkId: 'bm1', type: ContextType.NOTE, title: '密文条目',
+      content: '', isEncrypted: true,
+      encryptedData: enc.encryptedData, iv: enc.iv, order: 0, createdAt: 1, updatedAt: 1,
+    });
+    const ctxs = await getContexts('bm1');
+    expect(ctxs[0]!.content).toBe('秘密内容');
+  });
+});
+
+describe('getContextsRaw 不解密（sidepanel 未解锁用）', () => {
+  it('即使派生 key 在场，密文也不解密（保留占位），明文正常', async () => {
+    const key = await deriveKeyLocal('pwd', crypto.getRandomValues(new Uint8Array(16)), 10_000);
+    setTestKey(key); // 模拟 home 已解锁（共享 key 在场）
+    const enc = await encryptWithKey(key, '秘密内容');
+
+    await putRecord('contexts', {
+      id: 'c-plain', bookmarkId: 'bm1', type: ContextType.NOTE, title: '明文条目',
+      content: '明文内容', isEncrypted: false, order: 0, createdAt: 1, updatedAt: 1,
+    });
+    await putRecord('contexts', {
+      id: 'c-enc', bookmarkId: 'bm1', type: ContextType.NOTE, title: '密文条目',
+      content: '', isEncrypted: true,
+      encryptedData: enc.encryptedData, iv: enc.iv, order: 0, createdAt: 2, updatedAt: 2,
+    });
+
+    const ctxs = await getContextsRaw('bm1');
+    expect(ctxs).toHaveLength(2);
+    expect(ctxs.find((c) => c.id === 'c-plain')!.content).toBe('明文内容');
+    const encRow = ctxs.find((c) => c.id === 'c-enc')!;
+    expect(encRow.isEncrypted).toBe(true);
+    expect(encRow.content).toBe(''); // 不解密——sidepanel 未解锁时密文不泄露
   });
 });

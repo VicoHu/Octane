@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.8.0] - 2026-07-02
+
+### Added
+
+- **书签上下文加密分层解锁**：home 与 side panel 解锁状态物理隔离——home 解锁不再联动 side panel 自动解锁，堵住「进 home 输一次密码 → side panel 所有加密上下文全开、永不超时」的安全漏洞。新增 `UnlockSession` service 按 surface（home/sidepanel）独立管理解锁标记。
+- **side panel 空闲时长锁 + 硬上限（TTL）**：side panel 失焦超 grace（默认 5min）自动锁回（短暂切窗不打扰），解锁后满 hardCap（默认 30min）必锁（防一直盯着永不锁）。免 `chrome.alarms` 权限，用 `visibilitychange` + `setInterval`（仅在 side panel 常驻页面注册，避开 MV3 service worker 休眠）。
+- **TTL 用户可配**：设置中心「主密码 → 加密上下文自动锁定」按秒配置 grace（1–3600s）/ hardCap（30–86400s），即时生效。
+- **side panel 解锁交互（上下文级粒度）**：加密上下文未解锁时单独渲染可点击锁占位（明文上下文始终可见），点击/键盘 Enter 触发 sidepanel 专属解锁弹窗，每次走完整 PBKDF2 + verifier（防偷看，不复用 home 已派生 key）。
+- **home lockSession 连带锁 side panel**：home 主动锁定清共享派生密钥时，side panel 解密能力一并失效。
+- 解锁并发幂等（多个书签同时触发解锁只派生一次）、解锁前置条件引导（未设密码/旧版数据 Toast 引导去 home）。
+
+### Fixed
+
+- **home 解锁泄露 side panel 密文**（自查回归）：上下文级粒度初版去掉 isUnlocked gate 后 `getContexts` 直接用共享 key 解密，home 解锁导致 side panel 密文泄露；改为未解锁走 `getContextsRaw`（永不解密）。
+- **side panel 失焦/聚焦闪烁**：`hiddenAt` 拆到独立 `octane-unlock-visibility-sidepanel` key，`markHidden`/`markVisible` 不再触发 `useEncryptedContexts` 重渲染。
+- **加密创建绕过 side panel gate**（pre-landing review P1）：`InlineContextEditor` 加密 Switch 改读 sidepanel surface 标记（非共享 key），home 解锁后未解锁 side panel 不能再创建加密上下文。
+- **hardCap 短值形同虚设**（pre-landing review P1）：hardCap 下限对齐 30s tick 间隔，避免 hardCap<30s 因 tick 触发不及时失效。
+- **解锁弹窗横向溢出 + 按钮贴底**：宽度 `calc(100vw - 32px)` 自适应 side panel 窄视口，按钮移入 Modal footer。
+
 ## [0.1.7.1] - 2026-07-01
 
 ### Added

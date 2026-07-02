@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Input, TextArea, Switch, Button, Toast } from '@douyinfe/semi-ui';
-import { isUnlocked } from '@/services/CryptoService';
+import { isUnlocked } from '@/services/UnlockSession';
+import { useUnlockRequest } from '../unlockContext';
 import { createContext } from '@/services/ContextService';
 import { ContextType } from '@/shared/types';
 import styles from './InlineContextEditor.module.css';
@@ -14,8 +15,9 @@ interface InlineContextEditorProps {
 /**
  * 就地创建上下文编辑器：标题（可选）+ 正文（Markdown）+ 加密 Switch + 保存/取消。
  *
- * - R2 加密 gate：Switch onChange 异步 `await isUnlocked()`（sidepanel 无 useCrypto store）；
- *   未解锁 → Toast.warning + Switch 回滚 off + **输入保留**。
+ * - R2 加密 gate（sidepanel surface）：Switch onChange 异步 `await isUnlocked('sidepanel')`
+ *   （读 sidepanel 独立标记，**非共享 key**——切断与 home 的联动）；未解锁 → Toast +
+ *   触发 requestUnlock（弹 sidepanel 解锁框）+ Switch 回滚 off + 输入保留。
  * - R7 四态：idle / saving（按钮 loading+disabled，防双击重复 createContext）/ saved（1.5s ✓ 反馈后收起清空）/ error（Toast.error + 保留输入不收起）。
  * - 保存后经 createContext → syncContextMeta → BroadcastChannel('octane-db') 广播 →
  *   useHostBookmarks 重匹配 + useEncryptedContexts（含 contextCount 依赖，R3）重拉 → 新卡出现。
@@ -26,11 +28,14 @@ export function InlineContextEditor({ bookmarkId, onDone }: InlineContextEditorP
   const [encrypted, setEncrypted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const requestUnlock = useUnlockRequest();
 
   const handleEncryptToggle = async (checked: boolean) => {
-    if (checked && !(await isUnlocked())) {
-      Toast.warning('请先解锁主密码');
-      return; // 不 setEncrypted → Switch 受控 checked 回滚 off
+    if (checked && !(await isUnlocked('sidepanel'))) {
+      // sidepanel surface 未解锁（即使 home 解了锁也不联动）→ 引导解锁，Switch 回滚 off
+      Toast.warning('请先解锁加密上下文');
+      requestUnlock();
+      return;
     }
     setEncrypted(checked);
   };

@@ -31,14 +31,31 @@ export async function reencryptAllContexts(
   }
 }
 
-/** 获取书签的所有上下文（明文），按 createdAt 升序 */
+/** 获取书签的所有上下文（不解密），按 createdAt 升序。
+ *  密文上下文保留原始存储（content='' 占位 + isEncrypted=true），明文正常返回。
+ *  供 sidepanel 未解锁时使用：明文始终可见，密文单独 gate（不泄露，不依赖派生 key）。 */
+export async function getContextsRaw(bookmarkId: string): Promise<Context[]> {
+  const contexts = await getByIndex<Context>('contexts', 'by-bookmarkId', bookmarkId);
+  return contexts
+    .map((ctx) => (ctx.isEncrypted ? { ...ctx, content: '' } : ctx))
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+/** 获取书签的所有上下文（明文），按 createdAt 升序。
+ *  容错：密文上下文若解密失败（未解锁/密钥不可用）→ 保留加密占位（content 不解密，isEncrypted 保留），
+ *  明文与已解密上下文正常返回——支持上下文级粒度（明文始终可见，密文单独 gate）。 */
 export async function getContexts(bookmarkId: string): Promise<Context[]> {
   const contexts = await getByIndex<Context>('contexts', 'by-bookmarkId', bookmarkId);
   const result: Context[] = [];
   for (const ctx of contexts) {
     if (ctx.isEncrypted && ctx.encryptedData && ctx.iv) {
-      const plaintext = await decrypt(ctx.encryptedData, ctx.iv);
-      result.push({ ...ctx, content: plaintext });
+      try {
+        const plaintext = await decrypt(ctx.encryptedData, ctx.iv);
+        result.push({ ...ctx, content: plaintext });
+      } catch {
+        // 未解锁（密钥不可用）：保留加密占位，明文不泄露
+        result.push(ctx);
+      }
     } else {
       result.push(ctx);
     }
