@@ -1,15 +1,20 @@
 # Octane
 
+![version](https://img.shields.io/github/v/release/VicoHu/Octane?label=版本&logo=github)
+![license](https://img.shields.io/github/license/VicoHu/Octane?label=许可)
+![chrome](https://img.shields.io/badge/Chrome-%E2%89%A5116-4285F4?logo=googlechrome&logoColor=white)
+![stars](https://img.shields.io/github/stars/VicoHu/Octane?style=social)
+
 **书签 + 上下文 + 安全** — 浏览器里最方便的"带上下文的书签夹"。
 
-Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge），核心价值是为每个书签提供可加密的上下文空间（笔记、凭据等）。书签是入口，上下文是价值。
+Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge），核心价值是为每个书签提供可加密的上下文空间（备忘、凭据等）。书签是入口，上下文是价值。
 
 ## 功能
 
 - **书签管理** — CRUD 操作，支持分类、搜索、Favicon 自动获取（公网走 Google Favicon API；localhost / 内网地址回退源站 `/favicon.ico`，加载失败再回退书签首字母）
 - **工具栏 Popup 采集** — 任何网页一键收藏当前页（Hub 首页：用户卡 + 功能列表；保存书签 / 设置子页面，主操作「保存当前页面」视觉强调）
 - **Side Panel 联动** — 在任意 http(s) 页面左击扩展图标直达侧边栏，按当前页 hostname 自动匹配书签并展示其上下文（BroadcastChannel 跨上下文同步：在 NewTab 改动后 Side Panel 自动刷新）
-- **上下文系统** — 每个书签可附加多个上下文条目（笔记、凭据等），支持 Markdown 实时预览 + 标题标记
+- **上下文系统** — 每个书签可附加多个上下文条目（备忘、凭据等），支持 Markdown 实时预览 + 标题标记
 - **端到端加密** — AES-GCM-256 加密上下文字段，主密码通过 PBKDF2（600K 迭代）派生密钥
 - **会话级解锁** — 主密码输入一次，密钥缓存到 `chrome.storage.session`，浏览器关闭自动清除
 - **多工作区** — 支持多工作区隔离（如：工作、个人、项目 A）
@@ -140,10 +145,6 @@ npm run test:watch
 - **会话密钥** 存储在 `chrome.storage.session`（MV3 会话存储，浏览器关闭自动清除）
 - **Markdown XSS 防护** 使用 DOMPurify 白名单过滤 + CSP `script-src 'self'`
 - **级联删除** 使用 IndexedDB 事务保证数据一致性
-
-## 版本
-
-当前版本：**0.1.5.1**（MVP 开发阶段）
 
 ## 许可
 
