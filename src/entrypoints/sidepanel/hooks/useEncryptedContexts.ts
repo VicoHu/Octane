@@ -1,31 +1,26 @@
-import { useState, useEffect } from 'react';
-import { isUnlocked } from '@/services/UnlockSession';
+import { useState, useEffect, useRef } from 'react';
 import { getContexts } from '@/services/ContextService';
 import type { Context } from '@/shared/types';
 
 export interface EncryptedContextsState {
-  /** 解密后的上下文（解锁且成功时填充） */
+  /** 上下文列表（明文 + 密文占位；密文未解锁时 content 为空，由 ContextCard 渲染锁占位） */
   contexts: Context[];
-  /** 未解锁 → true，此时不调用 getContexts（locked UI，不预渲染明文） */
-  locked: boolean;
-  /** 解密失败（密码错误/数据损坏）时的错误信息 */
+  /** 解密/读取失败时的错误信息 */
   error: string | null;
   loading: boolean;
 }
 
 /**
- * 获取书签的上下文，按需解密。
+ * 获取书签的上下文（上下文级粒度）。
  *
- * - 书签不含加密 context（hasEncryptedContext=false）→ 直接 getContexts（明文，无需密钥）
- * - 含加密 context 且未解锁 → locked=true，不调 getContexts（locked UI，不预渲染明文）
- * - 含加密 context 且已解锁 → getContexts（含解密）→ contexts；解密失败 → error，明文不泄露
- *
- * 解锁判定按 sidepanel surface 独立查询（UnlockSession.isUnlocked('sidepanel')），
- * 与 home 解锁态物理隔离：home 解锁不再联动 sidepanel 自动解锁（分层保护）。
+ * - 始终调 getContexts（容错：明文正常返回，密文未解锁保留占位，不解密不泄露）
+ * - 密文上下文未解锁时由 ContextCard 单独渲染锁占位（点击解锁），明文上下文始终可见
+ * - 解锁/锁定状态变化（octane-unlock-sidepanel / octane-derived-key）经 chrome.storage.onChanged
+ *   广播 → bump revision → 静默重拉（保留上次 contexts，不闪骨架）；切书签/contextCount 变化走骨架
  *
  * @param bookmarkId 书签 id
- * @param hasEncryptedContext 书签是否含加密 context（冗余字段，决定是否需解锁 gate）
- * @param contextCount 书签的上下文条数（冗余字段；变化时重新拉取，捕获就地创建的新上下文）
+ * @param hasEncryptedContext 书签是否含加密 context（保留签名兼容，内部不再用于整体 gate）
+ * @param contextCount 书签的上下文条数（变化时重新拉取）
  */
 export function useEncryptedContexts(
   bookmarkId: string,
@@ -34,13 +29,13 @@ export function useEncryptedContexts(
 ): EncryptedContextsState {
   const [state, setState] = useState<EncryptedContextsState>({
     contexts: [],
-    locked: false,
     error: null,
     loading: true,
   });
-  // 解锁状态变化信号：chrome.storage.onChanged 感知 unlock 标记 / 共享 key 变化时 bump，
-  // 触发下方 effect 重查 isUnlocked（解锁/锁定/home lock/TTL 超时自动重渲染）。
-  const [unlockTick, setUnlockTick] = useState(0);
+  // 解锁状态变化信号：unlock/lock/home lock 经 onChanged 广播时 bump，触发下方 effect 静默重拉。
+  // 仅监听解锁标记 + 共享 key（不含 visibility key），失焦/聚焦不触发（止闪烁）。
+  const [revision, setRevision] = useState(0);
+  const lastKeyRef = useRef('');
 
   useEffect(() => {
     const onChanged = (globalThis as Record<string, unknown>).chrome as
@@ -49,7 +44,7 @@ export function useEncryptedContexts(
     const listener = (changes: Record<string, unknown>, areaName: string) => {
       if (areaName !== 'session') return;
       if ('octane-unlock-sidepanel' in changes || 'octane-derived-key' in changes) {
-        setUnlockTick((t) => t + 1);
+        setRevision((r) => r + 1);
       }
     };
     onChanged?.storage?.onChanged?.addListener?.(listener);
@@ -60,27 +55,23 @@ export function useEncryptedContexts(
 
   useEffect(() => {
     let active = true;
-    setState({ contexts: [], locked: false, error: null, loading: true });
+    const key = `${bookmarkId}:${contextCount}`;
+    const keyChanged = key !== lastKeyRef.current;
+    lastKeyRef.current = key;
+    // 切书签 / contextCount 变化 → 显示骨架；解锁/锁定重拉（revision）→ 保留上次 contexts 静默更新
+    if (keyChanged) {
+      setState({ contexts: [], error: null, loading: true });
+    }
 
     (async () => {
-      // 仅含加密 context 时才需解锁 gate；未加密 context 不需密钥，直接读取
-      if (hasEncryptedContext) {
-        const unlocked = await isUnlocked('sidepanel');
-        if (!active) return;
-        if (!unlocked) {
-          setState({ contexts: [], locked: true, error: null, loading: false });
-          return;
-        }
-      }
       try {
         const contexts = await getContexts(bookmarkId);
         if (!active) return;
-        setState({ contexts, locked: false, error: null, loading: false });
+        setState({ contexts, error: null, loading: false });
       } catch (e) {
         if (!active) return;
         setState({
           contexts: [],
-          locked: false,
           error: (e as Error).message || '解密失败',
           loading: false,
         });
@@ -90,7 +81,9 @@ export function useEncryptedContexts(
     return () => {
       active = false;
     };
-  }, [bookmarkId, hasEncryptedContext, contextCount, unlockTick]);
+    // hasEncryptedContext 不参与：始终拉取 contexts（容错返回明文 + 密文占位）
+    void hasEncryptedContext;
+  }, [bookmarkId, contextCount, revision, hasEncryptedContext]);
 
   return state;
 }

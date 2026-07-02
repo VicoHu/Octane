@@ -11,7 +11,6 @@ vi.mock('../InlineContextEditor', () => ({
 
 import { BookmarkGroup } from '../BookmarkGroup';
 import { useEncryptedContexts } from '../../hooks/useEncryptedContexts';
-import { UnlockContext } from '../../unlockContext';
 import type { Bookmark, Context } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
@@ -32,88 +31,60 @@ function makeContext(overrides: Partial<Context> = {}): Context {
 }
 const mock = useEncryptedContexts as ReturnType<typeof vi.fn>;
 
-describe('BookmarkGroup — 单书签四态', () => {
+describe('BookmarkGroup — 单书签内容区', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('header 显示书签名 + 命中数', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.getByText('Google')).toBeTruthy();
     expect(screen.getByText(/2 条上下文/)).toBeTruthy();
   });
 
   it('传入 categoryName → header 渲染分类 chip（R1 来源辨识）', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} categoryName="开发工具" categoryIcon="📁" />);
     expect(screen.getByText(/开发工具/)).toBeTruthy();
   });
 
   it('未传 categoryName → 不渲染 chip（向后兼容）', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+    mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.queryByText('开发工具')).toBeNull();
   });
 
-  it('locked 态 → 显示解锁提示，不渲染明文', () => {
-    mock.mockReturnValue({ contexts: [makeContext({ content: '明文' })], locked: true, error: null, loading: false });
-    render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.getByText(/解锁/)).toBeTruthy();
-    expect(screen.queryByText('笔记A')).toBeNull();
-  });
-
-  it('loading 态 → 显示加载中', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: true });
+  it('loading（无数据）→ 显示加载中', () => {
+    mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.getByText('加载中…')).toBeTruthy();
   });
 
   it('error 态 → 显示错误信息', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: '解密失败', loading: false });
+    mock.mockReturnValue({ contexts: [], error: '解密失败', loading: false });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.getByText('解密失败')).toBeTruthy();
   });
 
-  it('contexts 态 → 渲染 ContextCard 列表', () => {
+  it('contexts 态 → 渲染 ContextCard 列表（明文 + 密文占位都渲染）', () => {
     mock.mockReturnValue({
-      contexts: [makeContext({ id: 'c1', title: '笔记A' }), makeContext({ id: 'c2', title: '笔记B' })],
-      locked: false, error: null, loading: false,
+      contexts: [
+        makeContext({ id: 'c1', title: '笔记A' }),
+        makeContext({ id: 'c2', title: '密文', content: '', isEncrypted: true }),
+      ],
+      error: null,
+      loading: false,
     });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.getByText('笔记A')).toBeTruthy();
-    expect(screen.getByText('笔记B')).toBeTruthy();
+    // 密文占位由 ContextCard 渲染为「点击解锁」提示
+    expect(screen.getByText(/加密上下文，点击解锁/)).toBeTruthy();
   });
 
   it('点击「+ 上下文」→ 展开就地创建编辑器', () => {
-    mock.mockReturnValue({ contexts: [], locked: false, error: null, loading: false });
+    mock.mockReturnValue({ contexts: [], error: null, loading: false });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
     expect(screen.queryByText('editor-stub')).toBeNull();
     fireEvent.click(screen.getByLabelText('添加上下文'));
     expect(screen.getByText('editor-stub')).toBeTruthy();
-  });
-
-  it('locked 态点击 → 调 requestUnlock 发起解锁', () => {
-    mock.mockReturnValue({ contexts: [], locked: true, error: null, loading: false });
-    const requestUnlock = vi.fn();
-    render(
-      <UnlockContext.Provider value={{ requestUnlock }}>
-        <BookmarkGroup bookmark={makeBookmark()} />
-      </UnlockContext.Provider>,
-    );
-    fireEvent.click(screen.getByText(/解锁/));
-    expect(requestUnlock).toHaveBeenCalledTimes(1);
-  });
-
-  it('locked 态键盘 Enter/Space → 同样触发 requestUnlock（可访问性）', () => {
-    mock.mockReturnValue({ contexts: [], locked: true, error: null, loading: false });
-    const requestUnlock = vi.fn();
-    render(
-      <UnlockContext.Provider value={{ requestUnlock }}>
-        <BookmarkGroup bookmark={makeBookmark()} />
-      </UnlockContext.Provider>,
-    );
-    const target = screen.getByText(/解锁/);
-    fireEvent.keyDown(target, { key: 'Enter' });
-    fireEvent.keyDown(target, { key: ' ' });
-    expect(requestUnlock).toHaveBeenCalledTimes(2);
   });
 });
