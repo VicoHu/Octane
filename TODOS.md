@@ -31,5 +31,5 @@
 
 ### 推迟的功能项（taste / 后续）
 - **抓取当前页面选区/整页 markdown → 上下文**：双 voice 共识这是 side panel 结构性优势（喂养加密护城河），但本期就地创建先做 inline；页面抓取列后续。
-- **sidepanel 加密 context 锁定后自动隐藏**：`useEncryptedContexts` 无 cryptoMetadata 订阅，本期不修，记为既有局限。
+- **sidepanel 加密 context 锁定后自动隐藏**：~~`useEncryptedContexts` 无 cryptoMetadata 订阅，本期不修，记为既有局限。~~ **✓ 已在 0.1.8.0 实现**：加密分层解锁（`UnlockSession` 分 surface gate，切断 home 联动）+ 上下文级粒度（密文未解锁渲染锁占位、明文始终可见）+ TTL（grace 失焦锁 / hardCap 硬上限）+ home lockSession 连带锁 sidepanel。
 - **import channel（`octane-import`）全量刷新**：sourceMap/useHostBookmarks 均不监听，与 newtab reload 对齐留后续。
