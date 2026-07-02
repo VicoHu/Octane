@@ -2,8 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 vi.mock('@douyinfe/semi-ui', () => ({
-  Modal: ({ children, visible }: { children: React.ReactNode; visible: boolean }) =>
-    visible ? <div data-testid="modal">{children}</div> : null,
+  Modal: ({
+    children,
+    visible,
+    footer,
+  }: {
+    children: React.ReactNode;
+    visible: boolean;
+    footer?: React.ReactNode;
+  }) => (visible ? <div data-testid="modal">{children}{footer}</div> : null),
   Input: (props: { value?: string; onChange: (v: string) => void; onEnterPress: () => void }) => (
     <input
       data-testid="pwd-input"

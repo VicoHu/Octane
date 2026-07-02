@@ -14,6 +14,9 @@ interface SidePanelUnlockModalProps {
  * UnlockSession.unlock('sidepanel', pwd)（每次完整 PBKDF2+verifier，防偷看）。
  * 解锁成功后写入共享 octane-derived-key + sidepanel 标记，onChanged 广播触发
  * 所有 useEncryptedContexts 重渲染。TTL 失焦/硬上限锁由 useSidePanelUnlockLifecycle 负责。
+ *
+ * 宽度：side panel 视口窄（Chrome side panel 最小 ~300px），用 calc(100vw - 32px) 自适应，
+ * 避免默认 460px 横向溢出。按钮放 footer（Semi 自动留底部 padding，不贴边）。
  */
 export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProps) {
   const [password, setPassword] = useState('');
@@ -44,9 +47,14 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
       title="解锁加密上下文"
       visible={open}
       onCancel={onClose}
-      footer={null}
+      width="calc(100vw - 32px)"
       maskClosable
       hasCancel={false}
+      footer={
+        <Button theme="solid" block size="large" loading={loading} onClick={handleSubmit}>
+          解锁
+        </Button>
+      }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <p style={{ margin: 0, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
@@ -64,9 +72,6 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
         {error && (
           <div style={{ color: 'var(--semi-color-danger)', fontSize: 13 }}>{error}</div>
         )}
-        <Button theme="solid" block size="large" loading={loading} onClick={handleSubmit}>
-          解锁
-        </Button>
       </div>
     </Modal>
   );
