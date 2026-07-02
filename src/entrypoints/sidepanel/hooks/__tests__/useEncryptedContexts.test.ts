@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
-vi.mock('@/services/CryptoService', () => ({
+vi.mock('@/services/UnlockSession', () => ({
   isUnlocked: vi.fn(),
 }));
 vi.mock('@/services/ContextService', () => ({
@@ -9,7 +9,7 @@ vi.mock('@/services/ContextService', () => ({
 }));
 
 import { useEncryptedContexts } from '../useEncryptedContexts';
-import { isUnlocked } from '@/services/CryptoService';
+import { isUnlocked } from '@/services/UnlockSession';
 import { getContexts } from '@/services/ContextService';
 import type { Context } from '@/shared/types';
 import { ContextType } from '@/shared/types';
@@ -33,6 +33,18 @@ function makeContext(overrides: Partial<Context> = {}): Context {
 describe('useEncryptedContexts — 加密上下文解锁 gate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('切断联动：sidepanel surface 未解锁 → locked（即使 home 已解锁，不读全局 key）', async () => {
+    // home 已解锁（octane-derived-key 在）但 sidepanel surface 未解锁 →
+    // hook 必须读 UnlockSession.isUnlocked('sidepanel')，与 home 解锁态物理隔离。
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.locked).toBe(true);
+    expect(getContexts).not.toHaveBeenCalled();
+    // 契约：hook 必须按 sidepanel surface 查询，而非无参全局 isUnlocked()
+    expect(isUnlocked).toHaveBeenCalledWith('sidepanel');
   });
 
   it('未加密 context + 未解锁 → 不 gate，直接读取并显示（bug 复现）', async () => {
