@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resetDB, getDB, putRecord } from '@/shared/db/database';
 import { setupPassword, setTestKey, unlock as cryptoUnlock } from '@/services/CryptoService';
-import { isUnlocked, unlock, markHidden, markVisible, getUnlockPrerequisite } from '@/services/UnlockSession';
+import { isUnlocked, unlock, markHidden, markVisible, getUnlockPrerequisite, readTtlConfig, writeTtlConfig } from '@/services/UnlockSession';
 import type { SurfaceUnlockState } from '@/services/UnlockSession';
 
 /**
@@ -393,5 +393,30 @@ describe('解锁前置条件 getUnlockPrerequisite（T12）', () => {
   it('正常 meta（有 verifier）→ ok', async () => {
     await setupPassword('pwd');
     expect(await getUnlockPrerequisite('sidepanel')).toBe('ok');
+  });
+});
+
+describe('TTL 配置读写 writeTtlConfig', () => {
+  let localStore: Record<string, unknown>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage({}, {});
+    localStore = installed.localStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('writeTtlConfig 写 octane-ttl-config，readTtlConfig 读回', async () => {
+    await writeTtlConfig({ grace: 60_000, hardCap: 1_800_000 });
+    expect(localStore['octane-ttl-config']).toEqual({ grace: 60_000, hardCap: 1_800_000 });
+    const cfg = await readTtlConfig();
+    expect(cfg).toEqual({ grace: 60_000, hardCap: 1_800_000 });
+  });
+
+  it('writeTtlConfig 部分更新（保留未传字段）', async () => {
+    localStore['octane-ttl-config'] = { grace: 60_000, hardCap: 1_800_000 };
+    await writeTtlConfig({ grace: 120_000 });
+    expect(localStore['octane-ttl-config']).toEqual({ grace: 120_000, hardCap: 1_800_000 });
   });
 });

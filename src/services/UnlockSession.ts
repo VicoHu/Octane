@@ -70,7 +70,7 @@ function getChromeStorage(area: 'session' | 'local'): ChromeStorage | null {
 }
 
 /** 读取 TTL 配置（缺失用默认值） */
-async function readTtlConfig(): Promise<TtlConfig> {
+export async function readTtlConfig(): Promise<TtlConfig> {
   const local = getChromeStorage('local');
   if (!local) return { grace: DEFAULT_GRACE, hardCap: DEFAULT_HARD_CAP };
   const r = await local.get([TTL_CONFIG_KEY]);
@@ -79,6 +79,19 @@ async function readTtlConfig(): Promise<TtlConfig> {
     grace: typeof cfg?.grace === 'number' ? cfg.grace : DEFAULT_GRACE,
     hardCap: typeof cfg?.hardCap === 'number' ? cfg.hardCap : DEFAULT_HARD_CAP,
   };
+}
+
+/** 写入 TTL 配置（部分更新，未传字段保留原值；存 chrome.storage.local 跨会话保留） */
+export async function writeTtlConfig(patch: Partial<TtlConfig>): Promise<void> {
+  const local = getChromeStorage('local');
+  if (!local) return;
+  const current = await readTtlConfig();
+  await local.set({
+    [TTL_CONFIG_KEY]: {
+      grace: patch.grace ?? current.grace,
+      hardCap: patch.hardCap ?? current.hardCap,
+    },
+  });
 }
 
 /** 写入 sidepanel surface 的解锁标记 */

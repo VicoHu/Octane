@@ -3,6 +3,7 @@ import { ShortcutsSection } from './sections/ShortcutsSection';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import { PasswordSection } from './sections/PasswordSection';
+import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -41,6 +42,7 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
         </Tabs.TabPane>
         <Tabs.TabPane tab="主密码" itemKey="password">
           <PasswordSection />
+          <EncryptionTtlSection />
         </Tabs.TabPane>
       </Tabs>
     </Modal>
