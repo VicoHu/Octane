@@ -38,6 +38,25 @@ export function useEncryptedContexts(
     error: null,
     loading: true,
   });
+  // 解锁状态变化信号：chrome.storage.onChanged 感知 unlock 标记 / 共享 key 变化时 bump，
+  // 触发下方 effect 重查 isUnlocked（解锁/锁定/home lock/TTL 超时自动重渲染）。
+  const [unlockTick, setUnlockTick] = useState(0);
+
+  useEffect(() => {
+    const onChanged = (globalThis as Record<string, unknown>).chrome as
+      | { storage?: { onChanged?: { addListener?(cb: unknown): void; removeListener?(cb: unknown): void } } }
+      | undefined;
+    const listener = (changes: Record<string, unknown>, areaName: string) => {
+      if (areaName !== 'session') return;
+      if ('octane-unlock-sidepanel' in changes || 'octane-derived-key' in changes) {
+        setUnlockTick((t) => t + 1);
+      }
+    };
+    onChanged?.storage?.onChanged?.addListener?.(listener);
+    return () => {
+      onChanged?.storage?.onChanged?.removeListener?.(listener);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -71,7 +90,7 @@ export function useEncryptedContexts(
     return () => {
       active = false;
     };
-  }, [bookmarkId, hasEncryptedContext, contextCount]);
+  }, [bookmarkId, hasEncryptedContext, contextCount, unlockTick]);
 
   return state;
 }

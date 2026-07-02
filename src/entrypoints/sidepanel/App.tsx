@@ -1,12 +1,16 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
-import { Collapse } from '@douyinfe/semi-ui';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Collapse, Toast } from '@douyinfe/semi-ui';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
 import { useSourceMap } from './hooks/useSourceMap';
+import { useSidePanelUnlockLifecycle } from './hooks/useSidePanelUnlockLifecycle';
 import { groupBookmarksByWorkspace, defaultExpandedIds, groupHitCount } from './utils/grouping';
 import type { WorkspaceGroup } from './utils/grouping';
 import { StickyHeader } from './components/StickyHeader';
 import { BookmarkGroup } from './components/BookmarkGroup';
+import { SidePanelUnlockModal } from './components/SidePanelUnlockModal';
+import { UnlockContext } from './unlockContext';
+import { getUnlockPrerequisite } from '@/services/UnlockSession';
 import { focusOrCreateHomeTab } from '@/shared/tabs/focusOrCreateHomeTab';
 import styles from './App.module.css';
 
@@ -37,6 +41,25 @@ export default function App() {
   const { hostname, loading: tabLoading } = useCurrentTabContext();
   const { matched, loading: matching } = useHostBookmarks(hostname);
   const { workspaces, categories, ready } = useSourceMap();
+
+  // sidepanel 解锁生命周期：setInterval hardCap tick + visibilitychange/blur/focus grace 感知
+  useSidePanelUnlockLifecycle();
+
+  // sidepanel 加密上下文解锁弹窗（点 locked 卡触发）
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const requestUnlock = useCallback(async () => {
+    const pre = await getUnlockPrerequisite('sidepanel');
+    if (pre === 'no-password') {
+      Toast.warning('请先在 home 页设置主密码');
+      return;
+    }
+    if (pre === 'needs-reset') {
+      Toast.warning('检测到旧版加密数据，请先在 home 页重设主密码');
+      return;
+    }
+    setUnlockOpen(true);
+  }, []);
+  const unlockApi = useMemo(() => ({ requestUnlock }), [requestUnlock]);
 
   const groups = useMemo(
     () => (ready ? groupBookmarksByWorkspace(matched, workspaces, categories) : []),
@@ -103,6 +126,7 @@ export default function App() {
   );
 
   return (
+    <UnlockContext.Provider value={unlockApi}>
     <div className={styles.app}>
       <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} />
       <div className={styles.list} role="list">
@@ -128,5 +152,7 @@ export default function App() {
         )}
       </div>
     </div>
+    <SidePanelUnlockModal open={unlockOpen} onClose={() => setUnlockOpen(false)} />
+    </UnlockContext.Provider>
   );
 }

@@ -11,6 +11,7 @@ vi.mock('../InlineContextEditor', () => ({
 
 import { BookmarkGroup } from '../BookmarkGroup';
 import { useEncryptedContexts } from '../../hooks/useEncryptedContexts';
+import { UnlockContext } from '../../unlockContext';
 import type { Bookmark, Context } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
@@ -88,5 +89,31 @@ describe('BookmarkGroup — 单书签四态', () => {
     expect(screen.queryByText('editor-stub')).toBeNull();
     fireEvent.click(screen.getByLabelText('添加上下文'));
     expect(screen.getByText('editor-stub')).toBeTruthy();
+  });
+
+  it('locked 态点击 → 调 requestUnlock 发起解锁', () => {
+    mock.mockReturnValue({ contexts: [], locked: true, error: null, loading: false });
+    const requestUnlock = vi.fn();
+    render(
+      <UnlockContext.Provider value={{ requestUnlock }}>
+        <BookmarkGroup bookmark={makeBookmark()} />
+      </UnlockContext.Provider>,
+    );
+    fireEvent.click(screen.getByText(/解锁/));
+    expect(requestUnlock).toHaveBeenCalledTimes(1);
+  });
+
+  it('locked 态键盘 Enter/Space → 同样触发 requestUnlock（可访问性）', () => {
+    mock.mockReturnValue({ contexts: [], locked: true, error: null, loading: false });
+    const requestUnlock = vi.fn();
+    render(
+      <UnlockContext.Provider value={{ requestUnlock }}>
+        <BookmarkGroup bookmark={makeBookmark()} />
+      </UnlockContext.Provider>,
+    );
+    const target = screen.getByText(/解锁/);
+    fireEvent.keyDown(target, { key: 'Enter' });
+    fireEvent.keyDown(target, { key: ' ' });
+    expect(requestUnlock).toHaveBeenCalledTimes(2);
   });
 });

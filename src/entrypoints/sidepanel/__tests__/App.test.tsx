@@ -32,6 +32,16 @@ vi.mock('../hooks/useEncryptedContexts', () => ({
   // BookmarkGroup 内部调用；App 测试聚焦四状态 + 分组结构，上下文层默认空
   useEncryptedContexts: vi.fn(() => ({ contexts: [], locked: false, error: null, loading: false })),
 }));
+vi.mock('../components/SidePanelUnlockModal', () => ({
+  SidePanelUnlockModal: () => <div data-testid="unlock-modal-stub" />,
+}));
+vi.mock('../hooks/useSidePanelUnlockLifecycle', () => ({
+  useSidePanelUnlockLifecycle: () => {},
+}));
+vi.mock('@/services/UnlockSession', async (orig) => {
+  const actual = await orig();
+  return { ...actual, getUnlockPrerequisite: vi.fn(() => Promise.resolve('ok')) };
+});
 
 import App from '../App';
 import { useCurrentTabContext } from '../hooks/useCurrentTabContext';

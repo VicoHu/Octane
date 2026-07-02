@@ -65,6 +65,7 @@
   background: #fff7e6;
   color: #fa8c16;
   font-size: 13px;
+  cursor: pointer;
 }
 .loading, .empty, .error {
   padding: 8px 12px;

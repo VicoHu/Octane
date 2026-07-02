@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 
 vi.mock('@/services/UnlockSession', () => ({
   isUnlocked: vi.fn(),
@@ -160,5 +160,72 @@ describe('useEncryptedContexts — 加密上下文解锁 gate', () => {
     await waitFor(() => expect(result.current.contexts).toHaveLength(2));
     expect(getContexts).toHaveBeenCalledTimes(2);
     expect(result.current.contexts.map((c) => c.id)).toEqual(['c1', 'c2']);
+  });
+
+  /** 安装 chrome.storage.onChanged 内存 mock，返回触发函数 */
+  function installOnChanged() {
+    const listeners: Array<(changes: Record<string, unknown>, area: string) => void> = [];
+    (globalThis as Record<string, unknown>).chrome = {
+      storage: {
+        onChanged: {
+          addListener: (cb: (c: Record<string, unknown>, a: string) => void) => listeners.push(cb),
+          removeListener: (cb: (c: Record<string, unknown>, a: string) => void) => {
+            const i = listeners.indexOf(cb);
+            if (i >= 0) listeners.splice(i, 1);
+          },
+        },
+      },
+    };
+    return {
+      fireAsync: async (changes: Record<string, unknown>, area: string) => {
+        await act(async () => {
+          for (const cb of listeners) cb(changes, area);
+        });
+      },
+      count: () => listeners.length,
+    };
+  }
+
+  it('onChanged 感知 sidepanel 解锁标记变化 → 重查 isUnlocked（locked→unlocked 自动重渲染）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(false); // 初始 locked
+    const onChanged = installOnChanged();
+    const ctxs = [makeContext({ id: 'c1', content: '解密明文' })];
+    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue(ctxs);
+
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    await waitFor(() => expect(result.current.locked).toBe(true));
+
+    // 解锁：标记写入 → isUnlocked 现在返回 true
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    await onChanged.fireAsync({ 'octane-unlock-sidepanel': { newValue: { unlocked: true } } }, 'session');
+    await waitFor(() => expect(result.current.locked).toBe(false));
+    expect(result.current.contexts).toEqual(ctxs);
+
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('onChanged 感知 octane-derived-key 变化（home lock 清 key）→ 重查（unlocked→locked）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true); // 初始已解锁
+    const onChanged = installOnChanged();
+    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    await waitFor(() => expect(result.current.locked).toBe(false));
+
+    // home lock 清 key → isUnlocked 现在返回 false
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+    await onChanged.fireAsync({ 'octane-derived-key': { oldValue: 'k' } }, 'session');
+    await waitFor(() => expect(result.current.locked).toBe(true));
+
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('onChanged 卸载时移除监听（无泄漏）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const onChanged = installOnChanged();
+    const { unmount } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    expect(onChanged.count()).toBe(1);
+    unmount();
+    expect(onChanged.count()).toBe(0);
+    delete (globalThis as Record<string, unknown>).chrome;
   });
 });
