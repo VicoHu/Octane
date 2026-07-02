@@ -23,6 +23,14 @@ export type UnlockPrerequisite = 'ok' | 'no-password' | 'needs-reset';
 /** sidepanel surface 的解锁标记（存 chrome.storage.session，会话级） */
 const SIDE_PANEL_STATE_KEY = 'octane-unlock-sidepanel';
 
+/**
+ * sidepanel 失焦计时（独立 key，会话级）。
+ * 拆离 SIDE_PANEL_STATE_KEY 的目的：markHidden/markVisible 只改本 key，
+ * 不触发 useEncryptedContexts 的 onChanged（它只监听解锁标记 + 共享 key），
+ * 避免失焦/聚焦时整页 effect 重跑导致的 loading 闪烁。
+ */
+const SIDE_PANEL_VISIBILITY_KEY = 'octane-unlock-visibility-sidepanel';
+
 /** 共享派生密钥（home/sidepanel 共用，CryptoService 写入；home lockSession 清除） */
 const DERIVED_KEY = 'octane-derived-key';
 
@@ -37,6 +45,9 @@ const DEFAULT_HARD_CAP = 30 * 60 * 1000;
 export interface SurfaceUnlockState {
   unlocked: boolean;
   unlockedAt: number;
+}
+
+interface SurfaceVisibility {
   hiddenAt: number | null;
 }
 
@@ -110,6 +121,22 @@ async function clearSidePanelState(): Promise<void> {
   }
 }
 
+/** 读取 sidepanel 失焦计时 */
+async function readVisibility(): Promise<SurfaceVisibility> {
+  const session = getChromeStorage('session');
+  if (!session) return { hiddenAt: null };
+  const r = await session.get([SIDE_PANEL_VISIBILITY_KEY]);
+  return (r[SIDE_PANEL_VISIBILITY_KEY] as SurfaceVisibility | undefined) ?? { hiddenAt: null };
+}
+
+/** 写入 sidepanel 失焦计时 */
+async function writeVisibility(vis: SurfaceVisibility): Promise<void> {
+  const session = getChromeStorage('session');
+  if (session) {
+    await session.set({ [SIDE_PANEL_VISIBILITY_KEY]: vis });
+  }
+}
+
 /**
  * 某 surface 当前是否已解锁。
  *
@@ -128,7 +155,7 @@ export async function isUnlocked(surface: Surface): Promise<boolean> {
   }
   const session = getChromeStorage('session');
   if (!session) return false;
-  const result = await session.get([SIDE_PANEL_STATE_KEY, DERIVED_KEY]);
+  const result = await session.get([SIDE_PANEL_STATE_KEY, DERIVED_KEY, SIDE_PANEL_VISIBILITY_KEY]);
   const state = result[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
   if (!state?.unlocked) return false;
 
@@ -141,7 +168,10 @@ export async function isUnlocked(surface: Surface): Promise<boolean> {
   const now = Date.now();
   const { grace, hardCap } = await readTtlConfig();
   const hardCapExceeded = now - state.unlockedAt >= hardCap;
-  const graceExceeded = state.hiddenAt !== null && now - state.hiddenAt >= grace;
+  const visibility = (result[SIDE_PANEL_VISIBILITY_KEY] as SurfaceVisibility | undefined) ?? {
+    hiddenAt: null,
+  };
+  const graceExceeded = visibility.hiddenAt !== null && now - visibility.hiddenAt >= grace;
   if (hardCapExceeded || graceExceeded) {
     await clearSidePanelState();
     return false;
@@ -151,7 +181,8 @@ export async function isUnlocked(surface: Surface): Promise<boolean> {
 
 /**
  * 记录 sidepanel 失焦（visibilitychange/blur 触发）。
- * 仅在已解锁且 hiddenAt 未记时写入，避免覆盖更早的失焦时刻。
+ * 仅在已解锁且 hiddenAt 未记时写入 visibility key，避免覆盖更早的失焦时刻。
+ * 写 visibility key（独立于解锁标记）→ 不触发 useEncryptedContexts 重渲染（止闪烁）。
  */
 export async function markHidden(surface: Surface): Promise<void> {
   if (surface === 'home') {
@@ -159,16 +190,19 @@ export async function markHidden(surface: Surface): Promise<void> {
   }
   const session = getChromeStorage('session');
   if (!session) return;
-  const result = await session.get([SIDE_PANEL_STATE_KEY]);
-  const state = result[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
-  if (state?.unlocked && state.hiddenAt === null) {
-    await writeSidePanelState({ ...state, hiddenAt: Date.now() });
+  const stateResult = await session.get([SIDE_PANEL_STATE_KEY]);
+  const state = stateResult[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
+  if (!state?.unlocked) return;
+  const vis = await readVisibility();
+  if (vis.hiddenAt === null) {
+    await writeVisibility({ hiddenAt: Date.now() });
   }
 }
 
 /**
  * 记录 sidepanel 重新可见/聚焦（visibilitychange/focus 触发）。
- * 清除 hiddenAt，使 grace 重新计时。聚焦后 isUnlocked 立即可重检（若失焦曾超 grace 已锁则保持 locked）。
+ * 清除 hiddenAt 使 grace 重新计时。聚焦后下次 isUnlocked 重检（若失焦曾超 grace 已锁则保持 locked）。
+ * 写 visibility key → 不触发 useEncryptedContexts 重渲染。
  */
 export async function markVisible(surface: Surface): Promise<void> {
   if (surface === 'home') {
@@ -176,10 +210,12 @@ export async function markVisible(surface: Surface): Promise<void> {
   }
   const session = getChromeStorage('session');
   if (!session) return;
-  const result = await session.get([SIDE_PANEL_STATE_KEY]);
-  const state = result[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
-  if (state?.unlocked && state.hiddenAt !== null) {
-    await writeSidePanelState({ ...state, hiddenAt: null });
+  const stateResult = await session.get([SIDE_PANEL_STATE_KEY]);
+  const state = stateResult[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
+  if (!state?.unlocked) return;
+  const vis = await readVisibility();
+  if (vis.hiddenAt !== null) {
+    await writeVisibility({ hiddenAt: null });
   }
 }
 
@@ -211,7 +247,8 @@ export async function unlock(surface: Surface, password: string): Promise<boolea
   const p = (async () => {
     const ok = await cryptoUnlock(password);
     if (!ok) return false;
-    await writeSidePanelState({ unlocked: true, unlockedAt: Date.now(), hiddenAt: null });
+    await writeSidePanelState({ unlocked: true, unlockedAt: Date.now() });
+    await writeVisibility({ hiddenAt: null }); // 重置失焦计时
     return true;
   })();
   inflightUnlock.set(surface, p);

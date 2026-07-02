@@ -228,4 +228,22 @@ describe('useEncryptedContexts — 加密上下文解锁 gate', () => {
     expect(onChanged.count()).toBe(0);
     delete (globalThis as Record<string, unknown>).chrome;
   });
+
+  it('onChanged 忽略 visibility key 变化（失焦/聚焦 markHidden/markVisible 不触发重渲染，止闪烁）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
+    const onChanged = installOnChanged();
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    await waitFor(() => expect(result.current.locked).toBe(false));
+    const callsBefore = (isUnlocked as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // 失焦/聚焦只改 visibility key（hiddenAt），不应触发重检
+    await onChanged.fireAsync(
+      { 'octane-unlock-visibility-sidepanel': { newValue: { hiddenAt: Date.now() } } },
+      'session',
+    );
+    expect((isUnlocked as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
+
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
 });

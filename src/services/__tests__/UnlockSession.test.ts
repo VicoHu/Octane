@@ -48,7 +48,7 @@ describe('UnlockSession — sidepanel surface 独立解锁标记（T1 切断联�
 
   it('sidepanel 标记 unlocked=true → isUnlocked("sidepanel") 返回 true', async () => {
     installChromeStorage({
-      'octane-unlock-sidepanel': { unlocked: true, unlockedAt: Date.now(), hiddenAt: null },
+      'octane-unlock-sidepanel': { unlocked: true, unlockedAt: Date.now() },
       'octane-derived-key': 'shared-key',
     });
     expect(await isUnlocked('sidepanel')).toBe(true);
@@ -106,7 +106,10 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
     expect(sessionStore['octane-unlock-sidepanel']).toMatchObject({ unlocked: true });
     const state = sessionStore['octane-unlock-sidepanel'] as SurfaceUnlockState;
     expect(state.unlockedAt).toBeTypeOf('number');
-    expect(state.hiddenAt).toBeNull();
+    // unlock 重置失焦计时（独立 visibility key）
+    expect(
+      (sessionStore['octane-unlock-visibility-sidepanel'] as { hiddenAt: number | null })?.hiddenAt,
+    ).toBeNull();
   });
 
   it('错误密码 → 返回 false + 不写 sidepanel 标记 + isUnlocked 仍 false', async () => {
@@ -154,7 +157,8 @@ describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
 
   /** 直接写 sidepanel 已解锁状态（绕过真实 PBKDF2，专注 TTL 判定） */
   function setUnlockedState(state: { unlockedAt: number; hiddenAt: number | null }) {
-    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, ...state };
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: state.unlockedAt };
+    sessionStore['octane-unlock-visibility-sidepanel'] = { hiddenAt: state.hiddenAt };
     sessionStore['octane-derived-key'] = 'shared-key'; // 模拟 home 已派生共享 key
   }
 
@@ -213,7 +217,8 @@ describe('home lock 连带 + key 复活不自动解锁 + 重启清空（T7-T9）
   /** 模拟 sidepanel 已解锁（标记 + 共享 key 俱在，TTL 未超） */
   function unlockBoth() {
     const now = Date.now();
-    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: now, hiddenAt: null };
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: now };
+    sessionStore['octane-unlock-visibility-sidepanel'] = { hiddenAt: null };
     sessionStore['octane-derived-key'] = 'shared-key';
   }
 
@@ -293,7 +298,8 @@ describe('TTL 配置读取生效（T13）', () => {
   });
 
   function setUnlocked(hiddenAt: number | null) {
-    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now(), hiddenAt };
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now() };
+    sessionStore['octane-unlock-visibility-sidepanel'] = { hiddenAt };
     sessionStore['octane-derived-key'] = 'k';
   }
 
@@ -324,10 +330,12 @@ describe('markHidden / markVisible 语义（T14）', () => {
   });
 
   function setUnlocked(hiddenAt: number | null) {
-    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now(), hiddenAt };
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now() };
+    sessionStore['octane-unlock-visibility-sidepanel'] = { hiddenAt };
     sessionStore['octane-derived-key'] = 'k';
   }
-  const read = () => sessionStore['octane-unlock-sidepanel'] as SurfaceUnlockState;
+  const read = () =>
+    sessionStore['octane-unlock-visibility-sidepanel'] as { hiddenAt: number | null };
 
   it('T14a markHidden 在已解锁且 hiddenAt=null 时记当前时间', async () => {
     setUnlocked(null);
