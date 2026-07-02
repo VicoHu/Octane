@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react';
 import { InputNumber } from '@douyinfe/semi-ui';
 import { readTtlConfig, writeTtlConfig } from '@/services/UnlockSession';
 
-/** 单位：秒。1 秒下限给用户最大自由度（细粒度，特别适合失焦锁定）。 */
-const MIN_SECONDS = 1;
+/** 单位：秒。grace 下限 1 秒给用户最大自由度（细粒度，特别适合失焦锁定）。 */
+const MIN_GRACE_SECONDS = 1;
+/**
+ * hardCap 下限 = hardCap tick 间隔（30s）。useSidePanelUnlockLifecycle 的 setInterval 每 30s
+ * 检查一次 hardCap，若 hardCap < 30s 会因 tick 触发不及时而形同虚设——故下限对齐 tick。
+ */
+const MIN_HARDCAP_SECONDS = 30;
 /** grace 上限 1 小时（失焦锁定超过 1h 已无意义，改用硬上限） */
 const MAX_GRACE_SECONDS = 3600;
 /** hardCap 上限 24 小时 */
@@ -29,19 +34,19 @@ export function EncryptionTtlSection() {
   useEffect(() => {
     void (async () => {
       const cfg = await readTtlConfig();
-      setGrace(clamp(Math.round(cfg.grace / 1000), MIN_SECONDS, MAX_GRACE_SECONDS));
-      setHardCap(clamp(Math.round(cfg.hardCap / 1000), MIN_SECONDS, MAX_HARD_CAP_SECONDS));
+      setGrace(clamp(Math.round(cfg.grace / 1000), MIN_GRACE_SECONDS, MAX_GRACE_SECONDS));
+      setHardCap(clamp(Math.round(cfg.hardCap / 1000), MIN_HARDCAP_SECONDS, MAX_HARD_CAP_SECONDS));
       setLoaded(true);
     })();
   }, []);
 
   const commitGrace = async (v: number | string | null | undefined) => {
-    const seconds = clamp(Number(v), MIN_SECONDS, MAX_GRACE_SECONDS);
+    const seconds = clamp(Number(v), MIN_GRACE_SECONDS, MAX_GRACE_SECONDS);
     setGrace(seconds);
     await writeTtlConfig({ grace: seconds * 1000 });
   };
   const commitHardCap = async (v: number | string | null | undefined) => {
-    const seconds = clamp(Number(v), MIN_SECONDS, MAX_HARD_CAP_SECONDS);
+    const seconds = clamp(Number(v), MIN_HARDCAP_SECONDS, MAX_HARD_CAP_SECONDS);
     setHardCap(seconds);
     await writeTtlConfig({ hardCap: seconds * 1000 });
   };
@@ -62,7 +67,7 @@ export function EncryptionTtlSection() {
         <InputNumber
           data-testid="ttl-grace"
           value={grace}
-          min={MIN_SECONDS}
+          min={MIN_GRACE_SECONDS}
           max={MAX_GRACE_SECONDS}
           suffix="秒"
           onChange={commitGrace}
@@ -73,7 +78,7 @@ export function EncryptionTtlSection() {
         <InputNumber
           data-testid="ttl-hardcap"
           value={hardCap}
-          min={MIN_SECONDS}
+          min={MIN_HARDCAP_SECONDS}
           max={MAX_HARD_CAP_SECONDS}
           suffix="秒"
           onChange={commitHardCap}
