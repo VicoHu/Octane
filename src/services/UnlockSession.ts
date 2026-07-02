@@ -12,10 +12,13 @@
  * unlock / lock / grace / hardCap / onChanged 感知由后续 T 逐步加入。
  */
 
-import { unlock as cryptoUnlock } from '@/services/CryptoService';
+import { unlock as cryptoUnlock, isPasswordSet, hasVerifier } from '@/services/CryptoService';
 
 /** 需要独立解锁 gate 的 UI 入口点 */
 export type Surface = 'home' | 'sidepanel';
+
+/** 解锁前置条件（点解锁图标前检查，决定弹密码框 or Toast 引导） */
+export type UnlockPrerequisite = 'ok' | 'no-password' | 'needs-reset';
 
 /** sidepanel surface 的解锁标记（存 chrome.storage.session，会话级） */
 const SIDE_PANEL_STATE_KEY = 'octane-unlock-sidepanel';
@@ -167,6 +170,9 @@ export async function markVisible(surface: Surface): Promise<void> {
   }
 }
 
+/** per-surface 解锁 in-flight 守卫：并发 unlock 复用同一 promise，避免重复 PBKDF2 */
+const inflightUnlock = new Map<Surface, Promise<boolean>>();
+
 /**
  * 解锁指定 surface（当前仅 sidepanel）。
  *
@@ -177,6 +183,9 @@ export async function markVisible(surface: Surface): Promise<void> {
  * 校验通过 → CryptoService.unlock 已写入共享 octane-derived-key（供 getContexts 解密），
  * 此处再写 sidepanel 独立标记 octane-unlock-sidepanel。
  *
+ * 并发幂等：同一 surface 的并发 unlock 复用首个 promise（多个 BookmarkGroup 同时触发解锁时
+ * PBKDF2 只派生一次）。
+ *
  * @returns true=密码正确并已解锁；false=密码错误
  * @throws home surface 尚未纳入；未设主密码时由 CryptoService.unlock 抛错（前置条件由调用方/T12 处理）
  */
@@ -184,8 +193,36 @@ export async function unlock(surface: Surface, password: string): Promise<boolea
   if (surface === 'home') {
     throw new Error('home surface 尚未纳入 UnlockSession');
   }
-  const ok = await cryptoUnlock(password);
-  if (!ok) return false;
-  await writeSidePanelState({ unlocked: true, unlockedAt: Date.now(), hiddenAt: null });
-  return true;
+  const existing = inflightUnlock.get(surface);
+  if (existing) return existing;
+  const p = (async () => {
+    const ok = await cryptoUnlock(password);
+    if (!ok) return false;
+    await writeSidePanelState({ unlocked: true, unlockedAt: Date.now(), hiddenAt: null });
+    return true;
+  })();
+  inflightUnlock.set(surface, p);
+  try {
+    return await p;
+  } finally {
+    inflightUnlock.delete(surface);
+  }
+}
+
+/**
+ * 解锁前置条件检查（点解锁图标前调用）。
+ *
+ * - no-password：从未设置主密码 → Toast 引导去 home 设置
+ * - needs-reset：旧版 meta 无 verifier（无法校验密码）→ Toast 引导去 home 重设
+ * - ok：可弹密码框
+ *
+ * @throws home surface 尚未纳入 UnlockSession
+ */
+export async function getUnlockPrerequisite(surface: Surface): Promise<UnlockPrerequisite> {
+  if (surface === 'home') {
+    throw new Error('home surface 尚未纳入 UnlockSession');
+  }
+  if (!(await isPasswordSet())) return 'no-password';
+  if (!(await hasVerifier())) return 'needs-reset';
+  return 'ok';
 }

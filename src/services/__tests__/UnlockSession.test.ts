@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { resetDB, getDB } from '@/shared/db/database';
+import { resetDB, getDB, putRecord } from '@/shared/db/database';
 import { setupPassword, setTestKey, unlock as cryptoUnlock } from '@/services/CryptoService';
-import { isUnlocked, unlock } from '@/services/UnlockSession';
+import { isUnlocked, unlock, markHidden, markVisible, getUnlockPrerequisite } from '@/services/UnlockSession';
 import type { SurfaceUnlockState } from '@/services/UnlockSession';
 
 /**
@@ -249,5 +249,149 @@ describe('home lock 连带 + key 复活不自动解锁 + 重启清空（T7-T9）
     delete sessionStore['octane-unlock-sidepanel'];
     delete sessionStore['octane-derived-key'];
     expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+});
+
+describe('并发解锁幂等（T11）', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    resetDB();
+    setTestKey(null);
+    await getDB();
+    await clearCryptoMeta();
+    installChromeStorage();
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('T11 两个并发 unlock 同密码 → 都成功，PBKDF2 只派生一次（inflight 守卫）', async () => {
+    await setupPassword('pwd');
+    const deriveSpy = vi.spyOn(crypto.subtle, 'deriveKey');
+    const [a, b] = await Promise.all([
+      unlock('sidepanel', 'pwd'),
+      unlock('sidepanel', 'pwd'),
+    ]);
+    expect(a).toBe(true);
+    expect(b).toBe(true);
+    expect(deriveSpy).toHaveBeenCalledTimes(1); // 并发复用，不重复 PBKDF2
+    deriveSpy.mockRestore();
+  });
+});
+
+describe('TTL 配置读取生效（T13）', () => {
+  let sessionStore: Record<string, unknown>;
+  let localStore: Record<string, unknown>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage({}, {});
+    sessionStore = installed.sessionStore;
+    localStore = installed.localStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  function setUnlocked(hiddenAt: number | null) {
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now(), hiddenAt };
+    sessionStore['octane-derived-key'] = 'k';
+  }
+
+  it('T13 改 octane-ttl-config grace → 下次 isUnlocked 用新 grace 判定', async () => {
+    localStore['octane-ttl-config'] = { grace: 5 * 60 * 1000, hardCap: 30 * 60 * 1000 };
+    setUnlocked(Date.now() - 120000); // 失焦 2min
+    expect(await isUnlocked('sidepanel')).toBe(true); // 2min < grace 5min
+
+    localStore['octane-ttl-config'] = { grace: 60_000, hardCap: 30 * 60 * 1000 }; // grace 改 1min
+    expect(await isUnlocked('sidepanel')).toBe(false); // 2min > 新 grace 1min
+  });
+});
+
+describe('markHidden / markVisible 语义（T14）', () => {
+  const GRACE = 5 * 60 * 1000;
+  const HARD_CAP = 30 * 60 * 1000;
+  let sessionStore: Record<string, unknown>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage(
+      {},
+      { 'octane-ttl-config': { grace: GRACE, hardCap: HARD_CAP } },
+    );
+    sessionStore = installed.sessionStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  function setUnlocked(hiddenAt: number | null) {
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: Date.now(), hiddenAt };
+    sessionStore['octane-derived-key'] = 'k';
+  }
+  const read = () => sessionStore['octane-unlock-sidepanel'] as SurfaceUnlockState;
+
+  it('T14a markHidden 在已解锁且 hiddenAt=null 时记当前时间', async () => {
+    setUnlocked(null);
+    await markHidden('sidepanel');
+    expect(read().hiddenAt).toBeTypeOf('number');
+  });
+
+  it('T14a markHidden 不覆盖已记的 hiddenAt（保留更早失焦时刻）', async () => {
+    const earlier = Date.now() - 10000;
+    setUnlocked(earlier);
+    await markHidden('sidepanel');
+    expect(read().hiddenAt).toBe(earlier);
+  });
+
+  it('T14b markVisible 清 hiddenAt（聚焦后 grace 重新计时）', async () => {
+    setUnlocked(Date.now() - 60000);
+    await markVisible('sidepanel');
+    expect(read().hiddenAt).toBeNull();
+  });
+
+  it('T14c 失焦超 grace 已锁（标记被清）后 markVisible 不复活', async () => {
+    setUnlocked(Date.now() - (GRACE + 1000));
+    expect(await isUnlocked('sidepanel')).toBe(false);
+    await markVisible('sidepanel');
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('T14d 未解锁时 markHidden/markVisible no-op（不写入标记）', async () => {
+    await markHidden('sidepanel');
+    await markVisible('sidepanel');
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+  });
+});
+
+describe('解锁前置条件 getUnlockPrerequisite（T12）', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    resetDB();
+    setTestKey(null);
+    await getDB();
+    await clearCryptoMeta();
+    installChromeStorage();
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('未设密码（无 meta）→ no-password', async () => {
+    expect(await getUnlockPrerequisite('sidepanel')).toBe('no-password');
+  });
+
+  it('needs-reset（旧版 meta 无 verifier）→ needs-reset', async () => {
+    await putRecord('cryptoMetadata', {
+      id: 'singleton',
+      salt: 'eA==',
+      iterations: 600000,
+      algorithm: 'AES-GCM',
+      createdAt: 0,
+    });
+    expect(await getUnlockPrerequisite('sidepanel')).toBe('needs-reset');
+  });
+
+  it('正常 meta（有 verifier）→ ok', async () => {
+    await setupPassword('pwd');
+    expect(await getUnlockPrerequisite('sidepanel')).toBe('ok');
   });
 });

@@ -136,4 +136,29 @@ describe('useEncryptedContexts — 加密上下文解锁 gate', () => {
     expect(getContexts).toHaveBeenCalledTimes(2);
     expect(result.current.contexts.map((c) => c.id)).toEqual(['c1', 'c2']);
   });
+
+  it('T10 解锁窗口内就地新增加密上下文（contextCount+1）→ 重拉解密可见', async () => {
+    // hasEncryptedContext=true 且已解锁：就地新增一条加密上下文后 contextCount 1→2，
+    // bookmarkId/hasEncryptedContext 不变 → contextCount 在依赖里触发重拉，新加密上下文解密可见。
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (getContexts as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([makeContext({ id: 'c1', isEncrypted: true, content: '加密1' })])
+      .mockResolvedValueOnce([
+        makeContext({ id: 'c1', isEncrypted: true, content: '加密1' }),
+        makeContext({ id: 'c2', isEncrypted: true, content: '新加密2' }),
+      ]);
+
+    const { result, rerender } = renderHook(
+      ({ count }) => useEncryptedContexts('bm-1', true, count),
+      { initialProps: { count: 1 } },
+    );
+    await waitFor(() => expect(result.current.contexts).toHaveLength(1));
+    expect(result.current.locked).toBe(false);
+
+    // 模拟就地创建加密上下文后 bookmark.contextCount 变化
+    rerender({ count: 2 });
+    await waitFor(() => expect(result.current.contexts).toHaveLength(2));
+    expect(getContexts).toHaveBeenCalledTimes(2);
+    expect(result.current.contexts.map((c) => c.id)).toEqual(['c1', 'c2']);
+  });
 });
