@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { getContexts } from '@/services/ContextService';
+import { getContexts, getContextsRaw } from '@/services/ContextService';
+import { isUnlocked } from '@/services/UnlockSession';
 import type { Context } from '@/shared/types';
 
 export interface EncryptedContextsState {
@@ -13,10 +14,12 @@ export interface EncryptedContextsState {
 /**
  * 获取书签的上下文（上下文级粒度）。
  *
- * - 始终调 getContexts（容错：明文正常返回，密文未解锁保留占位，不解密不泄露）
- * - 密文上下文未解锁时由 ContextCard 单独渲染锁占位（点击解锁），明文上下文始终可见
- * - 解锁/锁定状态变化（octane-unlock-sidepanel / octane-derived-key）经 chrome.storage.onChanged
- *   广播 → bump revision → 静默重拉（保留上次 contexts，不闪骨架）；切书签/contextCount 变化走骨架
+ * - 始终拉取上下文：sidepanel 已解锁 → getContexts（解密密文）；未解锁 → getContextsRaw
+ *   （密文保留占位不解密）。明文上下文始终可见，密文未解锁由 ContextCard 渲染锁占位。
+ * - **切断联动**：home 解锁只写共享 octane-derived-key，不写 sidepanel 标记 →
+ *   isUnlocked('sidepanel') 仍 false → 用 getContextsRaw，密文不泄露给 sidepanel。
+ * - 解锁/锁定状态变化（octane-unlock-sidepanel / octane-derived-key）经 onChanged
+ *   广播 → bump revision → 静默重拉（保留上次 contexts，不闪骨架）
  *
  * @param bookmarkId 书签 id
  * @param hasEncryptedContext 书签是否含加密 context（保留签名兼容，内部不再用于整体 gate）
@@ -65,7 +68,12 @@ export function useEncryptedContexts(
 
     (async () => {
       try {
-        const contexts = await getContexts(bookmarkId);
+        // sidepanel surface 独立判定（切断与 home 的联动）：
+        // home 解锁只写共享 key 不写 sidepanel 标记 → isUnlocked false → 不解密（防泄露）
+        const unlocked = await isUnlocked('sidepanel');
+        const contexts = unlocked
+          ? await getContexts(bookmarkId)
+          : await getContextsRaw(bookmarkId);
         if (!active) return;
         setState({ contexts, error: null, loading: false });
       } catch (e) {

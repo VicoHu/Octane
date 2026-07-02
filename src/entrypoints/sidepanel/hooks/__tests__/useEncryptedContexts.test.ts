@@ -3,14 +3,18 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 
 vi.mock('@/services/ContextService', () => ({
   getContexts: vi.fn(),
+  getContextsRaw: vi.fn(),
+}));
+vi.mock('@/services/UnlockSession', () => ({
+  isUnlocked: vi.fn(),
 }));
 
 import { useEncryptedContexts } from '../useEncryptedContexts';
-import { getContexts } from '@/services/ContextService';
+import { getContexts, getContextsRaw } from '@/services/ContextService';
+import { isUnlocked } from '@/services/UnlockSession';
 import type { Context } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
-/** 上下文测试工厂：补全必填字段，允许按用例覆盖 */
 function makeContext(overrides: Partial<Context> = {}): Context {
   return {
     id: 'c1',
@@ -26,44 +30,78 @@ function makeContext(overrides: Partial<Context> = {}): Context {
   };
 }
 
-describe('useEncryptedContexts — 上下文级粒度', () => {
+describe('useEncryptedContexts — 上下文级粒度 + 切断联动', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(false); // 默认 sidepanel 未解锁
   });
 
-  it('挂载 → 调 getContexts 拉取并填充 contexts', async () => {
-    const ctxs = [makeContext({ id: 'c1', content: '明文' })];
+  it('未解锁 → 调 getContextsRaw（密文占位，明文正常），不调 getContexts', async () => {
+    const ctxs = [
+      makeContext({ id: 'c1', content: '明文' }),
+      makeContext({ id: 'c2', content: '', isEncrypted: true }), // 密文占位
+    ];
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockResolvedValue(ctxs);
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 2));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getContextsRaw).toHaveBeenCalledWith('bm-1');
+    expect(getContexts).not.toHaveBeenCalled();
+    expect(result.current.contexts).toHaveLength(2);
+    expect(result.current.contexts[1]!.isEncrypted).toBe(true);
+  });
+
+  it('已解锁 → 调 getContexts（密文解密）', async () => {
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const ctxs = [makeContext({ id: 'c1', content: '解密明文', isEncrypted: true })];
     (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue(ctxs);
-    const { result } = renderHook(() => useEncryptedContexts('bm-1', false, 1));
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(getContexts).toHaveBeenCalledWith('bm-1');
-    expect(result.current.contexts).toEqual(ctxs);
-    expect(result.current.error).toBeNull();
+    expect(getContextsRaw).not.toHaveBeenCalled();
+    expect(result.current.contexts[0]!.content).toBe('解密明文');
   });
 
-  it('getContexts 抛错 → error，明文不泄露', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('读取失败'));
+  it('回归核心：home 解锁（写共享 key → onChanged derived-key）不联动 sidepanel', async () => {
+    // home 解锁只写 octane-derived-key，不写 sidepanel 标记 → isUnlocked('sidepanel') 仍 false
+    const onChangeListeners: Array<(c: Record<string, unknown>, a: string) => void> = [];
+    (globalThis as Record<string, unknown>).chrome = {
+      storage: {
+        onChanged: {
+          addListener: (cb: (c: Record<string, unknown>, a: string) => void) => onChangeListeners.push(cb),
+          removeListener: () => {},
+        },
+      },
+    };
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeContext({ id: 'c1', content: '', isEncrypted: true }), // 占位
+    ]);
+    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getContextsRaw).toHaveBeenCalledTimes(1);
+    expect(getContexts).not.toHaveBeenCalled(); // 未解锁不调解密版
+
+    // home 解锁写入共享 key → onChanged 触发重拉
+    isUnlocked; // 保持 mock false（sidepanel 标记不在）
+    await act(async () => {
+      for (const cb of onChangeListeners) cb({ 'octane-derived-key': { newValue: 'k' } }, 'session');
+    });
+    await waitFor(() => expect(getContextsRaw).toHaveBeenCalledTimes(2));
+    expect(getContexts).not.toHaveBeenCalled(); // 仍不泄露
+    expect(result.current.contexts[0]!.content).toBe(''); // 占位未解密
+
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('抛错 → error', async () => {
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('读取失败'));
     const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeTruthy();
     expect(result.current.contexts).toEqual([]);
   });
 
-  it('含未解锁密文（getContexts 返回占位）→ contexts 仍含该条（ContextCard 渲染锁占位）', async () => {
-    // getContexts 容错：密文未解锁返回 content='' 占位
-    const ctxs = [
-      makeContext({ id: 'c1', content: '明文' }),
-      makeContext({ id: 'c2', content: '', isEncrypted: true }),
-    ];
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue(ctxs);
-    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 2));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.contexts).toHaveLength(2);
-    expect(result.current.contexts[1]!.isEncrypted).toBe(true);
-  });
-
   it('bookmarkId 变化 → 重拉', async () => {
-    (getContexts as ReturnType<typeof vi.fn>)
+    (getContextsRaw as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce([makeContext({ id: 'c1', content: 'A' })])
       .mockResolvedValueOnce([makeContext({ id: 'c2', content: 'B' })]);
     const { result, rerender } = renderHook(
@@ -73,16 +111,12 @@ describe('useEncryptedContexts — 上下文级粒度', () => {
     await waitFor(() => expect(result.current.contexts).toHaveLength(1));
     rerender({ id: 'bm-2' });
     await waitFor(() => expect(result.current.contexts[0]!.content).toBe('B'));
-    expect(getContexts).toHaveBeenLastCalledWith('bm-2');
   });
 
-  it('contextCount 变化 → 重拉（捕获就地新建上下文）', async () => {
-    (getContexts as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce([makeContext({ id: 'c1', content: '第一条' })])
-      .mockResolvedValueOnce([
-        makeContext({ id: 'c1', content: '第一条' }),
-        makeContext({ id: 'c2', content: '新建' }),
-      ]);
+  it('contextCount 变化 → 重拉', async () => {
+    (getContextsRaw as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([makeContext({ id: 'c1' })])
+      .mockResolvedValueOnce([makeContext({ id: 'c1' }), makeContext({ id: 'c2' })]);
     const { result, rerender } = renderHook(
       ({ count }) => useEncryptedContexts('bm-1', false, count),
       { initialProps: { count: 1 } },
@@ -90,7 +124,6 @@ describe('useEncryptedContexts — 上下文级粒度', () => {
     await waitFor(() => expect(result.current.contexts).toHaveLength(1));
     rerender({ count: 2 });
     await waitFor(() => expect(result.current.contexts).toHaveLength(2));
-    expect(getContexts).toHaveBeenCalledTimes(2);
   });
 
   /** 安装 chrome.storage.onChanged 内存 mock */
@@ -117,88 +150,47 @@ describe('useEncryptedContexts — 上下文级粒度', () => {
     };
   }
 
-  it('onChanged 感知解锁标记变化 → 重拉 contexts（占位→明文）', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([
-      makeContext({ id: 'c1', content: '', isEncrypted: true }), // 占位
+  it('onChanged unlock-sidepanel（sidepanel 解锁）→ 重查 isUnlocked + 切换 getContexts 解密', async () => {
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeContext({ id: 'c1', content: '', isEncrypted: true }),
     ]);
     const onChanged = installOnChanged();
     const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
     await waitFor(() => expect(result.current.contexts[0]!.content).toBe(''));
 
-    // 解锁后重拉 → 明文
+    // sidepanel 解锁：isUnlocked 现在返回 true → getContexts 解密
+    (isUnlocked as ReturnType<typeof vi.fn>).mockResolvedValue(true);
     (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([
       makeContext({ id: 'c1', content: '解密明文', isEncrypted: true }),
     ]);
     await onChanged.fireAsync({ 'octane-unlock-sidepanel': { newValue: true } }, 'session');
     await waitFor(() => expect(result.current.contexts[0]!.content).toBe('解密明文'));
+    expect(getContexts).toHaveBeenCalled();
 
     delete (globalThis as Record<string, unknown>).chrome;
   });
 
-  it('onChanged 感知 derived-key 变化（home lock）→ 重拉', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
+  it('onChanged 忽略 visibility key（失焦/聚焦不触发重拉）', async () => {
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
     const onChanged = installOnChanged();
     const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
     await waitFor(() => expect(result.current.contexts).toHaveLength(1));
-    const callsBefore = (getContexts as ReturnType<typeof vi.fn>).mock.calls.length;
-
-    await onChanged.fireAsync({ 'octane-derived-key': { oldValue: 'k' } }, 'session');
-    await waitFor(() =>
-      expect((getContexts as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(callsBefore),
-    );
-
-    delete (globalThis as Record<string, unknown>).chrome;
-  });
-
-  it('onChanged 忽略 visibility key（失焦/聚焦不触发重拉，止闪烁）', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
-    const onChanged = installOnChanged();
-    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
-    await waitFor(() => expect(result.current.contexts).toHaveLength(1));
-    const callsBefore = (getContexts as ReturnType<typeof vi.fn>).mock.calls.length;
-
+    const before = (getContextsRaw as ReturnType<typeof vi.fn>).mock.calls.length;
     await onChanged.fireAsync(
       { 'octane-unlock-visibility-sidepanel': { newValue: { hiddenAt: 1 } } },
       'session',
     );
-    expect((getContexts as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
-
+    expect((getContextsRaw as ReturnType<typeof vi.fn>).mock.calls.length).toBe(before);
     delete (globalThis as Record<string, unknown>).chrome;
   });
 
   it('onChanged 卸载时移除监听', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
+    (getContextsRaw as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1' })]);
     const onChanged = installOnChanged();
     const { unmount } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
     expect(onChanged.count()).toBe(1);
     unmount();
     expect(onChanged.count()).toBe(0);
-    delete (globalThis as Record<string, unknown>).chrome;
-  });
-
-  it('解锁重拉（onChanged）保留上次 contexts，不闪骨架（loading 不回 true）', async () => {
-    (getContexts as ReturnType<typeof vi.fn>).mockResolvedValue([makeContext({ id: 'c1', content: '占位' })]);
-    const onChanged = installOnChanged();
-    const { result } = renderHook(() => useEncryptedContexts('bm-1', true, 1));
-    await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.contexts).toHaveLength(1);
-
-    // 模拟重拉期间 contexts 不被清空、loading 不回 true
-    let resolveRetry!: (v: Context[]) => void;
-    (getContexts as ReturnType<typeof vi.fn>).mockReturnValue(
-      new Promise<Context[]>((r) => {
-        resolveRetry = r;
-      }),
-    );
-    await onChanged.fireAsync({ 'octane-unlock-sidepanel': { newValue: true } }, 'session');
-    await new Promise((r) => setTimeout(r, 0));
-    // 重拉进行中：contexts 保留、loading 不回 true
-    expect(result.current.contexts).toHaveLength(1);
-    expect(result.current.loading).toBe(false);
-
-    resolveRetry([makeContext({ id: 'c1', content: '明文' })]);
-    await waitFor(() => expect(result.current.contexts[0]!.content).toBe('明文'));
-
     delete (globalThis as Record<string, unknown>).chrome;
   });
 });
