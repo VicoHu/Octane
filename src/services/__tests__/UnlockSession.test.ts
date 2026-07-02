@@ -3,16 +3,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resetDB, getDB } from '@/shared/db/database';
 import { setupPassword, setTestKey, unlock as cryptoUnlock } from '@/services/CryptoService';
 import { isUnlocked, unlock } from '@/services/UnlockSession';
+import type { SurfaceUnlockState } from '@/services/UnlockSession';
 
 /**
- * chrome.storage.session 内存 mock。
+ * chrome.storage 内存 mock（同时挂 session + local）。
  *
- * UnlockSession 的 sidepanel 标记 octane-unlock-sidepanel 存 session（会话级，重启清空）。
- * 这里复用 storageMock.ts 的内存 store 模式，但挂在 chrome.storage.session 下。
+ * - session：sidepanel 标记 octane-unlock-sidepanel（会话级，重启清空）
+ * - local：TTL 配置 octane-ttl-config（跨会话保留用户偏好）
  */
-function installChromeStorageSession(initial: Record<string, unknown> = {}) {
-  const store: Record<string, unknown> = { ...initial };
-  const session = {
+function installChromeStorage(
+  initialSession: Record<string, unknown> = {},
+  initialLocal: Record<string, unknown> = {},
+) {
+  const sessionStore: Record<string, unknown> = { ...initialSession };
+  const localStore: Record<string, unknown> = { ...initialLocal };
+  const makeStorage = (store: Record<string, unknown>) => ({
     get: vi.fn(async (keys: string | string[]) => {
       const arr = Array.isArray(keys) ? keys : [keys];
       const out: Record<string, unknown> = {};
@@ -26,11 +31,11 @@ function installChromeStorageSession(initial: Record<string, unknown> = {}) {
       const arr = Array.isArray(keys) ? keys : [keys];
       for (const k of arr) delete store[k];
     }),
-  };
-  (globalThis as Record<string, unknown>).chrome = {
-    storage: { session },
-  };
-  return { store, session };
+  });
+  const session = makeStorage(sessionStore);
+  const local = makeStorage(localStore);
+  (globalThis as Record<string, unknown>).chrome = { storage: { session, local } };
+  return { sessionStore, localStore, session, local };
 }
 
 describe('UnlockSession — sidepanel surface 独立解锁标记（T1 切断联动）', () => {
@@ -42,21 +47,21 @@ describe('UnlockSession — sidepanel surface 独立解锁标记（T1 切断联�
   });
 
   it('sidepanel 标记 unlocked=true → isUnlocked("sidepanel") 返回 true', async () => {
-    installChromeStorageSession({
-      'octane-unlock-sidepanel': { unlocked: true, unlockedAt: 1000, hiddenAt: null },
+    installChromeStorage({
+      'octane-unlock-sidepanel': { unlocked: true, unlockedAt: Date.now(), hiddenAt: null },
     });
     expect(await isUnlocked('sidepanel')).toBe(true);
   });
 
   it('无 sidepanel 标记 → isUnlocked("sidepanel") 返回 false', async () => {
-    installChromeStorageSession({});
+    installChromeStorage({});
     expect(await isUnlocked('sidepanel')).toBe(false);
   });
 
   it('切断联动核心：octane-derived-key 在（home 已解锁）但 sidepanel 标记缺失 → sidepanel 仍 locked', async () => {
     // home 已解锁：共享派生密钥存在。改造前全局 isUnlocked() 会读它返回 true（联动）。
     // 改造后 sidepanel 读自己的标记，与 home 解锁态无关。
-    installChromeStorageSession({
+    installChromeStorage({
       'octane-derived-key': 'base64-key-from-home-unlock',
     });
     expect(await isUnlocked('sidepanel')).toBe(false);
@@ -77,7 +82,7 @@ async function clearCryptoMeta(): Promise<void> {
 }
 
 describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', () => {
-  let store: Record<string, unknown>;
+  let sessionStore: Record<string, unknown>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -85,8 +90,8 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
     setTestKey(null);
     await getDB();
     await clearCryptoMeta();
-    const installed = installChromeStorageSession();
-    store = installed.store;
+    const installed = installChromeStorage();
+    sessionStore = installed.sessionStore;
   });
   afterEach(() => {
     delete (globalThis as Record<string, unknown>).chrome;
@@ -97,8 +102,8 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
     const ok = await unlock('sidepanel', 'right-pwd');
     expect(ok).toBe(true);
     expect(await isUnlocked('sidepanel')).toBe(true);
-    expect(store['octane-unlock-sidepanel']).toMatchObject({ unlocked: true });
-    const state = store['octane-unlock-sidepanel'] as { unlockedAt: number; hiddenAt: number | null };
+    expect(sessionStore['octane-unlock-sidepanel']).toMatchObject({ unlocked: true });
+    const state = sessionStore['octane-unlock-sidepanel'] as SurfaceUnlockState;
     expect(state.unlockedAt).toBeTypeOf('number');
     expect(state.hiddenAt).toBeNull();
   });
@@ -108,14 +113,14 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
     const ok = await unlock('sidepanel', 'wrong-pwd');
     expect(ok).toBe(false);
     expect(await isUnlocked('sidepanel')).toBe(false);
-    expect(store['octane-unlock-sidepanel']).toBeUndefined();
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
   });
 
   it('防偷看：home 已解锁（octane-derived-key 已在）仍需正确密码，错误密码必失败', async () => {
     // home 先解锁：CryptoService.unlock 派生校验并写共享 octane-derived-key
     await setupPassword('right-pwd');
     await cryptoUnlock('right-pwd');
-    expect(store['octane-derived-key']).toBeTruthy(); // home 已解锁，共享 key 在
+    expect(sessionStore['octane-derived-key']).toBeTruthy(); // home 已解锁，共享 key 在
 
     // 偷看者在 sidepanel 输错密码 → 必须 fail（每次真身份验证，不复用已派生 key 跳过校验）
     const wrong = await unlock('sidepanel', 'wrong-pwd');
@@ -126,5 +131,64 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
     const right = await unlock('sidepanel', 'right-pwd');
     expect(right).toBe(true);
     expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+});
+
+describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
+  const GRACE = 5 * 60 * 1000; // 5min
+  const HARD_CAP = 30 * 60 * 1000; // 30min
+  let sessionStore: Record<string, unknown>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage(
+      {},
+      { 'octane-ttl-config': { grace: GRACE, hardCap: HARD_CAP } },
+    );
+    sessionStore = installed.sessionStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  /** 直接写 sidepanel 已解锁状态（绕过真实 PBKDF2，专注 TTL 判定） */
+  function setUnlockedState(state: { unlockedAt: number; hiddenAt: number | null }) {
+    sessionStore['octane-unlock-sidepanel'] = { unlocked: true, ...state };
+  }
+
+  it('T3 失焦超 grace → isUnlocked false 且清标记（再次查仍 false）', async () => {
+    const now = Date.now();
+    setUnlockedState({ unlockedAt: now, hiddenAt: now - (GRACE + 1000) }); // 失焦超 grace
+    expect(await isUnlocked('sidepanel')).toBe(false);
+    // 超时锁定应清标记：key 被移除，再次查不会自动复活
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('T4 失焦 < grace → 仍 unlocked（短暂切窗不打扰）', async () => {
+    const now = Date.now();
+    setUnlockedState({
+      unlockedAt: now,
+      hiddenAt: now - (GRACE - 60_000), // 失焦 4min < grace 5min
+    });
+    expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+
+  it('T5 硬上限超时（一直可见无失焦）→ isUnlocked false（不依赖 grace）', async () => {
+    const now = Date.now();
+    setUnlockedState({
+      unlockedAt: now - (HARD_CAP + 1000), // 解锁 30min+ 前
+      hiddenAt: null, // 一直可见，grace 永不触发
+    });
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('T6 grace 先于 hardCap 触发（失焦 25min, grace=5, hardCap=30）→ locked 不依赖 hardCap', async () => {
+    const now = Date.now();
+    setUnlockedState({
+      unlockedAt: now - 25 * 60 * 1000, // 解锁 25min 前（hardCap=30 没到）
+      hiddenAt: now - 25 * 60 * 1000, // 失焦 25min（grace=5 早超）
+    });
+    expect(await isUnlocked('sidepanel')).toBe(false);
   });
 });
