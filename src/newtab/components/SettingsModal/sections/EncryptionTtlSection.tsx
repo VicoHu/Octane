@@ -2,9 +2,12 @@ import { useState, useEffect } from 'react';
 import { InputNumber } from '@douyinfe/semi-ui';
 import { readTtlConfig, writeTtlConfig } from '@/services/UnlockSession';
 
-const MIN_MINUTES = 1;
-const MAX_GRACE_MINUTES = 60;
-const MAX_HARD_CAP_MINUTES = 240;
+/** 单位：秒。1 秒下限给用户最大自由度（细粒度，特别适合失焦锁定）。 */
+const MIN_SECONDS = 1;
+/** grace 上限 1 小时（失焦锁定超过 1h 已无意义，改用硬上限） */
+const MAX_GRACE_SECONDS = 3600;
+/** hardCap 上限 24 小时 */
+const MAX_HARD_CAP_SECONDS = 86_400;
 
 function clamp(v: number, min: number, max: number): number {
   if (Number.isNaN(v)) return min;
@@ -15,32 +18,32 @@ function clamp(v: number, min: number, max: number): number {
  * 加密上下文自动锁定分区（side panel TTL 配置）。
  *
  * 仅作用于 side panel：home 解锁不联动 side panel，side panel 按失焦时长（grace）
- * + 硬上限（hardCap）独立锁定。配置存 chrome.storage.local 跨会话保留，
- * sidepanel 下次 isUnlocked 重检即生效。
+ * + 硬上限（hardCap）独立锁定。配置存 chrome.storage.local（单位 ms，跨会话保留），
+ * UI 以「秒」展示（细粒度，失焦锁定可设 30s/90s 等短值），sidepanel 下次 isUnlocked 重检生效。
  */
 export function EncryptionTtlSection() {
-  const [grace, setGrace] = useState(5);
-  const [hardCap, setHardCap] = useState(30);
+  const [grace, setGrace] = useState(300); // 默认 5min = 300s
+  const [hardCap, setHardCap] = useState(1800); // 默认 30min = 1800s
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     void (async () => {
       const cfg = await readTtlConfig();
-      setGrace(clamp(Math.round(cfg.grace / 60_000), MIN_MINUTES, MAX_GRACE_MINUTES));
-      setHardCap(clamp(Math.round(cfg.hardCap / 60_000), MIN_MINUTES, MAX_HARD_CAP_MINUTES));
+      setGrace(clamp(Math.round(cfg.grace / 1000), MIN_SECONDS, MAX_GRACE_SECONDS));
+      setHardCap(clamp(Math.round(cfg.hardCap / 1000), MIN_SECONDS, MAX_HARD_CAP_SECONDS));
       setLoaded(true);
     })();
   }, []);
 
   const commitGrace = async (v: number | string | null | undefined) => {
-    const minutes = clamp(Number(v), MIN_MINUTES, MAX_GRACE_MINUTES);
-    setGrace(minutes);
-    await writeTtlConfig({ grace: minutes * 60_000 });
+    const seconds = clamp(Number(v), MIN_SECONDS, MAX_GRACE_SECONDS);
+    setGrace(seconds);
+    await writeTtlConfig({ grace: seconds * 1000 });
   };
   const commitHardCap = async (v: number | string | null | undefined) => {
-    const minutes = clamp(Number(v), MIN_MINUTES, MAX_HARD_CAP_MINUTES);
-    setHardCap(minutes);
-    await writeTtlConfig({ hardCap: minutes * 60_000 });
+    const seconds = clamp(Number(v), MIN_SECONDS, MAX_HARD_CAP_SECONDS);
+    setHardCap(seconds);
+    await writeTtlConfig({ hardCap: seconds * 1000 });
   };
 
   return (
@@ -55,13 +58,13 @@ export function EncryptionTtlSection() {
       <div style={{ color: 'var(--semi-color-text-2)', fontSize: 13, marginBottom: 12 }}>
         仅作用于 side panel。home 页解锁不联动 side panel。
       </div>
-      <Row label="失焦锁定" hint="side panel 失焦超过该时长自动锁回（短暂切窗不打扰）">
+      <Row label="失焦锁定" hint="side panel 失焦超过该时长自动锁回（短暂切窗不打扰，如 30/90 秒）">
         <InputNumber
           data-testid="ttl-grace"
           value={grace}
-          min={MIN_MINUTES}
-          max={MAX_GRACE_MINUTES}
-          suffix="分钟"
+          min={MIN_SECONDS}
+          max={MAX_GRACE_SECONDS}
+          suffix="秒"
           onChange={commitGrace}
           disabled={!loaded}
         />
@@ -70,9 +73,9 @@ export function EncryptionTtlSection() {
         <InputNumber
           data-testid="ttl-hardcap"
           value={hardCap}
-          min={MIN_MINUTES}
-          max={MAX_HARD_CAP_MINUTES}
-          suffix="分钟"
+          min={MIN_SECONDS}
+          max={MAX_HARD_CAP_SECONDS}
+          suffix="秒"
           onChange={commitHardCap}
           disabled={!loaded}
         />

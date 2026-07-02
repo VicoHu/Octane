@@ -39,39 +39,39 @@ describe('EncryptionTtlSection — side panel TTL 配置', () => {
     });
   });
 
-  it('挂载读 readTtlConfig，渲染为分钟（默认 5 / 30）', async () => {
+  it('挂载读 readTtlConfig，渲染为秒（默认 300 / 1800）', async () => {
     render(<EncryptionTtlSection />);
     await waitFor(() =>
       expect((screen.getByTestId('ttl-grace') as HTMLInputElement).disabled).toBe(false),
     );
-    expect((screen.getByTestId('ttl-grace') as HTMLInputElement).value).toBe('5');
-    expect((screen.getByTestId('ttl-hardcap') as HTMLInputElement).value).toBe('30');
+    expect((screen.getByTestId('ttl-grace') as HTMLInputElement).value).toBe('300');
+    expect((screen.getByTestId('ttl-hardcap') as HTMLInputElement).value).toBe('1800');
   });
 
-  it('改 grace → writeTtlConfig({ grace: 分钟*60000 })', async () => {
+  it('改 grace → writeTtlConfig({ grace: 秒*1000 })', async () => {
     render(<EncryptionTtlSection />);
     await waitFor(() =>
       expect((screen.getByTestId('ttl-grace') as HTMLInputElement).disabled).toBe(false),
     );
-    fireEvent.change(screen.getByTestId('ttl-grace'), { target: { value: '10' } });
-    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ grace: 10 * 60_000 }));
+    fireEvent.change(screen.getByTestId('ttl-grace'), { target: { value: '90' } });
+    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ grace: 90 * 1000 }));
   });
 
-  it('改 hardCap → writeTtlConfig({ hardCap: 分钟*60000 })', async () => {
+  it('改 hardCap → writeTtlConfig({ hardCap: 秒*1000 })', async () => {
     render(<EncryptionTtlSection />);
     await waitFor(() =>
       expect((screen.getByTestId('ttl-hardcap') as HTMLInputElement).disabled).toBe(false),
     );
-    fireEvent.change(screen.getByTestId('ttl-hardcap'), { target: { value: '45' } });
-    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ hardCap: 45 * 60_000 }));
+    fireEvent.change(screen.getByTestId('ttl-hardcap'), { target: { value: '1200' } });
+    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ hardCap: 1200 * 1000 }));
   });
 
-  it('grace 超上限被 clamp 到 60', async () => {
+  it('grace 超上限被 clamp 到 3600 秒（1h）', async () => {
     render(<EncryptionTtlSection />);
     await waitFor(() =>
       expect((screen.getByTestId('ttl-grace') as HTMLInputElement).disabled).toBe(false),
     );
-    fireEvent.change(screen.getByTestId('ttl-grace'), { target: { value: '999' } });
-    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ grace: 60 * 60_000 }));
+    fireEvent.change(screen.getByTestId('ttl-grace'), { target: { value: '99999' } });
+    await waitFor(() => expect(writeTtlConfig).toHaveBeenCalledWith({ grace: 3600 * 1000 }));
   });
 });
