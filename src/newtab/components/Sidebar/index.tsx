@@ -81,30 +81,21 @@ export const Sidebar: React.FC = () => {
 
       {/* 工作区 */}
       <div className={styles.sectionLabel}>工作区</div>
-      <Select
-        value={currentWorkspaceId}
-        onChange={(val) => val && selectWorkspace(val as string)}
-        className={styles.select}
-        placeholder="选择工作区"
-        getPopupContainer={getPopupContainer}
-        optionList={workspaces.map((ws) => ({
-          value: ws.id,
-          label: `${ws.icon} ${ws.name}`,
-        }))}
-      />
-      <Button
-        block
-        className={styles.addButton}
-        onClick={() => setShowNewWorkspace(true)}
-      >
-        + 新建工作区
-      </Button>
-      <Button
-        block
-        size="small"
-        theme="borderless"
-        onClick={() => setShowManage(true)}
-      >
+      <div className={styles.workspaceSelect}>
+        <Select
+          value={currentWorkspaceId}
+          onChange={(val) => val && selectWorkspace(val as string)}
+          className={styles.select}
+          placeholder="选择工作区"
+          getPopupContainer={getPopupContainer}
+          optionList={workspaces.map((ws) => ({
+            value: ws.id,
+            label: `${ws.icon} ${ws.name}`,
+          }))}
+        />
+        <Button icon={<IconPlus />} onClick={() => setShowNewWorkspace(true)}></Button>
+      </div>
+      <Button block size="small" theme="borderless" onClick={() => setShowManage(true)}>
         管理
       </Button>
 
@@ -150,7 +141,7 @@ export const Sidebar: React.FC = () => {
                       aria-label={`删除分类 ${cat.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmText('');
+                        setConfirmText("");
                         setDeleteTarget(cat);
                       }}
                     />
@@ -163,11 +154,7 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <div className={styles.bottomButton}>
-        <Button
-          icon={<IconPlus />}
-          block
-          onClick={() => setShowNewCategory(true)}
-        >
+        <Button icon={<IconPlus />} block onClick={() => setShowNewCategory(true)}>
           添加分类
         </Button>
         {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}
@@ -210,22 +197,22 @@ export const Sidebar: React.FC = () => {
         okButtonProps={{ disabled: !canConfirmDelete }}
         maskClosable={false}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-          <div style={{ color: 'var(--semi-color-text-0)', lineHeight: 1.7 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+          <div style={{ color: "var(--semi-color-text-0)", lineHeight: 1.7 }}>
             删除分类「{deleteTarget?.icon} {deleteTarget?.name}」将
-            <strong style={{ color: 'var(--semi-color-danger)' }}>同时删除该分类下的所有书签及其上下文</strong>
+            <strong style={{ color: "var(--semi-color-danger)" }}>同时删除该分类下的所有书签及其上下文</strong>
             ，且此操作<strong>不可恢复</strong>。
           </div>
-          <div style={{ color: 'var(--semi-color-text-1)', fontSize: 'var(--font-sm)' }}>
+          <div style={{ color: "var(--semi-color-text-1)", fontSize: "var(--font-sm)" }}>
             请输入下方短语以确认（可忽略空格）：
           </div>
           <code
             style={{
-              padding: '6px 10px',
-              background: 'var(--semi-color-fill-0)',
+              padding: "6px 10px",
+              background: "var(--semi-color-fill-0)",
               borderRadius: 4,
-              fontSize: 'var(--font-sm)',
-              userSelect: 'all',
+              fontSize: "var(--font-sm)",
+              userSelect: "all",
             }}
           >
             {expectedPhrase}
@@ -244,10 +231,7 @@ export const Sidebar: React.FC = () => {
       <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
 
       {/* 系统设置中心 */}
-      <SettingsModal
-        visible={showSettings}
-        onCancel={() => setShowSettings(false)}
-      />
+      <SettingsModal visible={showSettings} onCancel={() => setShowSettings(false)} />
     </div>
   );
 };
