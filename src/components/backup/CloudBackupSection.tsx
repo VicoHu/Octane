@@ -3,7 +3,7 @@ import { Tabs, Input, Select, Button, Modal, Banner, Toast, Typography, Checkbox
 import { useBackup } from '@/store/useBackup';
 import { useCrypto } from '@/store/useCrypto';
 import { cloudProviders, getCloudProvider } from '@/services/cloud/providers';
-import { getLastBackupAt } from '@/services/CloudStorageService';
+import { getCloudConfig, getLastBackupAt } from '@/services/CloudStorageService';
 import { S3_PRESETS, WEBDAV_PRESETS } from '@/services/cloud/presets';
 import type { BackupData } from '@/shared/types';
 import type { CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset, WebdavPreset } from '@/services/cloud/types';
@@ -39,6 +39,31 @@ export function CloudBackupSection() {
   useEffect(() => {
     getLastBackupAt(tab).then(setLastBackup).catch(() => setLastBackup(null));
   }, [tab, busy]);
+
+  // 解锁后从已保存配置回填当前 tab 表单（刷新后仍展示已存凭证）。仅在该 tab 尚无本地输入时回填，避免覆盖用户编辑。
+  useEffect(() => {
+    if (!unlocked) return;
+    let cancelled = false;
+    getCloudConfig(tab)
+      .then((cfg) => {
+        if (cancelled || !cfg) return;
+        setForms((prev) => {
+          if (prev[tab] && Object.keys(prev[tab] as Record<string, string>).length > 0) return prev;
+          const loaded: Record<string, string> = {};
+          for (const f of provider.configFields) {
+            const v = (cfg as Record<string, unknown>)[f.name];
+            if (typeof v === 'string') loaded[f.name] = v;
+          }
+          return { ...prev, [tab]: loaded };
+        });
+      })
+      .catch(() => {
+        /* 未配置或解锁前——忽略 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, unlocked, provider]);
 
   const fieldVal = (name: string) => forms[tab]?.[name] ?? '';
   const setField = (name: string, val: string) =>

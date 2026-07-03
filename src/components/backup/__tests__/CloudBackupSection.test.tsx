@@ -50,8 +50,11 @@ vi.mock('@/store/useCrypto', () => ({
   useCrypto: (sel: (s: Record<string, unknown>) => unknown) => sel(cryptoState),
 }));
 
-const cloudSvc = vi.hoisted(() => ({ getLastBackupAt: vi.fn() }));
-vi.mock('@/services/CloudStorageService', () => ({ getLastBackupAt: cloudSvc.getLastBackupAt }));
+const cloudSvc = vi.hoisted(() => ({ getLastBackupAt: vi.fn(), getCloudConfig: vi.fn() }));
+vi.mock('@/services/CloudStorageService', () => ({
+  getLastBackupAt: cloudSvc.getLastBackupAt,
+  getCloudConfig: cloudSvc.getCloudConfig,
+}));
 
 // 两个 provider：s3 含 select(s3Preset)，webdav 含 select(webdavPreset)，验证动态 TABS + select 渲染 + 通用收集
 const providers = vi.hoisted(() => ({
@@ -92,6 +95,8 @@ const btn = (text: string): HTMLButtonElement => screen.getByText(text).closest(
 beforeEach(() => {
   Object.values(store).forEach((m) => (m as ReturnType<typeof vi.fn>).mockReset());
   cloudSvc.getLastBackupAt.mockReset();
+  cloudSvc.getCloudConfig.mockReset();
+  cloudSvc.getCloudConfig.mockResolvedValue(null);
   vi.mocked(Toast.error).mockReset();
   vi.mocked(Toast.success).mockReset();
   cryptoState.unlocked = true;
@@ -158,6 +163,19 @@ describe('CloudBackupSection', () => {
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText(/请先设置/)).toBeTruthy());
     expect(btn('设置主密码')).toBeTruthy();
+  });
+
+  it('解锁后从已保存配置回填表单（刷新后应展示已存凭证）', async () => {
+    cloudSvc.getCloudConfig.mockResolvedValue({
+      s3Preset: 'aliyun',
+      region: 'oss-cn-hangzhou',
+      bucket: 'saved-bucket',
+      accessKeyId: 'SAVEDAK',
+      accessKeySecret: 'SAVEDSK',
+    });
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByDisplayValue('saved-bucket')).toBeTruthy());
+    expect(screen.getByDisplayValue('SAVEDAK')).toBeTruthy();
   });
 
   it('点击「从云恢复」→ 下载解析成功 → 弹破坏性确认 Modal（未勾选时确认禁用）', async () => {
