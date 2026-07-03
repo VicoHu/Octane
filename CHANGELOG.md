@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.10.0] - 2026-07-03
+
+### Changed
+
+- **云存储统一 S3 协议**：用 `aws4fetch`（~3KB SigV4 签名器）+ 原生 `fetch` 替换原 `ali-oss` + `cos-js-sdk-v5` 两套 SDK，枚举锁阿里云/腾讯云（endpoint 由 preset+region 推导，vhost 风格）。签名走 service=s3 + `x-amz-content-sha256: UNSIGNED-PAYLOAD`（大文件不在主线程算 hash）。移除两套重型 SDK，bundle 净瘦身、无 Node polyfill。原 `OssProvider`/`CosProvider` 与 `ali-oss`/`cos-js-sdk-v5`/`@types/ali-oss` 依赖整体删除。
+- **主机权限收窄为编译期固定**：枚举锁 provider 后所有云 origin 已知且固定，删除原计划的运行时主机权限申请整套机制，回退 `host_permissions` 三固定域（`*.aliyuncs.com` / `*.myqcloud.com` / `dav.jianguoyun.com`）。
+- **云备份设置 UI 重写**：`CloudBackupSection` Tab 列表改从注册表动态生成（去硬编码 `['oss','cos']`）；新增 preset 下拉渲染（S3 服务商/坚果云），region 占位按 s3Preset 联动；`handleSave` 从 `configFields` 通用收集（不再硬编码 5 字段）；连接/上传/恢复错误文案透传 provider 消息（桶不存在/凭证错区分）。
+- **`CloudStorageConfig` schema 重构**：字段改可选 + 按 provider 按需填，新增 `s3Preset`/`webdavPreset`/`username`/`password`；新增 `getRequired(cfg, keys)` helper（必填缺失明确抛错，替代静默空串）。
+
+### Added
+
+- **WebDAV 兼容（坚果云）**：新增 `WebdavProvider`（原生 `fetch` + Basic Auth），枚举锁首支持坚果云（`dav.jianguoyun.com/dav/`，账号邮箱 + 应用密码），preset 下拉结构为后续扩展其他 WebDAV 保留。备份落 `dav/octane/octane-backup.json`，MKCOL 幂等建目录。
+- **S3/WebDAV/坚果云 e2e 前置 spike 工具**：`scripts/spike-s3.mjs`（S3_PRESET=aliyun|tencent 验证 aws4fetch 直连两家 vhost 端点）、`scripts/spike-jianguoyun.mjs`（坚果云 WebDAV PROPFIND/MKCOL/PUT/GET 链路）。Node 跑验网络/签名/协议，e2e 前置。
+- 单测：`S3Provider`（25 例，SigV4 结构断言）、`WebdavProvider`（12 例）、`getRequired`（4 例）；`CloudBackupSection` 测试迁 `userEvent`、补 preset 下拉/通用收集/Toast 透传断言。
+
+### Fixed
+
+- **保存+刷新后云配置不回填**（e2e 发现）：`CloudBackupSection` 表单挂载时未从 `getCloudConfig` 回填已存凭证（加密配置可读、测试连接成功，但 UI 空）；解锁后按 tab 回填 `configFields`，仅在该 tab 无本地输入时回填避免覆盖编辑。对 S3/WebDAV 两 tab 均生效。
+
+### 备注
+
+- 旧版 `oss`/`cos` 配置不自动迁移到新 `s3`/`webdav`（凭证加密分键、endpoint 推断不可靠）；升级后需在 preset 下拉重配一次。
+
 ## [0.1.9.0] - 2026-07-03
 
 ### Changed
