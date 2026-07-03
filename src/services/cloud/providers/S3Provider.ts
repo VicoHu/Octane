@@ -57,10 +57,10 @@ export class S3Provider implements CloudStorageProvider {
     const { client, vhostBase } = this.buildContext(cfg);
     const signed = await client.sign(vhostBase, { method: 'HEAD' });
     const res = await fetch(signed);
-    if (res.status === 200) return;
+    if (res.ok) return;
     if (res.status === 403) throw new Error('S3 凭证或权限不足（403）');
     if (res.status === 404) throw new Error('S3 桶不存在（404）');
-    if (!res.ok) throw new Error(`S3 testConnection 失败：HTTP ${res.status}`);
+    throw new Error(`S3 testConnection 失败：HTTP ${res.status}`);
   }
 
   async uploadBackup(cfg: CloudStorageConfig, blob: Blob): Promise<void> {

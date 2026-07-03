@@ -92,7 +92,7 @@ export class WebdavProvider implements CloudStorageProvider {
     if (!res.ok) {
       throw new Error(`WebDAV 下载失败：${res.status}`);
     }
-    const buf = await new Response(res.body).arrayBuffer();
+    const buf = await res.arrayBuffer();
     return new Blob([buf]);
   }
 }
