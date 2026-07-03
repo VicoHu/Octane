@@ -9,7 +9,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    "types": ["chrome", "node", "vitest/globals"]
   },
   "include": ["src", ".wxt/wxt.d.ts"]
 }

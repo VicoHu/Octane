@@ -2,6 +2,7 @@
   "name": "octane",
   "version": "0.1.8.0",
   "private": true,
+  "packageManager": "pnpm@10.11.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -11,7 +12,11 @@
     "zip": "timeout 10 wxt zip",
     "zip:firefox": "timeout 10 wxt zip -b firefox",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepare": "husky"
   },
   "dependencies": {
     "@douyinfe/semi-ui": "^2.100.0",
@@ -25,16 +30,27 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/ali-oss": "^6.23.3",
+    "@types/chrome": "^0.2.2",
     "@types/dompurify": "^3.0.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "@wxt-dev/module-react": "^1.2.2",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-testing-library": "^7.16.2",
+    "eslint-plugin-vitest": "^0.5.4",
     "fake-indexeddb": "^6.2.5",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.62.1",
     "vite": "^8.1.0",
     "vitest": "^4.1.8",
     "wxt": "^0.20.27"

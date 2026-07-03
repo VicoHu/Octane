@@ -13,7 +13,7 @@ import type { Context } from '@/shared/types';
 /** 测试专用 PBKDF2→AES-GCM 派生（隔离于 CryptoService 私有 deriveKey） */
 async function deriveKeyLocal(
   password: string,
-  salt: Uint8Array,
+  salt: Uint8Array<ArrayBuffer>,
   iterations: number,
 ): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(

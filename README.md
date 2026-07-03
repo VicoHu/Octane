@@ -102,39 +102,39 @@ octane/
 
 ```bash
 # 安装依赖
-npm install
+pnpm install
 
 # Chrome 开发模式（HMR）
-npm run dev
+pnpm run dev
 
 # Firefox 开发模式
-npm run dev:firefox
+pnpm run dev:firefox
 
 # 构建生产版本
-npm run build              # Chrome MV3
-npm run build:firefox      # Firefox MV2
+pnpm run build              # Chrome MV3
+pnpm run build:firefox      # Firefox MV2
 
 # 打包 zip
-npm run zip                # Chrome
-npm run zip:firefox        # Firefox
+pnpm run zip                # Chrome
+pnpm run zip:firefox        # Firefox
 
 # 运行测试
-npm test
+pnpm test
 
 # 监听模式运行测试
-npm run test:watch
+pnpm run test:watch
 ```
 
 ## 安装到浏览器
 
 **Chrome / Edge：**
-1. `npm run build`
+1. `pnpm run build`
 2. 打开 `chrome://extensions/`（或 `edge://extensions/`）
 3. 开启"开发者模式"
 4. 点击"加载已解压的扩展程序"，选择 `.output/chrome-mv3/` 目录
 
 **Firefox：**
-1. `npm run build:firefox`
+1. `pnpm run build:firefox`
 2. 打开 `about:debugging#/runtime/this-firefox`
 3. 点击"临时载入附加组件"，选择 `.output/firefox-mv2/manifest.json`
 

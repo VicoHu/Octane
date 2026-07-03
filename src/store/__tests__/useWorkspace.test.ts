@@ -20,8 +20,8 @@ import { useWorkspace } from '@/store/useWorkspace';
 
 const wsOf = (id: string, name = 'WS') =>
   ({ id, name, icon: '📁', createdAt: 1, order: 0 }) as never;
-const catOf = (id: string, wsId: string) =>
-  ({ id, workspaceId: wsId, name: 'CAT', icon: '📂', order: 0, createdAt: 1 }) as never;
+const catOf = (id: string, wsId: string, name = 'CAT') =>
+  ({ id, workspaceId: wsId, name, icon: '📂', order: 0, createdAt: 1 }) as never;
 
 beforeEach(() => {
   useWorkspace.setState({

@@ -34,7 +34,7 @@ beforeEach(() => {
     refreshBookmark: vi.fn(),
   };
   useWorkspace.setState({
-    categories: [{ id: 'c1', name: '工作', icon: '💼' }],
+    categories: [{ id: 'c1', workspaceId: 'w1', name: '工作', icon: '💼', order: 0, createdAt: 0 }],
     currentCategoryId: 'c1',
     currentWorkspaceId: 'w1',
     workspaces: [],

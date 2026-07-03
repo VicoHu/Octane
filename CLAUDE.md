@@ -104,3 +104,12 @@
 
 ### Semi Design 定制规范（Token 参考手册）
 [Semi Design 定制规范（Token 参考手册）](docs/semi-design-spec.md)
+
+## 测试规范
+写测试或改测试时，**必须**先读 [测试设计规范](docs/standards/testing.md)。核心：
+- 不整体 mock `@douyinfe/semi-ui`（真实渲染 Semi，仅 partial mock Toast）；lottie-web 由 `vitest.config.ts` 全局 alias 处理（见规范 §4.4.1），测试文件**不要**再 `vi.mock('lottie-web')`。
+- query 用 `getByRole` / `getByText` / `getByPlaceholderText`，禁用只存在于 mock 里的私有 testid。
+- 交互用 `userEvent`（不用 `fireEvent`）；断言用 jest-dom matcher（`toBeInTheDocument()` 等，不用 `.toBeTruthy()`）。
+- mock 只命中副作用边界（chrome API / DB / 网络 / Toast / lottie），不 mock 被测对象。
+- 提交前 `pnpm run typecheck`（husky pre-push 自动跑）+ `pnpm run test` 必须双绿。
+- 写新组件测试前，参考 `tests/spike-semi-jsdom.test.tsx`（Semi 在 jsdom 真实渲染范本）和 `src/services/__tests__/CryptoService.test.ts`（逻辑层标杆）。

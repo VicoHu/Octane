@@ -26,7 +26,16 @@ const bookmark: Bookmark = {
   updatedAt: 0,
 };
 
-const renderCard = (overrides: Partial<Bookmark> = {}, handlers = {}, hasOpenTab?: boolean) =>
+const renderCard = (
+  overrides: Partial<Bookmark> = {},
+  handlers: {
+    onClick?: () => void;
+    onViewContexts?: () => void;
+    onEditBookmark?: () => void;
+    onDelete?: () => void;
+  } = {},
+  hasOpenTab?: boolean,
+) =>
   render(
     <BookmarkCard
       bookmark={{ ...bookmark, ...overrides }}
