@@ -10,7 +10,11 @@ import type { S3Preset, WebdavPreset } from './types';
  * - 腾讯云：cos.{region}.myqcloud.com（vhost；2024-01-01 后新建桶仅支持 vhost）。
  */
 export interface S3PresetDef {
-  /** endpoint host（不含 scheme），{region} 占位；桶走 vhost `{bucket}.{host}`。 */
+  /**
+   * 返回 endpoint **host（不含 scheme）**，{region} 占位。
+   * provider 负责：`https://` 前缀 + vhost 桶地址 `{bucket}.{host}` 拼装。
+   * 例：aliyun → `s3.${region}.aliyuncs.com`，provider 拼 `https://${bucket}.s3.${region}.aliyuncs.com/${key}`。
+   */
   endpoint: (region: string) => string;
   /** 显示名。 */
   label: string;

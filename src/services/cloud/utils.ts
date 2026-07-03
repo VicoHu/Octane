@@ -1,5 +1,15 @@
 import type { CloudStorageConfig } from './types';
 
+/** CloudStorageConfig 中 string 型字段集合（getRequired 仅适用于这些键）。 */
+export type StringConfigKey =
+  | 'region'
+  | 'bucket'
+  | 'accessKeyId'
+  | 'accessKeySecret'
+  | 'endpoint'
+  | 'username'
+  | 'password';
+
 /**
  * 从配置中提取必填字段，缺任一则抛错（明确报缺失字段名，优于静默传空串）。
  * 仅用于 string 型字段（region/bucket/accessKeyId/accessKeySecret/username/password 等）。
@@ -7,7 +17,7 @@ import type { CloudStorageConfig } from './types';
  * 示例：
  *   const { region, bucket } = getRequired(cfg, ['region', 'bucket']);
  */
-export function getRequired<K extends keyof CloudStorageConfig>(
+export function getRequired<K extends StringConfigKey>(
   cfg: CloudStorageConfig,
   keys: readonly K[],
 ): { [P in K]: string } {
