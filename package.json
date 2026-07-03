@@ -21,6 +21,7 @@
   "dependencies": {
     "@douyinfe/semi-ui": "^2.100.0",
     "ali-oss": "^6.23.0",
+    "aws4fetch": "^1.0.20",
     "cos-js-sdk-v5": "^1.10.1",
     "dompurify": "^3.4.9",
     "idb": "^8.0.3",
