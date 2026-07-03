@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.9.0] - 2026-07-03
+
+### Changed
+
+- **测试设计规范落地**：建立 `docs/standards/testing.md`（Testing Trophy + Don't Mock What You Don't Own），重写 4 个手写整体 mock `@douyinfe/semi-ui` 的测试文件为真实渲染 Semi + 仅 partial mock Toast，消除「测试假过」风险。`SidePanelUnlockModal` 补 catch 分支用例；mutation 验证（surface + 分支反转）两个都被测试抓住。
+- **测试基建补全**：`tests/setup.ts` 加 jest-dom + cleanup + ResizeObserver/IntersectionObserver polyfill；装 `@testing-library/user-event`；`tsconfig.test.json`（关 noUnusedLocals）+ `typecheck` script；`src/types/globals.d.ts` 桥接 chrome 全局。
+- **ESLint flat config**（testing-library + vitest 插件，高冲突规则 warn 不 error，存量渐进）+ **husky gate**（pre-commit=lint / pre-push=typecheck+test）。
+- **包管理器统一 pnpm**：`packageManager: pnpm@10.11.0`，删 `package-lock.json`，README/husky/CLAUDE/规范 命令迁移。
+
+### Fixed
+
+- **Semi barrel 经 lottie-web 在 jsdom 崩**：`@douyinfe/semi-ui` barrel 静态 import lottie-web，jsdom 无 canvas 模块评估期崩；用 `vitest.config.ts` 的 `resolve.alias` 全局指向 stub（实测 setup.ts `vi.mock` 无效）。
+- **清理 70 个历史类型债**：装 `@types/chrome` + `globals.d.ts` 桥接、TS6 `ArrayBuffer` 标注、`noUncheckedIndexedAccess` 守卫；`typecheck` 从无到有且双 tsconfig 全绿。
+
+### Added
+
+- `tests/spike-semi-jsdom.test.tsx` 永久 smoke test（Semi/jsdom 升级预警）。
+- `CLAUDE.md` 加测试规范节，AI session 强制遵循。
+- `docs/plans/2026-07-03-testing-standard-rollout.md`（autoplan 四轮双模型 review 的落地计划与评审报告）。
+
 ## [0.1.8.0] - 2026-07-02
 
 ### Added

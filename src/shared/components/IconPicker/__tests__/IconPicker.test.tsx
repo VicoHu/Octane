@@ -39,7 +39,7 @@ describe('IconPicker — emoji 图标选择器', () => {
     const firstBtn = grid.children[0]! as HTMLButtonElement;
     fireEvent.click(firstBtn);
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(typeof onChange.mock.calls[0][0]).toBe('string');
+    expect(typeof onChange.mock.calls[0]![0]).toBe('string');
   });
 
   it('输入合法 emoji 触发 onChange 并清空错误', () => {

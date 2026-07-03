@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
-import { Card, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
+import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
 import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
+
+// Semi Card 的 CardProps 未声明 role / onClick，运行时透传到 DOM 但类型缺失。
+// 这里扩展为带 HTML 属性的组件类型，保留 a11y 与点击行为。
+const Card = SemiCard as React.ComponentType<
+  React.ComponentProps<typeof SemiCard> & { role?: string; onClick?: React.MouseEventHandler<HTMLElement> }
+>;
 
 interface BookmarkCardProps {
   bookmark: Bookmark;

@@ -1,0 +1,4 @@
+# 测试规范 gate（docs/standards/testing.md §9）：push 前跑 typecheck + test。
+# typecheck 挡类型回归与 vi.mock 类型漏洞；test 挡假过测试入库（规范核心诉求）。
+echo "[pre-push] running typecheck + test..."
+pnpm run typecheck && pnpm run test

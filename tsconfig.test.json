@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "types": ["vitest/globals", "chrome", "node"]
+  },
+  "include": ["src/types/globals.d.ts", ".wxt/wxt.d.ts", "src/**/*.test.ts", "src/**/*.test.tsx", "tests"]
+}

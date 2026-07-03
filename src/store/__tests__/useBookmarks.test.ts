@@ -106,10 +106,10 @@ describe('useBookmarks — R2 移动/删除/编辑的双切片同步 (moveBookma
 
     await useBookmarks.getState().refreshBookmark('a');
 
-    expect(useBookmarks.getState().bookmarks[0].name).toBe('A2');
+    expect(useBookmarks.getState().bookmarks[0]!.name).toBe('A2');
     // 关键:编辑路径也必须同步 allBookmarks,否则改名后 TabList 去重用到旧 url
-    expect(useBookmarks.getState().allBookmarks[0].name).toBe('A2');
-    expect(useBookmarks.getState().allBookmarks[0].url).toBe('https://a.com/v2');
+    expect(useBookmarks.getState().allBookmarks[0]!.name).toBe('A2');
+    expect(useBookmarks.getState().allBookmarks[0]!.url).toBe('https://a.com/v2');
   });
 
   it('T5 refreshBookmark(ContextEditor 路径,仅 contextCount 变) 不让书签从任何切片消失 (回归护栏)', async () => {
@@ -125,7 +125,7 @@ describe('useBookmarks — R2 移动/删除/编辑的双切片同步 (moveBookma
     // 书签仍在两个切片里,只是字段更新
     expect(useBookmarks.getState().bookmarks.length).toBe(1);
     expect(useBookmarks.getState().allBookmarks.length).toBe(1);
-    expect(useBookmarks.getState().bookmarks[0].contextCount).toBe(3);
+    expect(useBookmarks.getState().bookmarks[0]!.contextCount).toBe(3);
   });
 
   it('T1 moveBookmark 跨工作区 (ws-1→ws-2): bookmarks + allBookmarks 都移除', async () => {

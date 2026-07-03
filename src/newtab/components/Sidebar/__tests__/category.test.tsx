@@ -28,7 +28,7 @@ import { useWorkspace } from '@/store/useWorkspace';
 
 beforeEach(() => {
   useWorkspace.setState({
-    workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }],
+    workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
     categories: [],
     currentWorkspaceId: 'w1',
     currentCategoryId: null,
@@ -43,10 +43,10 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
 
   it('渲染分类项（List.Item main）', () => {
     useWorkspace.setState({
-      categories: [{ id: 'c1', name: '工作', icon: '💼' }],
+      categories: [{ id: 'c1', name: '工作', icon: '💼' }] as never,
       currentCategoryId: 'c1',
       currentWorkspaceId: 'w1',
-      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }],
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
     });
     render(<Sidebar />);
     expect(screen.getByText('💼 工作')).toBeTruthy();
@@ -54,10 +54,10 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
 
   it('点击分类项联动 selectCategory', () => {
     useWorkspace.setState({
-      categories: [{ id: 'c2', name: '生活', icon: '🏠' }],
+      categories: [{ id: 'c2', name: '生活', icon: '🏠' }] as never,
       currentCategoryId: null,
       currentWorkspaceId: 'w1',
-      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }],
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
     });
     const selectCategory = vi.fn();
     useWorkspace.setState({ selectCategory });
@@ -70,10 +70,10 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
 describe('Sidebar 删除分类二次确认', () => {
   const setupWithCategory = (name = '工作', icon = '💼') => {
     useWorkspace.setState({
-      categories: [{ id: 'c1', name, icon }],
+      categories: [{ id: 'c1', name, icon }] as never,
       currentCategoryId: 'c1',
       currentWorkspaceId: 'w1',
-      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }],
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
     });
     const deleteCategory = vi.fn();
     useWorkspace.setState({ deleteCategory });

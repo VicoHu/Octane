@@ -1,0 +1,4 @@
+# 测试规范 gate（docs/standards/testing.md §9）：commit 前跑 lint（快，挡 testing-library 规则违例）。
+# 存量 180 warn 但 exit 0 不阻断；新代码违例会新增 warn，渐进推动迁移。
+echo "[pre-commit] running lint..."
+pnpm run lint

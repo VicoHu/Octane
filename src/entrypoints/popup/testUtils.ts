@@ -15,7 +15,7 @@ export async function clearAllStores(): Promise<void> {
  */
 export function mockChrome(activeTab: { url: string; title: string }): void {
   const storage: Record<string, unknown> = {};
-  (globalThis as { chrome: unknown }).chrome = {
+  (globalThis as unknown as { chrome: unknown }).chrome = {
     tabs: { query: vi.fn().mockResolvedValue([activeTab]) },
     storage: {
       local: {

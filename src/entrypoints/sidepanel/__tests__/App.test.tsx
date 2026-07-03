@@ -1,22 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// Semi Collapse 依赖 lottie-web，在 jsdom 模块加载时触发 canvas null 错误。
-// 用轻量 mock 替代：所有 panel header 恒渲染，仅 active panel 的 children 渲染
-// （匹配 Semi Collapse keepDOM=false 的折叠语义，用于验证默认展开/折叠逻辑）。
-vi.mock('@douyinfe/semi-ui', () => {
-  const Collapse: any = ({ activeKey, children }: any) => {
-    const active = Array.isArray(activeKey) ? activeKey : activeKey ? [activeKey] : [];
-    const arr = Array.isArray(children) ? children : children ? [children] : [];
-    return arr.map((p: any, i: number) => (
-      <div key={p.props.itemKey ?? i}>
-        {p.props.header}
-        {active.includes(p.props.itemKey) ? p.props.children : null}
-      </div>
-    ));
+// Toast 涉及 portal + 全局副作用，partial mock 保留 Collapse 等其余 Semi 组件真实渲染。
+// lottie-web 已由 vitest.config.ts 全局 alias 处理，Collapse 不再需要整体 mock。
+vi.mock('@douyinfe/semi-ui', async (importActual) => {
+  const actual = await importActual<typeof import('@douyinfe/semi-ui')>();
+  return {
+    ...actual,
+    Toast: { ...actual.Toast, success: vi.fn(), error: vi.fn(), warning: vi.fn() },
   };
-  Collapse.Panel = () => null;
-  return { Collapse };
 });
 
 vi.mock('../hooks/useCurrentTabContext', () => ({
@@ -39,7 +31,7 @@ vi.mock('../hooks/useSidePanelUnlockLifecycle', () => ({
   useSidePanelUnlockLifecycle: () => {},
 }));
 vi.mock('@/services/UnlockSession', async (orig) => {
-  const actual = await orig();
+  const actual = (await orig()) as Record<string, unknown>;
   return { ...actual, getUnlockPrerequisite: vi.fn(() => Promise.resolve('ok')) };
 });
 
