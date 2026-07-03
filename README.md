@@ -125,6 +125,8 @@ pnpm test
 pnpm run test:watch
 ```
 
+测试规范见 [docs/standards/testing.md](docs/standards/testing.md)（Testing Trophy + Don't Mock What You Don't Own，写测试前必读）；typecheck/lint/gate 见 [CLAUDE.md](CLAUDE.md) 测试规范节。
+
 ## 安装到浏览器
 
 **Chrome / Edge：**

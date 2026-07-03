@@ -251,7 +251,7 @@ Semi 默认提供 **6 档标题 + 2 档正文**。
 
 ### 8.1 发布 DSM → npm 主题包
 
-- 点击【Publish】发布；发布后研发侧 `npm install` 主题包即可应用。
+- 点击【Publish】发布；发布后研发侧 `pnpm add` 主题包即可应用。
 - npm 包名统一以 **`@semi-bot/semi-theme`** 前缀开头，**首次提交后不可修改**。
 - 后续发布只需填版本号 + release note。
 
