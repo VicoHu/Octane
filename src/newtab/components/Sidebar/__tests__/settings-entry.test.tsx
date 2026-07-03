@@ -31,13 +31,16 @@ vi.mock('@/newtab/components/ChangePasswordModal', () => ({
     visible ? ('修改主密码弹窗' as any) : (null as any),
 }));
 // 备份分区复用 Local/CloudBackupSection，拉入 cloud 依赖，jsdom 下需 mock
-vi.mock('@/services/cloud/providers', () => ({
-  getCloudProvider: (id: string) => ({
-    id,
-    label: id === 'oss' ? '阿里云 OSS' : '腾讯云 COS',
-    configFields: [{ name: 'region', label: 'Region', type: 'text' as const, required: true }],
-  }),
-}));
+vi.mock('@/services/cloud/providers', () => {
+  const providers = {
+    s3: { id: 's3', label: 'S3', configFields: [{ name: 'region', label: 'Region', type: 'text' as const, required: true }] },
+    webdav: { id: 'webdav', label: 'WebDAV', configFields: [{ name: 'username', label: '账号', type: 'text' as const, required: true }] },
+  };
+  return {
+    cloudProviders: providers,
+    getCloudProvider: (id: 's3' | 'webdav') => providers[id],
+  };
+});
 vi.mock('@/services/CloudStorageService', () => ({
   getLastBackupAt: () => Promise.resolve(null),
 }));

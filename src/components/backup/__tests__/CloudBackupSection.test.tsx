@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Toast } from '@douyinfe/semi-ui';
 
 // Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock。
 vi.mock('lottie-web', () => ({
@@ -15,6 +17,15 @@ vi.mock('lottie-web', () => ({
     registerAnimation() {},
   },
 }));
+
+// 仅 partial-mock Toast（项目测试规范：真实渲染 Semi，只 mock Toast 副作用边界）
+vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@douyinfe/semi-ui')>();
+  return {
+    ...actual,
+    Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  };
+});
 
 // mocks
 const store = vi.hoisted(() => ({
@@ -39,30 +50,39 @@ vi.mock('@/store/useCrypto', () => ({
   useCrypto: (sel: (s: Record<string, unknown>) => unknown) => sel(cryptoState),
 }));
 
-const cloudSvc = vi.hoisted(() => ({ getLastBackupAt: vi.fn() }));
-vi.mock('@/services/CloudStorageService', () => ({ getLastBackupAt: cloudSvc.getLastBackupAt }));
+const cloudSvc = vi.hoisted(() => ({ getLastBackupAt: vi.fn(), getCloudConfig: vi.fn() }));
+vi.mock('@/services/CloudStorageService', () => ({
+  getLastBackupAt: cloudSvc.getLastBackupAt,
+  getCloudConfig: cloudSvc.getCloudConfig,
+}));
 
+// 两个 provider：s3 含 select(s3Preset)，webdav 含 select(webdavPreset)，验证动态 TABS + select 渲染 + 通用收集
 const providers = vi.hoisted(() => ({
-  oss: {
-    id: 'oss',
-    label: '阿里云 OSS',
+  s3: {
+    id: 's3',
+    label: 'S3 兼容存储',
     configFields: [
+      { name: 's3Preset', label: '服务商', type: 'select' as const, options: ['aliyun', 'tencent'], required: true },
       { name: 'region', label: 'Region', type: 'text' as const, required: true },
+      { name: 'bucket', label: 'Bucket', type: 'text' as const, required: true },
+      { name: 'accessKeyId', label: 'AccessKeyId', type: 'text' as const, required: true },
       { name: 'accessKeySecret', label: 'AccessKeySecret', type: 'password' as const, required: true },
     ],
   },
-  cos: {
-    id: 'cos',
-    label: '腾讯云 COS',
+  webdav: {
+    id: 'webdav',
+    label: 'WebDAV',
     configFields: [
-      { name: 'region', label: 'Region', type: 'text' as const, required: true },
-      { name: 'accessKeyId', label: 'SecretId', type: 'text' as const, required: true },
-      { name: 'accessKeySecret', label: 'SecretKey', type: 'password' as const, required: true },
+      { name: 'webdavPreset', label: '服务商', type: 'select' as const, options: ['jianguoyun'], required: true },
+      { name: 'username', label: '账号', type: 'text' as const, required: true },
+      { name: 'password', label: '应用密码', type: 'password' as const, required: true },
     ],
   },
 }));
 vi.mock('@/services/cloud/providers', () => ({
-  getCloudProvider: (id: 'oss' | 'cos') => providers[id],
+  // TABS 由 Object.keys(cloudProviders) 生成，故 mock 需同时提供 cloudProviders + getCloudProvider
+  cloudProviders: providers,
+  getCloudProvider: (id: 's3' | 'webdav') => providers[id],
 }));
 
 import { CloudBackupSection } from '../CloudBackupSection';
@@ -75,7 +95,10 @@ const btn = (text: string): HTMLButtonElement => screen.getByText(text).closest(
 beforeEach(() => {
   Object.values(store).forEach((m) => (m as ReturnType<typeof vi.fn>).mockReset());
   cloudSvc.getLastBackupAt.mockReset();
-  // 默认已解锁、已设密码、无历史备份
+  cloudSvc.getCloudConfig.mockReset();
+  cloudSvc.getCloudConfig.mockResolvedValue(null);
+  vi.mocked(Toast.error).mockReset();
+  vi.mocked(Toast.success).mockReset();
   cryptoState.unlocked = true;
   cryptoState.passwordSet = true;
   cryptoState.openUnlockModal = vi.fn();
@@ -83,29 +106,53 @@ beforeEach(() => {
 });
 
 describe('CloudBackupSection', () => {
-  it('渲染两个服务商 Tab + 当前 provider 的字段 label', async () => {
+  it('渲染两个服务商 Tab（动态生成）+ 当前 provider 字段 label', async () => {
     render(<CloudBackupSection />);
-    await waitFor(() => expect(screen.getByText('阿里云 OSS')).toBeTruthy());
-    expect(screen.getByText('腾讯云 COS')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
+    expect(screen.getByText('WebDAV')).toBeTruthy();
     expect(screen.getByText('Region')).toBeTruthy();
-    expect(screen.getByText('AccessKeySecret')).toBeTruthy();
   });
 
-  it('点击「腾讯云 COS」Tab → 切换并显示 COS 字段（SecretId）', async () => {
+  it('S3 与 WebDAV 均渲染 preset 下拉（select 分支）', async () => {
     render(<CloudBackupSection />);
-    await waitFor(() => expect(screen.getByText('阿里云 OSS')).toBeTruthy());
-    // 初始 OSS：有 AccessKeySecret，无 SecretId
-    expect(screen.queryByText('SecretId')).toBeNull();
-    fireEvent.click(screen.getByText('腾讯云 COS'));
-    await waitFor(() => expect(screen.getByText('SecretId')).toBeTruthy());
-    expect(screen.queryByText('AccessKeySecret')).toBeNull();
+    await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
+    // s3 preset 下拉
+    expect(screen.getAllByRole('combobox').length).toBeGreaterThanOrEqual(1);
+    // 切到 webdav 也有下拉
+    await userEvent.click(screen.getByText('WebDAV'));
+    await waitFor(() => expect(screen.getByText('应用密码')).toBeTruthy());
+    expect(screen.getAllByRole('combobox').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('点击「WebDAV」Tab → 切换并显示 WebDAV 字段（账号）', async () => {
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
+    expect(screen.queryByText('账号')).toBeNull();
+    await userEvent.click(screen.getByText('WebDAV'));
+    await waitFor(() => expect(screen.getByText('账号')).toBeTruthy());
+  });
+
+  it('handleSave 通用收集 configFields：s3Preset(select) 未选时按 required 拦截（证明 select 进了收集循环，不再硬编码字段集）', async () => {
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
+    await userEvent.click(btn('保存配置'));
+    await waitFor(() => expect(Toast.error).toHaveBeenCalledWith('请填写 服务商'));
+    expect(store.saveCloudConfig).not.toHaveBeenCalled();
+  });
+
+  it('handleTest 错误文案 surfacing：provider 抛「桶不存在」→ Toast.error 透传该消息', async () => {
+    store.testCloudConnection.mockRejectedValue(new Error('S3 桶不存在（404）'));
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
+    await userEvent.click(btn('测试连接'));
+    await waitFor(() => expect(Toast.error).toHaveBeenCalledWith('S3 桶不存在（404）'));
   });
 
   it('未解锁 → 显示 Banner + 内联解锁入口 + 操作按钮 disabled', async () => {
     cryptoState.unlocked = false;
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText(/请先解锁/)).toBeTruthy());
-    expect(btn('解锁主密码')).toBeTruthy(); // 内联解锁按钮
+    expect(btn('解锁主密码')).toBeTruthy();
     expect(btn('测试连接').disabled).toBe(true);
     expect(btn('上传备份').disabled).toBe(true);
   });
@@ -118,16 +165,29 @@ describe('CloudBackupSection', () => {
     expect(btn('设置主密码')).toBeTruthy();
   });
 
+  it('解锁后从已保存配置回填表单（刷新后应展示已存凭证）', async () => {
+    cloudSvc.getCloudConfig.mockResolvedValue({
+      s3Preset: 'aliyun',
+      region: 'oss-cn-hangzhou',
+      bucket: 'saved-bucket',
+      accessKeyId: 'SAVEDAK',
+      accessKeySecret: 'SAVEDSK',
+    });
+    render(<CloudBackupSection />);
+    await waitFor(() => expect(screen.getByDisplayValue('saved-bucket')).toBeTruthy());
+    expect(screen.getByDisplayValue('SAVEDAK')).toBeTruthy();
+  });
+
   it('点击「从云恢复」→ 下载解析成功 → 弹破坏性确认 Modal（未勾选时确认禁用）', async () => {
     store.restoreFromCloud.mockResolvedValue(okData);
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
-    fireEvent.click(btn('从云恢复'));
-    await waitFor(() => expect(store.restoreFromCloud).toHaveBeenCalledWith('oss'));
+    await userEvent.click(btn('从云恢复'));
+    await waitFor(() => expect(store.restoreFromCloud).toHaveBeenCalledWith('s3'));
     await waitFor(() => expect(screen.getByText('确认覆盖全部数据')).toBeTruthy());
     const confirmBtn = btn('确认覆盖');
-    expect(confirmBtn.disabled).toBe(true); // 未勾选 Checkbox
-    fireEvent.click(screen.getByText('我了解此操作不可撤销'));
+    expect(confirmBtn.disabled).toBe(true);
+    await userEvent.click(screen.getByText('我了解此操作不可撤销'));
     await waitFor(() => expect(confirmBtn.disabled).toBe(false));
   });
 
@@ -136,10 +196,10 @@ describe('CloudBackupSection', () => {
     store.applyCloudRestore.mockResolvedValue(undefined);
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
-    fireEvent.click(btn('从云恢复'));
+    await userEvent.click(btn('从云恢复'));
     await waitFor(() => expect(screen.getByText('确认覆盖')).toBeTruthy());
-    fireEvent.click(screen.getByText('我了解此操作不可撤销'));
-    fireEvent.click(btn('确认覆盖'));
+    await userEvent.click(screen.getByText('我了解此操作不可撤销'));
+    await userEvent.click(btn('确认覆盖'));
     await waitFor(() => expect(store.applyCloudRestore).toHaveBeenCalledWith(okData));
   });
 });
