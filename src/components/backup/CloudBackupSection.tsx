@@ -4,9 +4,9 @@ import { useBackup } from '@/store/useBackup';
 import { useCrypto } from '@/store/useCrypto';
 import { cloudProviders, getCloudProvider } from '@/services/cloud/providers';
 import { getLastBackupAt } from '@/services/CloudStorageService';
-import { S3_PRESETS } from '@/services/cloud/presets';
+import { S3_PRESETS, WEBDAV_PRESETS } from '@/services/cloud/presets';
 import type { BackupData } from '@/shared/types';
-import type { CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset } from '@/services/cloud/types';
+import type { CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset, WebdavPreset } from '@/services/cloud/types';
 import styles from './CloudBackupSection.module.css';
 
 /** Tab 列表从注册表动态生成（去硬编码）。 */
@@ -15,6 +15,7 @@ const TABS = Object.keys(cloudProviders) as ProviderId[];
 /** select 字段的候选 → label 映射（preset 用人类可读名）。 */
 function optionLabel(field: ConfigFieldDef, value: string): string {
   if (field.name === 's3Preset') return S3_PRESETS[value as S3Preset]?.label ?? value;
+  if (field.name === 'webdavPreset') return WEBDAV_PRESETS[value as WebdavPreset]?.label ?? value;
   return value;
 }
 

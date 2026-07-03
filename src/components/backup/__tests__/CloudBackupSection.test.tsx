@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Toast } from '@douyinfe/semi-ui';
 
 // Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock。
@@ -113,7 +114,7 @@ describe('CloudBackupSection', () => {
     // s3 preset 下拉
     expect(screen.getAllByRole('combobox').length).toBeGreaterThanOrEqual(1);
     // 切到 webdav 也有下拉
-    fireEvent.click(screen.getByText('WebDAV'));
+    await userEvent.click(screen.getByText('WebDAV'));
     await waitFor(() => expect(screen.getByText('应用密码')).toBeTruthy());
     expect(screen.getAllByRole('combobox').length).toBeGreaterThanOrEqual(1);
   });
@@ -122,14 +123,14 @@ describe('CloudBackupSection', () => {
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
     expect(screen.queryByText('账号')).toBeNull();
-    fireEvent.click(screen.getByText('WebDAV'));
+    await userEvent.click(screen.getByText('WebDAV'));
     await waitFor(() => expect(screen.getByText('账号')).toBeTruthy());
   });
 
   it('handleSave 通用收集 configFields：s3Preset(select) 未选时按 required 拦截（证明 select 进了收集循环，不再硬编码字段集）', async () => {
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
-    fireEvent.click(btn('保存配置'));
+    await userEvent.click(btn('保存配置'));
     await waitFor(() => expect(Toast.error).toHaveBeenCalledWith('请填写 服务商'));
     expect(store.saveCloudConfig).not.toHaveBeenCalled();
   });
@@ -138,7 +139,7 @@ describe('CloudBackupSection', () => {
     store.testCloudConnection.mockRejectedValue(new Error('S3 桶不存在（404）'));
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('S3 兼容存储')).toBeTruthy());
-    fireEvent.click(btn('测试连接'));
+    await userEvent.click(btn('测试连接'));
     await waitFor(() => expect(Toast.error).toHaveBeenCalledWith('S3 桶不存在（404）'));
   });
 
@@ -163,12 +164,12 @@ describe('CloudBackupSection', () => {
     store.restoreFromCloud.mockResolvedValue(okData);
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
-    fireEvent.click(btn('从云恢复'));
+    await userEvent.click(btn('从云恢复'));
     await waitFor(() => expect(store.restoreFromCloud).toHaveBeenCalledWith('s3'));
     await waitFor(() => expect(screen.getByText('确认覆盖全部数据')).toBeTruthy());
     const confirmBtn = btn('确认覆盖');
     expect(confirmBtn.disabled).toBe(true);
-    fireEvent.click(screen.getByText('我了解此操作不可撤销'));
+    await userEvent.click(screen.getByText('我了解此操作不可撤销'));
     await waitFor(() => expect(confirmBtn.disabled).toBe(false));
   });
 
@@ -177,10 +178,10 @@ describe('CloudBackupSection', () => {
     store.applyCloudRestore.mockResolvedValue(undefined);
     render(<CloudBackupSection />);
     await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
-    fireEvent.click(btn('从云恢复'));
+    await userEvent.click(btn('从云恢复'));
     await waitFor(() => expect(screen.getByText('确认覆盖')).toBeTruthy());
-    fireEvent.click(screen.getByText('我了解此操作不可撤销'));
-    fireEvent.click(btn('确认覆盖'));
+    await userEvent.click(screen.getByText('我了解此操作不可撤销'));
+    await userEvent.click(btn('确认覆盖'));
     await waitFor(() => expect(store.applyCloudRestore).toHaveBeenCalledWith(okData));
   });
 });
