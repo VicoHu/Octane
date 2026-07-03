@@ -1,8 +1,9 @@
 import OSS from 'ali-oss';
 import type { CloudStorageConfig, CloudStorageProvider, ConfigFieldDef } from '../types';
 import { BACKUP_OBJECT_KEY } from '../constants';
+import { getRequired } from '../utils';
 
-/** 阿里云 OSS 策略实现：签名与直传交给 ali-oss（浏览器构建）。 */
+/** 阿里云 OSS 策略实现：签名与直传交给 ali-oss（浏览器构建）。Wave 3 将由 S3Provider(aws4fetch) 替换。 */
 export class OssProvider implements CloudStorageProvider {
   readonly id = 'oss' as const;
   readonly label = '阿里云 OSS';
@@ -15,18 +16,25 @@ export class OssProvider implements CloudStorageProvider {
   ];
 
   private buildClient(cfg: CloudStorageConfig) {
+    const { region, accessKeyId, accessKeySecret, bucket } = getRequired(cfg, [
+      'region',
+      'accessKeyId',
+      'accessKeySecret',
+      'bucket',
+    ]);
     return new OSS({
-      region: cfg.region,
-      accessKeyId: cfg.accessKeyId,
-      accessKeySecret: cfg.accessKeySecret,
-      bucket: cfg.bucket,
+      region,
+      accessKeyId,
+      accessKeySecret,
+      bucket,
       endpoint: cfg.endpoint || undefined,
       secure: true, // 强制 HTTPS
     });
   }
 
   async testConnection(cfg: CloudStorageConfig): Promise<void> {
-    await this.buildClient(cfg).getBucketInfo(cfg.bucket);
+    const { bucket } = getRequired(cfg, ['bucket']);
+    await this.buildClient(cfg).getBucketInfo(bucket);
   }
 
   async uploadBackup(cfg: CloudStorageConfig, blob: Blob): Promise<void> {
