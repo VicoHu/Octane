@@ -6,7 +6,6 @@ export type StringConfigKey =
   | 'bucket'
   | 'accessKeyId'
   | 'accessKeySecret'
-  | 'endpoint'
   | 'username'
   | 'password';
 

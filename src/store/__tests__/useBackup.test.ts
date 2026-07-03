@@ -94,39 +94,39 @@ describe('useBackup cloud actions', () => {
   const cfg = { region: 'r', bucket: 'b', accessKeyId: 'ak', accessKeySecret: 'sk' };
 
   it('saveCloudConfig → 委托 CloudStorageService.saveCloudConfig', async () => {
-    await useBackup.getState().saveCloudConfig('oss', cfg);
-    expect(cloud.saveCloudConfig).toHaveBeenCalledWith('oss', cfg);
+    await useBackup.getState().saveCloudConfig('s3', cfg);
+    expect(cloud.saveCloudConfig).toHaveBeenCalledWith('s3', cfg);
   });
 
   it('clearCloudConfig → 委托 CloudStorageService.clearCloudConfig', async () => {
-    await useBackup.getState().clearCloudConfig('oss');
-    expect(cloud.clearCloudConfig).toHaveBeenCalledWith('oss');
+    await useBackup.getState().clearCloudConfig('s3');
+    expect(cloud.clearCloudConfig).toHaveBeenCalledWith('s3');
   });
 
   it('testCloudConnection → 委托 CloudStorageService.testConnection', async () => {
-    await useBackup.getState().testCloudConnection('oss');
-    expect(cloud.testConnection).toHaveBeenCalledWith('oss');
+    await useBackup.getState().testCloudConnection('s3');
+    expect(cloud.testConnection).toHaveBeenCalledWith('s3');
   });
 
   it('uploadCloudBackup → buildBackupBlob → uploadBackup(id, blob)', async () => {
     const blob = new Blob(['x']);
     vi.spyOn(BackupService, 'buildBackupBlob').mockResolvedValue(blob);
     cloud.uploadBackup.mockResolvedValue(undefined);
-    await useBackup.getState().uploadCloudBackup('oss');
-    expect(cloud.uploadBackup).toHaveBeenCalledWith('oss', blob);
+    await useBackup.getState().uploadCloudBackup('s3');
+    expect(cloud.uploadBackup).toHaveBeenCalledWith('s3', blob);
   });
 
   it('restoreFromCloud → download → parseBackupFile → 返回 data', async () => {
     cloud.downloadBackup.mockResolvedValue(new Blob(['x']));
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: okData });
-    const data = await useBackup.getState().restoreFromCloud('oss');
+    const data = await useBackup.getState().restoreFromCloud('s3');
     expect(data).toEqual(okData);
   });
 
   it('restoreFromCloud 解析失败 → throw', async () => {
     cloud.downloadBackup.mockResolvedValue(new Blob(['x']));
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: false, error: '坏备份' });
-    await expect(useBackup.getState().restoreFromCloud('oss')).rejects.toThrow('坏备份');
+    await expect(useBackup.getState().restoreFromCloud('s3')).rejects.toThrow('坏备份');
   });
 
   it('applyCloudRestore → 发 octane:apply-import', async () => {

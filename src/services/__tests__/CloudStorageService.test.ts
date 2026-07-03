@@ -77,83 +77,83 @@ beforeEach(async () => {
 describe('CloudStorageService 凭证层', () => {
   it('saveCloudConfig → getCloudConfig 往返还原（密文落盘，内存读出明文）', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
-    const got = await getCloudConfig('oss');
+    await saveCloudConfig('s3', cfg);
+    const got = await getCloudConfig('s3');
     expect(got).toEqual(cfg);
   });
 
   it('凭证在 storage.local 中为密文（不可读明文 accessKeySecret）', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
-    const raw = localStore['octane.cloudCreds.oss'] as { encryptedData: string; iv: string };
+    await saveCloudConfig('s3', cfg);
+    const raw = localStore['octane.cloudCreds.s3'] as { encryptedData: string; iv: string };
     expect(raw.encryptedData).not.toContain(cfg.accessKeySecret);
     expect(raw.iv).toBeTruthy();
   });
 
   it('未配置时 getCloudConfig 返回 null', async () => {
     await setupTestKey('main-password-1234');
-    expect(await getCloudConfig('cos')).toBeNull();
+    expect(await getCloudConfig('webdav')).toBeNull();
   });
 
   it('未解锁时 getCloudConfig 抛错', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
+    await saveCloudConfig('s3', cfg);
     setTestKey(null); // 模拟锁定
-    await expect(getCloudConfig('oss')).rejects.toThrow();
+    await expect(getCloudConfig('s3')).rejects.toThrow();
   });
 
   it('clearCloudConfig 移除凭证', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
-    await clearCloudConfig('oss');
-    expect(await getCloudConfig('oss')).toBeNull();
+    await saveCloudConfig('s3', cfg);
+    await clearCloudConfig('s3');
+    expect(await getCloudConfig('s3')).toBeNull();
   });
 
-  it('凭证按 provider 分键（oss/cos 互不干扰）', async () => {
+  it('凭证按 provider 分键（s3/webdav 互不干扰）', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
-    await saveCloudConfig('cos', { ...cfg, bucket: 'cos-bucket' });
-    expect((await getCloudConfig('oss'))?.bucket).toBe('octane-test');
-    expect((await getCloudConfig('cos'))?.bucket).toBe('cos-bucket');
+    await saveCloudConfig('s3', cfg);
+    await saveCloudConfig('webdav', { ...cfg, bucket: 'cos-bucket' });
+    expect((await getCloudConfig('s3'))?.bucket).toBe('octane-test');
+    expect((await getCloudConfig('webdav'))?.bucket).toBe('cos-bucket');
   });
 
   it('lastBackupAt 明文时间戳读写', async () => {
-    await setLastBackupAt('oss', 1_700_000_000_000);
-    expect(await getLastBackupAt('oss')).toBe(1_700_000_000_000);
-    expect(await getLastBackupAt('cos')).toBeNull();
+    await setLastBackupAt('s3', 1_700_000_000_000);
+    expect(await getLastBackupAt('s3')).toBe(1_700_000_000_000);
+    expect(await getLastBackupAt('webdav')).toBeNull();
   });
 });
 
 describe('CloudStorageService 编排', () => {
   it('未配置时 testConnection 抛错', async () => {
     await setupTestKey('main-password-1234');
-    await expect(testConnection('oss')).rejects.toThrow('未配置');
+    await expect(testConnection('s3')).rejects.toThrow('未配置');
   });
 
   it('uploadBackup 解密凭证 → 委托 provider → 记录 lastBackupAt', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
+    await saveCloudConfig('s3', cfg);
     fakeProvider.uploadBackup.mockResolvedValue(undefined);
     const blob = new Blob(['x']);
-    await uploadBackup('oss', blob);
+    await uploadBackup('s3', blob);
     expect(fakeProvider.uploadBackup).toHaveBeenCalledWith(cfg, blob);
-    expect(await getLastBackupAt('oss')).toBeGreaterThan(0);
+    expect(await getLastBackupAt('s3')).toBeGreaterThan(0);
   });
 
   it('downloadBackup 返回 provider 的 Blob', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
+    await saveCloudConfig('s3', cfg);
     const blob = new Blob(['data']);
     fakeProvider.downloadBackup.mockResolvedValue(blob);
-    expect(await downloadBackup('oss')).toBe(blob);
+    expect(await downloadBackup('s3')).toBe(blob);
     expect(fakeProvider.downloadBackup).toHaveBeenCalledWith(cfg);
   });
 
   it('testConnection 委托 provider 并传入解密后的凭证', async () => {
     await setupTestKey('main-password-1234');
-    await saveCloudConfig('oss', cfg);
+    await saveCloudConfig('s3', cfg);
     fakeProvider.testConnection.mockResolvedValue(undefined);
-    await testConnection('oss');
+    await testConnection('s3');
     expect(fakeProvider.testConnection).toHaveBeenCalledWith(cfg);
   });
 });

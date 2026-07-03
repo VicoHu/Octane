@@ -9,8 +9,8 @@ export type S3Preset = 'aliyun' | 'tencent';
  */
 export type WebdavPreset = 'jianguoyun';
 
-/** 云服务商标识。当前含全部 4 家（oss/cos 旧实现 + s3/webdav 新实现）；Wave 3 删除 'oss'|'cos'。 */
-export type ProviderId = 'oss' | 'cos' | 's3' | 'webdav';
+/** 云服务商标识。枚举锁：S3（阿里/腾讯）+ WebDAV（坚果云）。 */
+export type ProviderId = 's3' | 'webdav';
 
 /** 单个服务商的连接配置（明文，仅存在于内存/解锁态，绝不入盘）。字段按 provider 按需填。 */
 export interface CloudStorageConfig {
@@ -19,8 +19,6 @@ export interface CloudStorageConfig {
   bucket?: string;
   accessKeyId?: string;
   accessKeySecret?: string;
-  /** OSS 自定义域名（旧 OssProvider 用，Wave 3 随旧 provider 删除）。 */
-  endpoint?: string;
   // S3
   s3Preset?: S3Preset;
   // WebDAV

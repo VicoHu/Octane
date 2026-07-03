@@ -1,25 +1,33 @@
 import { useEffect, useState } from 'react';
-import { Tabs, Input, Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
+import { Tabs, Input, Select, Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
 import { useBackup } from '@/store/useBackup';
 import { useCrypto } from '@/store/useCrypto';
-import { getCloudProvider } from '@/services/cloud/providers';
+import { cloudProviders, getCloudProvider } from '@/services/cloud/providers';
 import { getLastBackupAt } from '@/services/CloudStorageService';
+import { S3_PRESETS } from '@/services/cloud/presets';
 import type { BackupData } from '@/shared/types';
-import type { CloudStorageConfig, ProviderId } from '@/services/cloud/types';
+import type { CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset } from '@/services/cloud/types';
 import styles from './CloudBackupSection.module.css';
 
-const TABS: ProviderId[] = ['oss', 'cos'];
+/** Tab 列表从注册表动态生成（去硬编码）。 */
+const TABS = Object.keys(cloudProviders) as ProviderId[];
 
-/** 云备份区：OSS/COS 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/newtab 共享。 */
+/** select 字段的候选 → label 映射（preset 用人类可读名）。 */
+function optionLabel(field: ConfigFieldDef, value: string): string {
+  if (field.name === 's3Preset') return S3_PRESETS[value as S3Preset]?.label ?? value;
+  return value;
+}
+
+/** 云备份区：S3(阿里/腾讯)/WebDAV(坚果云) 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/newtab 共享。 */
 export function CloudBackupSection() {
   // 主密码状态来自全局 store（newtab/popup 入口处 checkStatus 写入）
   const unlocked = useCrypto((s) => s.unlocked);
   const passwordSet = useCrypto((s) => s.passwordSet);
   const openUnlockModal = useCrypto((s) => s.openUnlockModal);
 
-  const [tab, setTab] = useState<ProviderId>('oss');
+  const [tab, setTab] = useState<ProviderId>(TABS[0] ?? 's3');
   // 表单按 provider 分组，切换 Tab 不丢失输入
-  const [forms, setForms] = useState<Record<string, Record<string, string>>>({});
+  const [forms, setForms] = useState<Partial<Record<ProviderId, Record<string, string>>>>({});
   const [lastBackup, setLastBackup] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [restoreData, setRestoreData] = useState<BackupData | null>(null);
@@ -35,6 +43,15 @@ export function CloudBackupSection() {
   const setField = (name: string, val: string) =>
     setForms((f) => ({ ...f, [tab]: { ...(f[tab] ?? {}), [name]: val } }));
 
+  /** region 字段占位：S3 下按当前 preset 联动 regionPlaceholder。 */
+  const placeholderOf = (f: ConfigFieldDef): string => {
+    if (tab === 's3' && f.name === 'region') {
+      const preset = forms['s3']?.['s3Preset'] as S3Preset | undefined;
+      if (preset && S3_PRESETS[preset]) return S3_PRESETS[preset].regionPlaceholder;
+    }
+    return f.placeholder ?? '';
+  };
+
   const disabled = !unlocked || busy;
   const lockLabel = !passwordSet ? '设置主密码' : '解锁主密码';
 
@@ -42,9 +59,9 @@ export function CloudBackupSection() {
     setBusy(true);
     try {
       await useBackup.getState().testCloudConnection(tab);
-      Toast.success('连接成功，桶可访问');
-    } catch {
-      Toast.error('连接失败：请检查桶 CORS 与 AK/SK 权限');
+      Toast.success('连接成功');
+    } catch (e) {
+      Toast.error((e as Error).message || '连接失败');
     } finally {
       setBusy(false);
     }
@@ -59,17 +76,13 @@ export function CloudBackupSection() {
     }
     setBusy(true);
     try {
-      const cfg: CloudStorageConfig = {
-        region: fieldVal('region'),
-        bucket: fieldVal('bucket'),
-        accessKeyId: fieldVal('accessKeyId'),
-        accessKeySecret: fieldVal('accessKeySecret'),
-        endpoint: fieldVal('endpoint') || undefined,
-      };
-      await useBackup.getState().saveCloudConfig(tab, cfg);
+      // 从 configFields 通用收集（含 select），不再硬编码字段集
+      const values: Record<string, string> = {};
+      for (const f of provider.configFields) values[f.name] = fieldVal(f.name);
+      await useBackup.getState().saveCloudConfig(tab, values as unknown as CloudStorageConfig);
       Toast.success('配置已保存');
-    } catch {
-      Toast.error('保存失败：请先设置/解锁主密码');
+    } catch (e) {
+      Toast.error((e as Error).message || '保存失败：请先设置/解锁主密码');
     } finally {
       setBusy(false);
     }
@@ -92,8 +105,8 @@ export function CloudBackupSection() {
     try {
       await useBackup.getState().uploadCloudBackup(tab);
       Toast.success('已上传备份');
-    } catch {
-      Toast.error('上传失败：请检查网络与权限');
+    } catch (e) {
+      Toast.error((e as Error).message || '上传失败：请检查网络与权限');
     } finally {
       setBusy(false);
     }
@@ -105,8 +118,8 @@ export function CloudBackupSection() {
       const data = await useBackup.getState().restoreFromCloud(tab);
       setRestoreData(data);
       setConfirmed(false);
-    } catch {
-      Toast.error('下载失败：请检查网络与权限');
+    } catch (e) {
+      Toast.error((e as Error).message || '下载失败：请检查网络与权限');
     } finally {
       setBusy(false);
     }
@@ -141,7 +154,7 @@ export function CloudBackupSection() {
       )}
       <Tabs activeKey={tab} onChange={(k) => setTab(k as ProviderId)}>
         {TABS.map((id) => (
-          <Tabs.TabPane key={id} itemKey={id} tab={getCloudProvider(id).label} />
+          <Tabs.TabPane key={id} itemKey={id} tab={cloudProviders[id].label} />
         ))}
       </Tabs>
 
@@ -149,14 +162,29 @@ export function CloudBackupSection() {
         {provider.configFields.map((f) => (
           <div key={f.name} className={styles.fieldRow}>
             <label htmlFor={`cloud-${tab}-${f.name}`} className={styles.fieldLabel}>{f.label}</label>
-            <Input
-              id={`cloud-${tab}-${f.name}`}
-              mode={f.type === 'password' ? 'password' : undefined}
-              disabled={disabled}
-              value={fieldVal(f.name)}
-              placeholder={f.placeholder}
-              onChange={(v) => setField(f.name, v)}
-            />
+            {f.type === 'select' ? (
+              <Select
+                id={`cloud-${tab}-${f.name}`}
+                disabled={disabled}
+                value={fieldVal(f.name) || undefined}
+                placeholder="请选择"
+                onChange={(v) => setField(f.name, v as string)}
+                style={{ width: '100%' }}
+              >
+                {(f.options ?? []).map((opt) => (
+                  <Select.Option key={opt} value={opt}>{optionLabel(f, opt)}</Select.Option>
+                ))}
+              </Select>
+            ) : (
+              <Input
+                id={`cloud-${tab}-${f.name}`}
+                mode={f.type === 'password' ? 'password' : undefined}
+                disabled={disabled}
+                value={fieldVal(f.name)}
+                placeholder={placeholderOf(f)}
+                onChange={(v) => setField(f.name, v)}
+              />
+            )}
           </div>
         ))}
       </div>

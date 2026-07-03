@@ -17,9 +17,16 @@ vi.mock('@/store/useCrypto', () => ({
   useCrypto: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ passwordSet: false, unlocked: false, openUnlockModal: vi.fn(), lockSession: vi.fn() }),
 }));
-vi.mock('@/services/cloud/providers', () => ({
-  getCloudProvider: (id: string) => ({ id, label: id, configFields: [] }),
-}));
+vi.mock('@/services/cloud/providers', () => {
+  const providers = {
+    s3: { id: 's3', label: 'S3', configFields: [] },
+    webdav: { id: 'webdav', label: 'WebDAV', configFields: [] },
+  };
+  return {
+    cloudProviders: providers,
+    getCloudProvider: (id: 's3' | 'webdav') => providers[id],
+  };
+});
 vi.mock('@/services/CloudStorageService', () => ({ getLastBackupAt: () => Promise.resolve(null) }));
 
 import { render, screen, fireEvent } from '@testing-library/react';
