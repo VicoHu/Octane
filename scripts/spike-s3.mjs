@@ -13,6 +13,10 @@
 import { AwsClient } from 'aws4fetch';
 
 const PRESET = process.env.S3_PRESET ?? 'aliyun';
+if (!['aliyun', 'tencent'].includes(PRESET)) {
+  console.error(`S3_PRESET 必须是 aliyun 或 tencent，收到：${PRESET}`);
+  process.exit(1);
+}
 const AK = process.env.S3_AK;
 const SK = process.env.S3_SK;
 const BUCKET = process.env.S3_BUCKET;
@@ -27,7 +31,8 @@ if (!AK || !SK || !BUCKET || !REGION) {
 const HOST =
   PRESET === 'tencent' ? `cos.${REGION}.myqcloud.com` : `s3.${REGION}.aliyuncs.com`;
 const VHOST = `https://${BUCKET}.${HOST}`;
-const KEY = 'octane-spike-test.txt';
+// 用含「/」的 key 验证虚拟目录路径（生产 BACKUP_OBJECT_KEY 也含 /），但不占用生产备份路径
+const KEY = 'octane/spike-test.txt';
 const BODY = `hello from octane s3 spike @ ${new Date().toISOString()}`;
 
 const client = new AwsClient({ accessKeyId: AK, secretAccessKey: SK, region: REGION, service: 's3' });
@@ -36,11 +41,24 @@ async function dump(res, label) {
   const text = await res.text().catch(() => '');
   console.log(`[${label}] ${res.status} ${res.statusText}`);
   if (text) console.log(text.slice(0, 1200));
-  return { ok: res.ok, text };
+  return { ok: res.ok, status: res.status, text };
 }
 
 try {
   console.log(`preset=${PRESET} vhost=${VHOST} (service=s3, UNSIGNED-PAYLOAD)`);
+
+  // testConnection 链路：HEAD bucket（200=桶存在可达 / 403=凭证 / 404=桶不存在）
+  const headSigned = await client.sign(VHOST, { method: 'HEAD' });
+  const head = await dump(await fetch(headSigned), 'HEAD bucket');
+  if (head.status === 403) {
+    console.error('\n❌ HEAD 403：凭证或权限不足。');
+    process.exit(1);
+  }
+  if (head.status === 404) {
+    console.error('\n❌ HEAD 404：桶不存在。');
+    process.exit(1);
+  }
+
   const putSigned = await client.sign(`${VHOST}/${KEY}`, {
     method: 'PUT',
     headers: { 'x-amz-content-sha256': 'UNSIGNED-PAYLOAD' },
@@ -58,7 +76,7 @@ try {
 
   const match = got === BODY;
   console.log(`\n往返内容匹配：${match ? '✅ 一致' : '❌ 不一致'}`);
-  console.log(match ? `\n✅ SPIKE 通过：${PRESET} s3 端点可直连。` : '\n❌ 内容不一致');
+  console.log(match ? `\n✅ SPIKE 通过：${PRESET} s3 端点 HEAD/PUT/GET 链路可直连。` : '\n❌ 内容不一致');
   process.exit(match ? 0 : 1);
 } catch (e) {
   console.error('\n❌ 异常：', e);

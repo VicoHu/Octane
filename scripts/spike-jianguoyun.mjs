@@ -24,7 +24,12 @@ const auth = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64');
 const BODY = `hello from octane webdav spike @ ${new Date().toISOString()}`;
 
 async function req(method, url, extra = {}) {
-  const res = await fetch(url, { method, headers: { Authorization: auth, ...extra.headers }, ...extra });
+  // 注意 headers 必须后构造，否则 extra.headers（即便为 {}）会覆盖 Authorization
+  const res = await fetch(url, {
+    method,
+    body: extra.body,
+    headers: { Authorization: auth, ...extra.headers },
+  });
   const text = await res.text().catch(() => '');
   return { status: res.status, ok: res.ok, text };
 }
