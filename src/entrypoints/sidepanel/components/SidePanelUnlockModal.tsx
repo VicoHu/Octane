@@ -51,8 +51,8 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
       maskClosable
       hasCancel={false}
       footer={
-        <Button theme="solid" block size="large" loading={loading} onClick={handleSubmit}>
-          解锁
+        <Button theme="solid" size="large" loading={loading} onClick={handleSubmit}>
+          解 锁
         </Button>
       }
     >
