@@ -27,7 +27,7 @@ describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
     await user.type(screen.getByPlaceholderText('输入主密码'), 'right-pwd');
-    await user.click(screen.getByRole('button', { name: /解锁/ }));
+    await user.click(screen.getByRole('button', { name: /解\s*锁/ }));
 
     expect(unlock).toHaveBeenCalledWith('sidepanel', 'right-pwd');
     expect(Toast.success).toHaveBeenCalledWith('已解锁');
@@ -41,7 +41,7 @@ describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
     await user.type(screen.getByPlaceholderText('输入主密码'), 'wrong');
-    await user.click(screen.getByRole('button', { name: /解锁/ }));
+    await user.click(screen.getByRole('button', { name: /解\s*锁/ }));
 
     expect(await screen.findByText('密码错误')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
     await user.type(screen.getByPlaceholderText('输入主密码'), 'any');
-    await user.click(screen.getByRole('button', { name: /解锁/ }));
+    await user.click(screen.getByRole('button', { name: /解\s*锁/ }));
 
     expect(await screen.findByText('网络错误')).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
