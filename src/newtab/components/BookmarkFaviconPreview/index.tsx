@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { useFavicon } from '@/newtab/hooks/useFavicon';
@@ -14,13 +14,30 @@ interface BookmarkFaviconPreviewProps {
  * 编辑/创建书签表单的 favicon 预览 + 刷新按钮（D2-refresh）。
  *
  * - 预览走 useFavicon（blob 优先，未命中 _favicon 占位）
- * - 刷新按钮：调 refreshFavicon 无条件重抓；失败 Toast 提示且预览保持原样
+ * - 刷新按钮：调 refreshFavicon 无条件重抓；成功后用返回 blob 直渲（overrideSrc），
+ *   避免 useFavicon 的 effect 依赖仅 [url] 导致刷新后预览不更新
  * - URL 非法时刷新按钮 disabled
  */
 export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
   const faviconSrc = useFavicon(url);
   const [refreshing, setRefreshing] = useState(false);
+  const [overrideSrc, setOverrideSrc] = useState<string | null>(null);
   const urlValid = !!pickHostname(url);
+
+  // url 变化：清空 override（避免切 url 后仍显示旧 override）
+  useEffect(() => {
+    setOverrideSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [url]);
+
+  // 卸载或 override 切换：revoke 旧的 object URL
+  useEffect(() => {
+    return () => {
+      if (overrideSrc) URL.revokeObjectURL(overrideSrc);
+    };
+  }, [overrideSrc]);
 
   const handleRefresh = async () => {
     if (!urlValid || refreshing) return;
@@ -29,7 +46,13 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
       const blob = await refreshFavicon(url);
       if (!blob) {
         Toast.error('刷新失败，稍后重试');
+        return;
       }
+      const objUrl = URL.createObjectURL(blob);
+      setOverrideSrc((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objUrl;
+      });
     } catch {
       Toast.error('刷新失败，稍后重试');
     } finally {
@@ -37,11 +60,13 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
     }
   };
 
+  const imgSrc = overrideSrc ?? faviconSrc?.src;
+
   return (
     <div className={styles.wrap}>
       <div className={styles.favicon}>
-        {faviconSrc ? (
-          <img src={faviconSrc.src} alt="" className={styles.img} />
+        {imgSrc ? (
+          <img src={imgSrc} alt="" className={styles.img} />
         ) : (
           <div className={styles.fallback}>?</div>
         )}

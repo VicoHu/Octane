@@ -30,12 +30,20 @@ describe('BookmarkFaviconPreview', () => {
 
   it('点击刷新 → 调 refreshFavicon，成功后刷新预览', async () => {
     vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:old' });
+    const newBlob = new Blob(['new-bytes']);
     const refreshSpy = vi
       .spyOn(FaviconService, 'refreshFavicon')
-      .mockResolvedValue(new Blob(['new']));
+      .mockResolvedValue(newBlob);
+    const createURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:new-override');
     render(<BookmarkFaviconPreview url="https://github.com" />);
+    const img = document.querySelector('img')!;
+    expect(img.src).toBe('blob:old');
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     expect(refreshSpy).toHaveBeenCalledWith('https://github.com');
+    expect(createURLSpy).toHaveBeenCalledWith(newBlob);
+    expect(img.src).toBe('blob:new-override');
   });
 
   it('刷新失败 → Toast.error 提示，预览保持原样', async () => {
