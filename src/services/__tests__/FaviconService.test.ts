@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 // jsdom 的 Blob 经 structuredClone 会丢失原型（Node structuredClone 不识别 jsdom Blob），
 // 而 fake-indexeddb 写入时依赖 structuredClone。改用 Node 原生 Blob（仅本测试文件），
 // 真实扩展环境（Chromium）IDB 原生序列化对 Blob 是正确的，本替换仅修复测试环境。
@@ -10,8 +10,15 @@ import {
 } from '@/services/FaviconService';
 import { resetDB, getAll, deleteRecord } from '@/shared/db/database';
 
+// 保存原 Blob，并在替换前留引用，afterAll 还原避免污染其它测试套件。
+const OriginalBlob = globalThis.Blob;
+
 // 让全局 Blob 指向 Node 原生 Blob，确保 IDB 往返不损坏字节。
 Object.assign(globalThis, { Blob: NodeBlob });
+
+afterAll(() => {
+  Object.assign(globalThis, { Blob: OriginalBlob });
+});
 
 // mock chrome.runtime.getURL（_favicon URL 构造依赖）
 const getURL = vi.fn(() => 'chrome-extension://test-ext/_favicon/');
@@ -96,6 +103,45 @@ describe('fetchAndStoreFavicon — 三源回退链', () => {
     vi.stubGlobal('fetch', fetchMock);
     const blob = await fetchAndStoreFavicon('https://github.com');
     expect(blob).not.toBeNull();
+    // 第一源空字节被跳过，请求了第二源
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 拿到的是第二源的 'ok' 内容，不是空字节
+    expect(await blob!.text()).toBe('ok');
+  });
+
+  it('某源超时后回退到下一源（AbortController 5s）', async () => {
+    // 仅 fake setTimeout/Date，避免 fake-indexeddb 依赖的 setImmediate/queueMicrotask 被冻结。
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      const fetchMock = vi.fn()
+        // 第一源挂起，但响应 abort 信号（模拟真实 fetch 被 AbortController 取消）
+        .mockImplementationOnce((_url: string, opts?: RequestInit) =>
+          new Promise<Response>((_, reject) => {
+            const sig = opts?.signal;
+            if (!sig) return;
+            if (sig.aborted) {
+              reject(new DOMException('aborted', 'AbortError'));
+              return;
+            }
+            sig.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+          }),
+        )
+        // 第二源返回有效图片
+        .mockResolvedValueOnce(imgResponse('late-ok'));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const promise = fetchAndStoreFavicon('https://timeout.example');
+      // 推进到超时之后（FETCH_TIMEOUT_MS = 5000）
+      await vi.advanceTimersByTimeAsync(5001);
+      const blob = await promise;
+
+      expect(blob).not.toBeNull();
+      expect(await blob!.text()).toBe('late-ok');
+      // 第一源超时后发起了第二源请求
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('非法 URL → 返回 null 且不发起请求', async () => {
