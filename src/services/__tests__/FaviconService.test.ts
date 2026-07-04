@@ -1,0 +1,145 @@
+import 'fake-indexeddb/auto';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+// jsdom 的 Blob 经 structuredClone 会丢失原型（Node structuredClone 不识别 jsdom Blob），
+// 而 fake-indexeddb 写入时依赖 structuredClone。改用 Node 原生 Blob（仅本测试文件），
+// 真实扩展环境（Chromium）IDB 原生序列化对 Blob 是正确的，本替换仅修复测试环境。
+import { Blob as NodeBlob } from 'node:buffer';
+import {
+  pickHostname, buildFaviconRenderUrl, buildSourceList,
+  getCachedBlob, fetchAndStoreFavicon, invalidateFavicon, refreshFavicon,
+} from '@/services/FaviconService';
+import { resetDB, getAll, deleteRecord } from '@/shared/db/database';
+
+// 让全局 Blob 指向 Node 原生 Blob，确保 IDB 往返不损坏字节。
+Object.assign(globalThis, { Blob: NodeBlob });
+
+// mock chrome.runtime.getURL（_favicon URL 构造依赖）
+const getURL = vi.fn(() => 'chrome-extension://test-ext/_favicon/');
+vi.stubGlobal('chrome', { runtime: { getURL } });
+
+// 工厂：构造 image 响应
+function imgResponse(body: string, type = 'image/png'): Response {
+  return new Response(new Blob([body], { type }), { status: 200, headers: { 'content-type': type } });
+}
+
+beforeEach(async () => {
+  resetDB();
+  // resetDB 只断开连接不删数据，需显式清空 favicons（跨用例 hostname 复用如 github.com）
+  const existing = await getAll<{ hostname: string }>('favicons');
+  await Promise.all(existing.map((r) => deleteRecord('favicons', r.hostname)));
+  vi.clearAllMocks();
+});
+
+describe('pickHostname', () => {
+  it('合法 URL 返回 hostname', () => {
+    expect(pickHostname('https://github.com/a/b')).toBe('github.com');
+  });
+  it('非法 URL 返回 null', () => {
+    expect(pickHostname('not-a-url')).toBeNull();
+  });
+});
+
+describe('buildFaviconRenderUrl', () => {
+  it('构造 _favicon 占位 URL，pageUrl 编码', () => {
+    const u = buildFaviconRenderUrl('https://github.com/a');
+    expect(u).toBe('chrome-extension://test-ext/_favicon/?pageUrl=' + encodeURIComponent('https://github.com/a') + '&size=32');
+    expect(getURL).toHaveBeenCalledWith('/_favicon/');
+  });
+});
+
+describe('fetchAndStoreFavicon — 三源回退链', () => {
+  it('源 1（_favicon）命中 → 不请求后续源', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(imgResponse('png-bytes'));
+    vi.stubGlobal('fetch', fetchMock);
+    const blob = await fetchAndStoreFavicon('https://github.com');
+    expect(blob).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // 写入缓存
+    expect(await getCachedBlob('github.com')).not.toBeNull();
+  });
+
+  it('源 1 失败 → 源 2（DuckDuckGo）命中', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))  // _favicon 404
+      .mockResolvedValueOnce(imgResponse('ddg-bytes', 'image/x-icon')); // duckduckgo
+    vi.stubGlobal('fetch', fetchMock);
+    const blob = await fetchAndStoreFavicon('https://example.com');
+    expect(blob).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondCallUrl = String(fetchMock.mock.calls[1]![0]);
+    expect(secondCallUrl).toContain('icons.duckduckgo.com/ip3/example.com.ico');
+  });
+
+  it('源 1+2 失败 → 源 3（源站 favicon.ico）命中', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(imgResponse('origin-bytes'));
+    vi.stubGlobal('fetch', fetchMock);
+    const blob = await fetchAndStoreFavicon('http://localhost:3000');
+    expect(blob).not.toBeNull();
+    const thirdCallUrl = String(fetchMock.mock.calls[2]![0]);
+    expect(thirdCallUrl).toBe('http://localhost:3000/favicon.ico');
+  });
+
+  it('三源全失败 → 返回 null 且不写空记录', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
+    const blob = await fetchAndStoreFavicon('https://noicon.example');
+    expect(blob).toBeNull();
+    expect(await getCachedBlob('noicon.example')).toBeNull();
+  });
+
+  it('空字节响应视为失败继续回退', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(new Blob([]), { status: 200 })) // 0 字节
+      .mockResolvedValueOnce(imgResponse('ok'));
+    vi.stubGlobal('fetch', fetchMock);
+    const blob = await fetchAndStoreFavicon('https://github.com');
+    expect(blob).not.toBeNull();
+  });
+
+  it('非法 URL → 返回 null 且不发起请求', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await fetchAndStoreFavicon('bad-url')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('缓存读写与失效', () => {
+  it('getCachedBlob 命中/未命中', async () => {
+    expect(await getCachedBlob('github.com')).toBeNull();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(imgResponse('x')));
+    await fetchAndStoreFavicon('https://github.com');
+    expect(await getCachedBlob('github.com')).not.toBeNull();
+  });
+
+  it('invalidateFavicon 删除后 getCachedBlob 返回 null', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(imgResponse('x')));
+    await fetchAndStoreFavicon('https://github.com');
+    await invalidateFavicon('github.com');
+    expect(await getCachedBlob('github.com')).toBeNull();
+  });
+
+  it('refreshFavicon 无条件重抓覆盖旧缓存', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(imgResponse('old'))
+      .mockResolvedValueOnce(imgResponse('new'));
+    vi.stubGlobal('fetch', fetchMock);
+    await fetchAndStoreFavicon('https://github.com');          // 抓 old
+    await refreshFavicon('https://github.com');                // 强制重抓 new
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const blob = await getCachedBlob('github.com');
+    expect(await blob!.text()).toBe('new');
+  });
+});
+
+describe('buildSourceList', () => {
+  it('返回三源：_favicon / DuckDuckGo / 源站 favicon.ico', () => {
+    const list = buildSourceList('https://github.com/a/b');
+    expect(list).toHaveLength(3);
+    expect(list[0]).toContain('_favicon/?pageUrl=');
+    expect(list[1]).toBe('https://icons.duckduckgo.com/ip3/github.com.ico');
+    expect(list[2]).toBe('https://github.com/favicon.ico');
+  });
+});
