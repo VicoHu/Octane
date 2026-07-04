@@ -487,7 +487,7 @@ git commit -m "feat(manifest): 声明 favicon 权限（_favicon API）"
 - Test: `src/newtab/hooks/__tests__/useFavicon.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 2 的 `getCachedBlob` / `fetchAndStoreFavicon` / `buildFaviconRenderUrl`
+- Consumes: Task 2 的 `getCachedBlob` / `fetchAndStoreFavicon` / `buildFaviconRenderUrl` / `pickHostname`
 - Produces:
 
 ```typescript
@@ -497,6 +497,8 @@ export type FaviconSrc =
   | null;                             // 无可用源 → 首字母回退
 export function useFavicon(url: string): FaviconSrc;
 ```
+
+> **非法 URL 约定（spec §5）**：`pickHostname(url) === null` 时 hook 立即返回 `null`（首字母回退），不生成 remote 占位、不发后台抓取。
 
 - [ ] **Step 1: 写失败测试** `src/newtab/hooks/__tests__/useFavicon.test.tsx`
 
@@ -558,7 +560,7 @@ Expected: FAIL — 模块不存在
 
 ```typescript
 import { useEffect, useState } from 'react';
-import { getCachedBlob, fetchAndStoreFavicon, buildFaviconRenderUrl } from '@/services/FaviconService';
+import { getCachedBlob, fetchAndStoreFavicon, buildFaviconRenderUrl, pickHostname } from '@/services/FaviconService';
 
 export type FaviconSrc =
   | { kind: 'blob'; src: string }
@@ -574,15 +576,16 @@ export type FaviconSrc =
  * 3. 后台抓取成功 → 切 blob 态
  *
  * 卸载 / url 变化 → revoke 旧 blob URL，丢弃过期后台抓取结果（active flag）。
- * 非 http(s) / 空 url → 返回 null（首字母回退）。
+ * 非 http(s) / 空 url（pickHostname 返回 null）→ 返回 null（首字母回退）。
  */
 export function useFavicon(url: string): FaviconSrc {
+  const valid = !!pickHostname(url);
   const [src, setSrc] = useState<FaviconSrc>(() =>
-    url ? { kind: 'remote', src: buildFaviconRenderUrl(url) } : null,
+    valid ? { kind: 'remote', src: buildFaviconRenderUrl(url) } : null,
   );
 
   useEffect(() => {
-    if (!url) {
+    if (!valid) {
       setSrc(null);
       return;
     }
