@@ -1,4 +1,4 @@
-import { putRecord, getByKey, deleteRecord } from '@/shared/db/database';
+import { putRecord, getByKey, deleteRecord, getDB } from '@/shared/db/database';
 import type { FaviconRecord } from '@/shared/types';
 
 /** 每源抓取超时（ms） */
@@ -25,23 +25,24 @@ export function pickHostname(url: string): string | null {
 /**
  * 构造 _favicon 占位渲染 URL（同步，供缓存未命中时即时渲染）。
  * 读浏览器 favicon 缓存，国内可用，不走 google.com。
+ * size=64：retina 屏 2x 显示更清晰（浏览器缓存若存了高分辨率即原生清晰，否则放大）。
  */
 export function buildFaviconRenderUrl(url: string): string {
   const base = extFaviconBase();
-  return `${base}?pageUrl=${encodeURIComponent(url)}&size=32`;
+  return `${base}?pageUrl=${encodeURIComponent(url)}&size=64`;
 }
 
 /**
  * 构造抓取回退源链（每源 5s 超时，串行，首有效即停）：
- * 1. _favicon（浏览器缓存，国内可用）
- * 2. icons.duckduckgo.com（国内可达第三方）
+ * 1. icon.horse（返回站点最大 icon，retina 屏高清；第三方服务，国内一般可达）
+ * 2. icons.duckduckgo.com（icon.horse 失败时的第三方兜底）
  * 3. <origin>/favicon.ico（源站，覆盖 localhost/内网）
- * 完全避开 google.com。
+ * 完全避开 google.com。_favicon 仅用于渲染占位（buildFaviconRenderUrl），不参与抓取。
  */
 export function buildSourceList(url: string): string[] {
   const u = new URL(url);
   return [
-    buildFaviconRenderUrl(url),
+    `https://icon.horse/icon/${u.hostname}`,
     `https://icons.duckduckgo.com/ip3/${u.hostname}.ico`,
     `${u.origin}/favicon.ico`,
   ];
@@ -109,4 +110,13 @@ export async function refreshFavicon(url: string): Promise<Blob | null> {
   if (!hostname) return null;
   await invalidateFavicon(hostname);
   return fetchAndStoreFavicon(url);
+}
+
+/**
+ * 清空所有 favicon 缓存（设置页"清空缓存"用）。
+ * 下次访问书签时 useFavicon 未命中缓存，会重新走抓取链（icon.horse → …）入库。
+ */
+export async function clearAllFavicons(): Promise<void> {
+  const db = await getDB();
+  await db.clear('favicons');
 }

@@ -4,6 +4,7 @@ import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
 import { PasswordSection } from './sections/PasswordSection';
 import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
+import { FaviconCacheSection } from './sections/FaviconCacheSection';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -39,6 +40,7 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
         <Tabs.TabPane tab="数据备份和同步" itemKey="backup">
           <LocalBackupSection />
           <CloudBackupSection />
+          <FaviconCacheSection />
         </Tabs.TabPane>
         <Tabs.TabPane tab="主密码" itemKey="password">
           <PasswordSection />

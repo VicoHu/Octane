@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
 import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
@@ -24,6 +24,11 @@ interface BookmarkCardProps {
 export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark, onDelete }) => {
   const faviconSrc = useFavicon(bookmark.url);
   const [faviconError, setFaviconError] = useState(false);
+  // src 变化（remote 占位 → 后台抓取切 blob，或 url 切换）时重置 error 态。
+  // 否则早先 remote 占位加载失败置的 faviconError 会遮盖后续成功的 blob，永远显示首字母。
+  useEffect(() => {
+    setFaviconError(false);
+  }, [faviconSrc?.src]);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
   const displayUrl = (() => {

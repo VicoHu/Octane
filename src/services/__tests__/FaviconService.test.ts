@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { Blob as NodeBlob } from 'node:buffer';
 import {
   pickHostname, buildFaviconRenderUrl, buildSourceList,
-  getCachedBlob, fetchAndStoreFavicon, invalidateFavicon, refreshFavicon,
+  getCachedBlob, fetchAndStoreFavicon, invalidateFavicon, refreshFavicon, clearAllFavicons,
 } from '@/services/FaviconService';
 import { resetDB, getAll, deleteRecord } from '@/shared/db/database';
 
@@ -49,13 +49,13 @@ describe('pickHostname', () => {
 describe('buildFaviconRenderUrl', () => {
   it('构造 _favicon 占位 URL，pageUrl 编码', () => {
     const u = buildFaviconRenderUrl('https://github.com/a');
-    expect(u).toBe('chrome-extension://test-ext/_favicon/?pageUrl=' + encodeURIComponent('https://github.com/a') + '&size=32');
+    expect(u).toBe('chrome-extension://test-ext/_favicon/?pageUrl=' + encodeURIComponent('https://github.com/a') + '&size=64');
     expect(getURL).toHaveBeenCalledWith('/_favicon/');
   });
 });
 
 describe('fetchAndStoreFavicon — 三源回退链', () => {
-  it('源 1（_favicon）命中 → 不请求后续源', async () => {
+  it('源 1（icon.horse）命中 → 不请求后续源', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(imgResponse('png-bytes'));
     vi.stubGlobal('fetch', fetchMock);
     const blob = await fetchAndStoreFavicon('https://github.com');
@@ -67,7 +67,7 @@ describe('fetchAndStoreFavicon — 三源回退链', () => {
 
   it('源 1 失败 → 源 2（DuckDuckGo）命中', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))  // _favicon 404
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))  // icon.horse 404
       .mockResolvedValueOnce(imgResponse('ddg-bytes', 'image/x-icon')); // duckduckgo
     vi.stubGlobal('fetch', fetchMock);
     const blob = await fetchAndStoreFavicon('https://example.com');
@@ -181,11 +181,26 @@ describe('缓存读写与失效', () => {
 });
 
 describe('buildSourceList', () => {
-  it('返回三源：_favicon / DuckDuckGo / 源站 favicon.ico', () => {
+  it('返回三源：icon.horse（高清）/ DuckDuckGo / 源站 favicon.ico', () => {
     const list = buildSourceList('https://github.com/a/b');
     expect(list).toHaveLength(3);
-    expect(list[0]).toContain('_favicon/?pageUrl=');
+    // icon.horse 优先（返回站点最大 icon，retina 屏清晰）；_favicon 仅作渲染占位，不参与抓取
+    expect(list[0]).toBe('https://icon.horse/icon/github.com');
     expect(list[1]).toBe('https://icons.duckduckgo.com/ip3/github.com.ico');
     expect(list[2]).toBe('https://github.com/favicon.ico');
+  });
+});
+
+describe('clearAllFavicons', () => {
+  it('清空后所有 hostname 缓存为空', async () => {
+    // mockImplementation 每次返回新 Response（Response body 只能消费一次，mockResolvedValue 会共享同一已消费对象）
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(imgResponse('x'))));
+    await fetchAndStoreFavicon('https://a.com');
+    await fetchAndStoreFavicon('https://b.com');
+    expect(await getCachedBlob('a.com')).not.toBeNull();
+    expect(await getCachedBlob('b.com')).not.toBeNull();
+    await clearAllFavicons();
+    expect(await getCachedBlob('a.com')).toBeNull();
+    expect(await getCachedBlob('b.com')).toBeNull();
   });
 });

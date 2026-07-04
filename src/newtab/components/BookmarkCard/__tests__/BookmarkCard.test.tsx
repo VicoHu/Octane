@@ -156,4 +156,28 @@ describe('BookmarkCard', () => {
     renderCard({ name: 'GitHub', url: 'https://github.com' });
     expect(screen.getByText('G')).toBeInTheDocument();
   });
+
+  it('favicon 失败后 src 变化重置 error 态（后台抓取成功的 blob 不被首字母遮盖）', () => {
+    // 初始 remote 占位（浏览器未缓存该站 → onError）
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'remote', src: 'remote-1' });
+    const props = {
+      bookmark: { ...bookmark, name: 'GitHub', url: 'https://github.com' },
+      onClick: vi.fn(),
+      onViewContexts: vi.fn(),
+      onEditBookmark: vi.fn(),
+      onDelete: vi.fn(),
+    };
+    const { rerender } = render(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
+    const img = screen.getByRole('listitem').querySelector('img')!;
+    expect(img).toHaveAttribute('src', 'remote-1');
+    // remote 加载失败 → 触发首字母回退
+    fireEvent.error(img);
+    expect(screen.getByText('G')).toBeInTheDocument();
+    // 后台抓取成功 → useFavicon src 切到 blob：faviconError 必须重置，否则 blob 被首字母遮盖
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob-new' });
+    rerender(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
+    const newImg = screen.getByRole('listitem').querySelector('img');
+    expect(newImg).toHaveAttribute('src', 'blob-new');
+    expect(screen.queryByText('G')).toBeNull();
+  });
 });
