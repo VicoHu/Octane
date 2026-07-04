@@ -69,6 +69,9 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 /**
+ * @deprecated 自 favicon 本地缓存系统上线后不再使用。保留兼容旧调用方，
+ * 新代码请用 FaviconService 的 useFavicon / fetchAndStoreFavicon。
+ *
  * 获取 favicon URL。
  *
  * 公网域名走 Google Favicon API；本机/内网地址（localhost、IP、*.local）

@@ -7,6 +7,10 @@ vi.mock('lottie-web', () => ({
     registerAnimation() {},
   },
 }));
+// useFavicon 走真实 IDB/网络副作用，本组件测试只需静态 src 占位
+vi.mock('@/newtab/hooks/useFavicon', () => ({
+  useFavicon: (url: string) => ({ kind: 'remote', src: `https://mock-favicon/${url}` }),
+}));
 import { render, screen, fireEvent } from '@testing-library/react';
 import { StickyHeader } from '../StickyHeader';
 

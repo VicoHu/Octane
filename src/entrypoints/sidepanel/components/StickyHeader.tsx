@@ -1,5 +1,5 @@
 import { IconPlus } from '@douyinfe/semi-icons';
-import { getFaviconUrl } from '@/services/BookmarkService';
+import { useFavicon } from '@/newtab/hooks/useFavicon';
 import styles from './StickyHeader.module.css';
 
 interface StickyHeaderProps {
@@ -14,12 +14,16 @@ interface StickyHeaderProps {
  * sticky 固定在顶部，滚动时常驻。
  */
 export function StickyHeader({ hostname, matchCount, onAdd }: StickyHeaderProps) {
+  // CONCERN: 跨 entrypoint import（sidepanel → newtab/hooks）。wxt/vite 可解析，
+  // 但耦合了 entrypoint 边界；后续可考虑提到 shared 层。
+  const faviconSrc = useFavicon(`https://${hostname}`);
   return (
     <div className={styles.header}>
       <img
-        src={getFaviconUrl(`https://${hostname}`)}
+        src={faviconSrc?.src ?? ''}
         alt=""
         className={styles.favicon}
+        style={{ visibility: faviconSrc ? undefined : 'hidden' }}
         onError={(e) => {
           (e.target as HTMLImageElement).style.visibility = 'hidden';
         }}
