@@ -6,8 +6,6 @@ import { listCategories } from '@/services/CategoryService';
 import {
   listBookmarksByWorkspace,
   createBookmark,
-  updateBookmark,
-  getFaviconUrl,
 } from '@/services/BookmarkService';
 import { isUrlValid, findDuplicateUrl } from '../utils';
 import styles from '../popup.module.css';
@@ -116,15 +114,11 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
           return url;
         }
       })();
-      const bookmark = await createBookmark(selectedWorkspaceId, selectedCategoryId, {
+      await createBookmark(selectedWorkspaceId, selectedCategoryId, {
         name: finalName,
         url,
         description: description || undefined,
       });
-      const faviconUrl = getFaviconUrl(url);
-      if (faviconUrl) {
-        await updateBookmark(bookmark.id, { faviconUrl });
-      }
       // persist ws + per-workspace cat map（read-modify-write，避免覆盖其它工作区条目）
       const stored = await chrome.storage.local.get(LAST_CAT_BY_WS_KEY);
       const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};

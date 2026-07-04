@@ -10,7 +10,12 @@ vi.mock('lottie-web', () => ({
 }));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
+import { useFavicon } from '@/newtab/hooks/useFavicon';
 import type { Bookmark } from '@/shared/types';
+
+vi.mock('@/newtab/hooks/useFavicon', () => ({
+  useFavicon: vi.fn(() => null),
+}));
 
 const bookmark: Bookmark = {
   id: 'b1',
@@ -135,5 +140,20 @@ describe('BookmarkCard', () => {
     renderCard({}, { onClick });
     fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('favicon 渲染走 useFavicon（不再读 bookmark.faviconUrl）', () => {
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:abc' });
+    renderCard({ url: 'https://github.com', faviconUrl: 'https://old.example/icon.png' });
+    const img = screen.getByRole('listitem').querySelector('img');
+    expect(img).toHaveAttribute('src', 'blob:abc');
+    // 旧 faviconUrl 字段不再被使用
+    expect(img).not.toHaveAttribute('src', 'https://old.example/icon.png');
+  });
+
+  it('useFavicon 返回 null → 回退首字母', () => {
+    vi.mocked(useFavicon).mockReturnValue(null);
+    renderCard({ name: 'GitHub', url: 'https://github.com' });
+    expect(screen.getByText('G')).toBeInTheDocument();
   });
 });

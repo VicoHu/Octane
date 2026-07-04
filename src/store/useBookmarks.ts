@@ -31,15 +31,6 @@ export const useBookmarks = create<BookmarksState>((set) => ({
   loadBookmarks: async (categoryId) => {
     set({ loading: true });
     const bookmarks = await BookmarkService.listBookmarks(categoryId);
-    // 补充/修正 favicon：缺失，或策略过期（如旧 localhost 书签存了 Google 占位 URL）
-    for (const b of bookmarks) {
-      if (!b.url) continue;
-      const expected = BookmarkService.getFaviconUrl(b.url);
-      if (expected && b.faviconUrl !== expected) {
-        await BookmarkService.updateBookmark(b.id, { faviconUrl: expected });
-        b.faviconUrl = expected;
-      }
-    }
     set({ bookmarks, loading: false });
   },
 
@@ -52,12 +43,6 @@ export const useBookmarks = create<BookmarksState>((set) => ({
 
   createBookmark: async (workspaceId, categoryId, data) => {
     const bookmark = await BookmarkService.createBookmark(workspaceId, categoryId, data);
-    // 补充 favicon
-    const faviconUrl = BookmarkService.getFaviconUrl(data.url);
-    if (faviconUrl) {
-      await BookmarkService.updateBookmark(bookmark.id, { faviconUrl });
-      bookmark.faviconUrl = faviconUrl;
-    }
     set((s) => ({
       bookmarks: [...s.bookmarks, bookmark],
       // 同步追加到跨分类切片:保存后 TabList 去重即时生效,避免数据陈旧
