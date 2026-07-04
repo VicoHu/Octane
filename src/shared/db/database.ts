@@ -15,9 +15,10 @@ interface OctaneDB extends IDBPDatabase {
   bookmarks: IDBPObjectStore<OctaneDB, ['bookmarks']>;
   contexts: IDBPObjectStore<OctaneDB, ['contexts']>;
   cryptoMetadata: IDBPObjectStore<OctaneDB, ['cryptoMetadata']>;
+  favicons: IDBPObjectStore<OctaneDB, ['favicons']>;
 }
 
-type StoreName = 'workspaces' | 'categories' | 'bookmarks' | 'contexts' | 'cryptoMetadata';
+type StoreName = 'workspaces' | 'categories' | 'bookmarks' | 'contexts' | 'cryptoMetadata' | 'favicons';
 
 /**
  * 数据变更事件：数据库写入后广播，让其他上下文（side panel）重新读取刷新。
@@ -86,6 +87,11 @@ export function getDB(): Promise<IDBPDatabase<OctaneDB>> {
         // 加密元数据（全局单例）
         if (!db.objectStoreNames.contains('cryptoMetadata')) {
           db.createObjectStore('cryptoMetadata', { keyPath: 'id' });
+        }
+
+        // favicon 缓存（v2→v3）：per-hostname 去重，不进备份
+        if (!db.objectStoreNames.contains('favicons')) {
+          db.createObjectStore('favicons', { keyPath: 'hostname' });
         }
       },
     });

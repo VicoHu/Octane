@@ -41,12 +41,18 @@
   margin-top: var(--space-sm);
 }
 
+.workspaceSelect {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-xs);
+}
+
 .select {
   width: 100%;
 }
 
 .addButton {
-  margin-top: var(--space-xs);
+  margin-top: 0;
 }
 
 .categoryList {

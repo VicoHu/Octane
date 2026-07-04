@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
 import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
+import { useFavicon } from '@/newtab/hooks/useFavicon';
 import styles from './index.module.css';
 
 // Semi Card 的 CardProps 未声明 role / onClick，运行时透传到 DOM 但类型缺失。
@@ -21,7 +22,13 @@ interface BookmarkCardProps {
 }
 
 export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark, onDelete }) => {
+  const faviconSrc = useFavicon(bookmark.url);
   const [faviconError, setFaviconError] = useState(false);
+  // src 变化（remote 占位 → 后台抓取切 blob，或 url 切换）时重置 error 态。
+  // 否则早先 remote 占位加载失败置的 faviconError 会遮盖后续成功的 blob，永远显示首字母。
+  useEffect(() => {
+    setFaviconError(false);
+  }, [faviconSrc?.src]);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
   const displayUrl = (() => {
@@ -53,11 +60,11 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
       className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
     >
-      {/* Favicon（faviconUrl 加载失败时回退首字母）+ 右下角上下文徽章 */}
+      {/* Favicon（useFavicon 加载失败时回退首字母）+ 右下角上下文徽章 */}
       <div className={styles.favicon}>
-        {bookmark.faviconUrl && !faviconError ? (
+        {faviconSrc && !faviconError ? (
           <img
-            src={bookmark.faviconUrl}
+            src={faviconSrc.src}
             alt=""
             className={styles.faviconImg}
             onError={() => setFaviconError(true)}

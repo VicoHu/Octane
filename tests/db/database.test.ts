@@ -12,13 +12,13 @@ import {
   cascadeDeleteCategory,
   deleteBookmarkCascade,
 } from '@/shared/db/database';
-import type { Workspace, Category, Bookmark, Context } from '@/shared/types';
+import type { Workspace, Category, Bookmark, Context, FaviconRecord } from '@/shared/types';
 import { ContextType, DB_NAME } from '@/shared/types';
 
 /** 清空所有 object store */
 async function clearAllStores(): Promise<void> {
   const db = await getDB();
-  const storeNames = ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata'] as const;
+  const storeNames = ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'favicons'] as const;
   const tx = db.transaction([...storeNames], 'readwrite');
   for (const name of storeNames) {
     await tx.objectStore(name).clear();
@@ -255,5 +255,23 @@ describe('BroadcastChannel 不可用时静默降级', () => {
     await deleteRecord('bookmarks', 'bm-bc2');
     const result = await getByKey('bookmarks', 'bm-bc2');
     expect(result).toBeUndefined();
+  });
+});
+
+describe('favicons store（DB v3）', () => {
+  it('favicons store 存在且以 hostname 为主键', async () => {
+    const db = await getDB();
+    expect(db.objectStoreNames.contains('favicons')).toBe(true);
+    // 主键路径 = hostname（per-hostname 缓存去重）
+    expect((db.transaction('favicons') as any).store.keyPath).toBe('hostname');
+  });
+
+  it('per-hostname 去重：同 hostname 第二次 put 覆盖而非新增', async () => {
+    const rec1: FaviconRecord = { hostname: 'github.com', blob: new Blob(['a']), mimeType: 'image/png', fetchedAt: 1 };
+    const rec2: FaviconRecord = { hostname: 'github.com', blob: new Blob(['b']), mimeType: 'image/png', fetchedAt: 2 };
+    await putRecord('favicons', rec1);
+    await putRecord('favicons', rec2);
+    const got = await getByKey<FaviconRecord>('favicons', 'github.com');
+    expect(got?.fetchedAt).toBe(2);
   });
 });

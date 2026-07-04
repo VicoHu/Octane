@@ -39,7 +39,7 @@ describe('SaveBookmarkView', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('保存有效书签 → 写入 DB（含 favicon）并关闭 popup', async () => {
+  it('保存有效书签 → 写入 DB 并关闭 popup', async () => {
     const ws = await createWorkspace('工作', '📁');
     await createCategory(ws.id, '工具', '🔧');
 
@@ -56,7 +56,6 @@ describe('SaveBookmarkView', () => {
       return list;
     });
     expect(bms[0]!.url).toBe('https://github.com');
-    expect(bms[0]!.faviconUrl).toContain('google.com/s2/favicons');
     // 保存成功后显示反馈
     await screen.findByText(/已保存/);
     // 反馈短暂显示后关闭

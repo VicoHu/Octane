@@ -130,3 +130,7 @@
 .featureItemPrimary:hover {
   background: rgba(0, 184, 148, 0.12);
 }
+
+.faviconRow {
+  margin: var(--space-xs, 4px) 0;
+}

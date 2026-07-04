@@ -10,7 +10,12 @@ vi.mock('lottie-web', () => ({
 }));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
+import { useFavicon } from '@/newtab/hooks/useFavicon';
 import type { Bookmark } from '@/shared/types';
+
+vi.mock('@/newtab/hooks/useFavicon', () => ({
+  useFavicon: vi.fn(() => null),
+}));
 
 const bookmark: Bookmark = {
   id: 'b1',
@@ -135,5 +140,44 @@ describe('BookmarkCard', () => {
     renderCard({}, { onClick });
     fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('favicon 渲染走 useFavicon（不再读 bookmark.faviconUrl）', () => {
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:abc' });
+    renderCard({ url: 'https://github.com', faviconUrl: 'https://old.example/icon.png' });
+    const img = screen.getByRole('listitem').querySelector('img');
+    expect(img).toHaveAttribute('src', 'blob:abc');
+    // 旧 faviconUrl 字段不再被使用
+    expect(img).not.toHaveAttribute('src', 'https://old.example/icon.png');
+  });
+
+  it('useFavicon 返回 null → 回退首字母', () => {
+    vi.mocked(useFavicon).mockReturnValue(null);
+    renderCard({ name: 'GitHub', url: 'https://github.com' });
+    expect(screen.getByText('G')).toBeInTheDocument();
+  });
+
+  it('favicon 失败后 src 变化重置 error 态（后台抓取成功的 blob 不被首字母遮盖）', () => {
+    // 初始 remote 占位（浏览器未缓存该站 → onError）
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'remote', src: 'remote-1' });
+    const props = {
+      bookmark: { ...bookmark, name: 'GitHub', url: 'https://github.com' },
+      onClick: vi.fn(),
+      onViewContexts: vi.fn(),
+      onEditBookmark: vi.fn(),
+      onDelete: vi.fn(),
+    };
+    const { rerender } = render(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
+    const img = screen.getByRole('listitem').querySelector('img')!;
+    expect(img).toHaveAttribute('src', 'remote-1');
+    // remote 加载失败 → 触发首字母回退
+    fireEvent.error(img);
+    expect(screen.getByText('G')).toBeInTheDocument();
+    // 后台抓取成功 → useFavicon src 切到 blob：faviconError 必须重置，否则 blob 被首字母遮盖
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob-new' });
+    rerender(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
+    const newImg = screen.getByRole('listitem').querySelector('img');
+    expect(newImg).toHaveAttribute('src', 'blob-new');
+    expect(screen.queryByText('G')).toBeNull();
   });
 });

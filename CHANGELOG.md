@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.10.1] - 2026-07-04
+
+### Added
+
+- **favicon 本地缓存**：书签 favicon 改为本地 IndexedDB 缓存（按 hostname 去重，`favicons` 表 DB v3），关网与重复打开时秒级显示，不再每次打开都向网络请求。
+- **编辑书签页 favicon 预览 + 刷新**：编辑/新建书签时 URL 输入框旁实时显示 favicon 图标，边上刷新按钮可强制重抓——站点更换图标后无需等待，手动点一下即更新。
+- **清空 favicon 缓存**：系统设置 → 数据备份和同步新增「清空 favicon 缓存」入口，一键清空本地缓存，所有书签图标在下次访问时重新抓取。
+
+### Changed
+
+- **favicon 抓取链避开 Google**：改用浏览器内置 `_favicon` 缓存 → DuckDuckGo → 源站三源回退，完全不再请求 `google.com/s2/favicons`。国内网络下书签图标现在能正常显示（原先被墙全部回退到首字母占位）。sidepanel 顶栏的当前页 favicon 同步迁移到新链路。
+- **工作区选择器横向布局**：newtab 工作区选择器改为横向排列，新建按钮改为 icon-only。
+- **favicon 改用 icon.horse 高清源**：抓取链首源从浏览器 `_favicon`（32px）改为 icon.horse（返回站点最大可用 icon），retina 屏显示更清晰；`_favicon` 仍作渲染占位。
+
+### Fixed
+
+- **打开 newtab 的卡顿**：移除加载书签列表时对每条书签串行回写 favicon 的「自愈」循环（N 条书签会触发 N 次写库），100 条书签的 newtab 打开不再有额外写盘开销。
+- **部分书签图标卡在首字母**：后台抓取成功的 favicon 曾被早先加载失败的 error 态遮盖（先显示占位 → 加载失败置 error → 后台抓取成功切 blob，但 error 未重置，blob 被遮盖成首字母）。现 `useFavicon` src 变化时重置 error 态，后台抓到即正确显示，无需手动刷新。
+- **个别站点（如 platform.deepseek.com）favicon 抓不到**：icon.horse 对这类站返回 SVG，而扩展 `<img>` 渲染 SVG blob 不可靠会失败。修复：抓取链跳过 SVG blob 试下一源，并恢复 `_favicon` 同源兜底（浏览器缓存的 PNG/ICO）——用户访问过的站点能从浏览器缓存拿到图标。
+
+### 内部
+
+- `getFaviconUrl`（旧的远程 URL 生成函数）标记 `@deprecated`，已无生产调用方。
+- favicon 本地缓存系统设计文档：`docs/superpowers/specs/2026-07-04-favicon-local-cache-design.md`。
+
 ## [0.1.10.0] - 2026-07-03
 
 ### Changed

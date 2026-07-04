@@ -41,8 +41,8 @@ git tag --list "v$VERSION" | grep -q "v$VERSION" || { echo "缺少 tag v$VERSION
 ### 1. 构建 + 打包
 
 ```bash
-npm run build          # → .output/chrome-mv3/
-npm run zip            # → .output/octane-<version>-chrome.zip
+pnpm run build          # → .output/chrome-mv3/
+pnpm run zip            # → .output/octane-<version>-chrome.zip
 ```
 
 ### 2. 校验产物
@@ -91,16 +91,16 @@ gh release view "v$VERSION" --json assets --jq '.assets[].name'
 |---|---|---|
 | 用 `dist/*.zip` | 匹配为空，Release 没有扩展包 | 用 `.output/*.zip` |
 | `--notes-file CHANGELOG.md` | 整个 changelog 当 notes，历史全堆上去 | 用 node 截取当前版本段（awk 的整行位置参数在 skill 加载时会被管道清空，node 不受影响） |
-| 忘了 `npm run build` 直接 zip | zip 为空或旧产物 | 先 build 再 zip |
+| 忘了 `pnpm run build` 直接 zip | zip 为空或旧产物 | 先 build 再 zip |
 | 没打 tag 就 create | `gh` 自动建 tag 但指向当前 HEAD，可能错位 | 先在目标 commit 打 tag 并 push |
-| 想发 Firefox 包 | 只有 chrome | 另跑 `npm run zip:firefox`，asset 多传一个 `.output/*-firefox.zip` |
+| 想发 Firefox 包 | 只有 chrome | 另跑 `pnpm run zip:firefox`，asset 多传一个 `.output/*-firefox.zip` |
 | 把 Source code 当扩展发 | 用户装不上（无编译后 assets） | 必须上传 `.output/*.zip` |
 
 ## Fire and forget（一条命令版，已通过所有校验后用）
 
 ```bash
 VERSION=$(node -p "require('./package.json').version") && \
-npm run build && npm run zip && \
+pnpm run build && pnpm run zip && \
 ZIP=".output/octane-${VERSION}-chrome.zip" && test -s "$ZIP" && \
 NOTES="$(node -e 'const v=process.argv[1],md=require("fs").readFileSync("CHANGELOG.md","utf8"),m=md.match(new RegExp("## \\["+v+"\\][\\s\\S]*?(?=\\n## \\[|$)"));process.stdout.write(m?m[0].trimEnd():"")' "$VERSION")" && \
 gh release create "v$VERSION" "$ZIP" --title "v$VERSION" --notes "$NOTES"
