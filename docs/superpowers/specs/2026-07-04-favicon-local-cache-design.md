@@ -37,7 +37,7 @@
 | # | 决策 | 默认选择 | 理由 |
 |---|---|---|---|
 | D1 | favicon blob 是否进备份载荷 | **不进**，按需重抓 | blob 体积大、污染云备份、可重建；BackupData 仍是 5 表，BACKUP_VERSION 不变 |
-| D2 | 缓存失效策略 | **永久缓存 + URL 变更失效** | 流量最小；站点换 favicon 用户看不到更新可接受（必要时加手动刷新入口） |
+| D2 | 缓存失效策略 | **永久缓存 + URL 变更失效 + 编辑页手动刷新** | 流量最小；站点换 favicon 后用户在编辑页点刷新按钮主动重抓（D2-refresh） |
 | D3 | 抓取回退源链 | **`_favicon` → DuckDuckGo → 源站** | 完全避开 google.com，国内可用；三源串行 + 超时 |
 | D4 | 渲染格式 | **Blob → `createObjectURL`** | DB 体积最小、无损；需管理对象 URL 生命周期 |
 
@@ -64,7 +64,8 @@ BookmarkCard ──> useFavicon(url) ──> FaviconService
 
 - `getCachedBlob(hostname: string): Promise<Blob | null>` — 查 `favicons` store，命中返回 Blob，未命中返回 null
 - `fetchAndStoreFavicon(url: string): Promise<Blob | null>` — 执行三源回退链抓取，首个有效结果写库并返回；全失败返回 null（不写空记录）
-- `invalidateFavicon(hostname: string): Promise<void>` — 删除指定 hostname 缓存（书签 URL 变更时调用）
+- `invalidateFavicon(hostname: string): Promise<void>` — 删除指定 hostname 缓存（书签 URL 变更 / 手动刷新时调用）
+- `refreshFavicon(url: string): Promise<Blob | null>` — 手动刷新入口：`invalidate` + `fetchAndStore`，无条件重抓并覆盖；UI 刷新按钮调用
 - `buildFaviconRenderUrl(url: string): string` — 同步构造 `chrome-extension://EXT/_favicon/?pageUrl=${url}&size=32` 占位 URL（缓存未命中时的即时渲染源）
 
 私有：
@@ -91,6 +92,26 @@ function useFavicon(url: string): FaviconSrc;
 3. 组件卸载 → `revokeObjectURL` 释放 blob URL，取消进行中的后台抓取（active flag）
 4. `url` 变化 → 重置流程，旧 blob URL revoke
 
+#### `src/newtab/components/BookmarkFaviconPreview/index.tsx`（新增，编辑表单专用）
+
+编辑/创建书签时，URL 输入框旁的 favicon 预览 + 刷新按钮（D2-refresh）。复用在 `BookmarkOpsPanel`（newtab 编辑 Modal）与 `SaveBookmarkView`（popup 保存页）。
+
+Props：
+
+```typescript
+interface BookmarkFaviconPreviewProps {
+  /** 绑定到表单当前 URL 值（非已保存的 bookmark.url）——跟随用户编辑实时预览 */
+  url: string;
+}
+```
+
+行为：
+
+1. `url` 有效 → 显示 `useFavicon(url)` 的预览（blob 优先，未命中走 `_favicon` 占位 + 后台抓取）；无效/空 → 首字母或占位
+2. 旁边一个 `IconRefresh` 按钮：点击 → `refreshFavicon(url)` 强制重抓 → loading 态 → 预览更新；失败 → Toast 提示"刷新失败，稍后重试"，预览保持原样
+3. URL 输入变化时，刷新按钮的 loading 态重置；后台抓取做 **debounce 500ms**，避免逐键触发网络请求
+4. 防呆：URL 非法时刷新按钮 disabled
+
 ### 4.2 改造组件
 
 | 文件 | 改动 |
@@ -98,8 +119,9 @@ function useFavicon(url: string): FaviconSrc;
 | `src/shared/db/database.ts` | DB_VERSION 2→3；`OctaneDB` 增 `favicons` store；`upgrade(db)` 加防御式建表（`objectStoreNames.contains` 模式，与现有一致） |
 | `src/shared/types/index.ts` | 增 `FaviconRecord` 类型；`Bookmark.faviconUrl` 标记 `@deprecated`（类型保留，不删，兼容旧备份） |
 | `src/newtab/components/BookmarkCard/index.tsx` | 用 `useFavicon(bookmark.url)` 替换 `bookmark.faviconUrl` 直读；`onError` 仍回退首字母 |
+| `src/newtab/components/BookmarkOpsPanel/index.tsx` | URL 输入框（line 158）旁插入 `<BookmarkFaviconPreview>`；通过 FormApi 订阅 `url` 字段当前值传入 |
+| `src/entrypoints/popup/views/SaveBookmarkView.tsx` | 删第 124-127 行 `getFaviconUrl` + `updateBookmark` 调用；URL Input（line 180）旁插入 `<BookmarkFaviconPreview>` |
 | `src/store/useBookmarks.ts` | **删 `loadBookmarks` 自愈循环**（第 35-42 行）；`createBookmark` 删第 55-60 行 favicon 补充 |
-| `src/entrypoints/popup/views/SaveBookmarkView.tsx` | 删第 124-127 行 `getFaviconUrl` + `updateBookmark` 调用 |
 | `src/services/BookmarkService.ts` | `getFaviconUrl` 标 `@deprecated`，不删（外科手术原则；外部可能引用） |
 | `wxt.config.ts` | manifest permissions 加 `"favicon"` |
 
@@ -141,6 +163,7 @@ interface FaviconRecord {
 - IndexedDB 不可用（Quota / 异常）→ `useFavicon` 直接走分支 2/3
 - `_favicon` 权限缺失 / 非 Chromium → 跳过源 1，从源 2 开始
 - 非 http(s) URL（chrome://、file://）→ 直接返回 null（首字母回退）
+- 手动刷新失败 → Toast 提示，预览保持原样不闪空（不写入空记录覆盖现有缓存）
 
 ## 6. 兼容性
 
@@ -169,6 +192,7 @@ interface FaviconRecord {
 
 - `useFavicon` hook：命中（blob 态）/未命中（remote 态 + 后台抓取切态）/卸载 revoke/`url` 变化重置
 - `BookmarkCard`：blob 态渲染 `<img src="blob:...">`；首字母回退态；三态 a11y 不回归
+- `BookmarkFaviconPreview`：预览跟随 URL / 刷新按钮触发 `refreshFavicon` / loading 态 / 失败 Toast / URL 非法时按钮 disabled
 - DB schema：v2→v3 升级后 `favicons` store 存在，旧 store 不丢
 - 性能验证：100 条书签 `loadBookmarks` 后 `putRecord` mock 调用次数 = 0
 
@@ -195,6 +219,7 @@ interface FaviconRecord {
 - T2.1 `useFavicon` hook（TDD）
 - T2.2 `BookmarkCard` 接入（删 faviconUrl 直读，用 hook）
 - T2.3 删 `loadBookmarks` 自愈循环 + `createBookmark` favicon 补充 + `SaveBookmarkView` favicon 调用（可与 T2.1/T2.2 部分并行）
+- T2.4 `BookmarkFaviconPreview` 组件（TDD）+ 接入 `BookmarkOpsPanel` 与 `SaveBookmarkView`（依赖 T2.1 hook + W1 的 `refreshFavicon`）
 
 ### Wave 3 — 清理与验证
 
@@ -214,8 +239,7 @@ interface FaviconRecord {
 
 ## 10. 非目标（YAGNI）
 
-- 不做 TTL 自动刷新（D2）
-- 不做手动"刷新 favicon"按钮（YAGNI，必要时再加）
+- 不做 TTL 自动刷新（D2，手动刷新按钮已覆盖"站点换 favicon"场景）
 - 不做 favicon 抓取优先级队列/限流（书签量级未到）
 - 不把 favicon blob 纳入备份/云同步（D1）
 - 不迁移/清理旧 `faviconUrl` 字段值
