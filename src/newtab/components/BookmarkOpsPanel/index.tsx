@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
-import { Form, Banner } from '@douyinfe/semi-ui';
+import { Form, Banner, useFieldState } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
+import { BookmarkFaviconPreview } from '@/newtab/components/BookmarkFaviconPreview';
 import styles from './index.module.css';
 
 /** 面板提交值 */
@@ -155,6 +156,10 @@ export const BookmarkOpsPanel = React.forwardRef<
 
       {/* 书签信息（在下）：URL/名称/描述 */}
       <Form.Section text="书签信息">
+        {/* favicon 预览 + 刷新（订阅 url 字段当前值，跟随用户编辑） */}
+        <Form.Slot label="图标">
+          <BookmarkFaviconPreviewControl />
+        </Form.Slot>
         <Form.Input
           field="url"
           label="URL"
@@ -167,3 +172,14 @@ export const BookmarkOpsPanel = React.forwardRef<
     </Form>
   );
 });
+
+/**
+ * 订阅 Semi Form 的 url 字段当前值，喂给 BookmarkFaviconPreview。
+ *
+ * Semi FormApi 无 subscribe API；改用 Semi 官方 useFieldState hook，
+ * 在 Form context 内渲染时自动跟随字段值变化重渲染。
+ */
+function BookmarkFaviconPreviewControl() {
+  const { value } = useFieldState('url');
+  return <BookmarkFaviconPreview url={(value as string) ?? ''} />;
+}

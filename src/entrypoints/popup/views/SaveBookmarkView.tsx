@@ -10,6 +10,7 @@ import {
 import { isUrlValid, findDuplicateUrl } from '../utils';
 import styles from '../popup.module.css';
 import SubPageHeader from './SubPageHeader';
+import { BookmarkFaviconPreview } from '@/newtab/components/BookmarkFaviconPreview';
 import {
   LAST_WS_KEY,
   LAST_CAT_BY_WS_KEY,
@@ -177,6 +178,11 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
             onChange={(v) => setUrl(v)}
             aria-label="URL"
           />
+          {isUrlValid(url) && (
+            <div className={styles.faviconRow}>
+              <BookmarkFaviconPreview url={url} />
+            </div>
+          )}
           <Input
             placeholder="名称（留空使用域名）"
             value={name}
