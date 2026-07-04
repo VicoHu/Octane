@@ -95,7 +95,19 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
+
+/** Favicon 缓存记录（per-hostname 去重） */
+export interface FaviconRecord {
+  /** 主键：hostname（new URL().hostname），同站多书签共享一份 */
+  hostname: string;
+  /** 原始图片字节 */
+  blob: Blob;
+  /** image/png 等，用于诊断 */
+  mimeType: string;
+  /** 抓取时间戳；永久缓存（D2），仅手动刷新或 URL 变更时失效 */
+  fetchedAt: number;
+}
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
