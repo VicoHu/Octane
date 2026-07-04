@@ -263,8 +263,7 @@ describe('favicons store（DB v3）', () => {
     const db = await getDB();
     expect(db.objectStoreNames.contains('favicons')).toBe(true);
     // 主键路径 = hostname（per-hostname 缓存去重）
-    // @ts-expect-error 访问内部 schema
-    expect(db.transaction('favicons').store.keyPath).toBe('hostname');
+    expect((db.transaction('favicons') as any).store.keyPath).toBe('hostname');
   });
 
   it('per-hostname 去重：同 hostname 第二次 put 覆盖而非新增', async () => {
