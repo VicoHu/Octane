@@ -65,31 +65,46 @@ describe('fetchAndStoreFavicon — 三源回退链', () => {
     expect(await getCachedBlob('github.com')).not.toBeNull();
   });
 
-  it('源 1 失败 → 源 2（DuckDuckGo）命中', async () => {
+  it('源 1（icon.horse）失败 → 源 2（_favicon 同源）命中', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 404 }))  // icon.horse 404
-      .mockResolvedValueOnce(imgResponse('ddg-bytes', 'image/x-icon')); // duckduckgo
+      .mockResolvedValueOnce(imgResponse('fav-bytes'));             // _favicon 同源兜底
     vi.stubGlobal('fetch', fetchMock);
     const blob = await fetchAndStoreFavicon('https://example.com');
     expect(blob).not.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const secondCallUrl = String(fetchMock.mock.calls[1]![0]);
-    expect(secondCallUrl).toContain('icons.duckduckgo.com/ip3/example.com.ico');
+    expect(secondCallUrl).toContain('_favicon/?pageUrl=');
   });
 
-  it('源 1+2 失败 → 源 3（源站 favicon.ico）命中', async () => {
+  it('源 1（icon.horse）返回 SVG → 跳过（扩展 img 渲染 SVG 不可靠）→ 源 2 命中', async () => {
+    const svgBlob = new Blob(['<svg/>'], { type: 'image/svg+xml' });
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 500 }))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(imgResponse('origin-bytes'));
+      .mockResolvedValueOnce(new Response(svgBlob, { status: 200, headers: { 'content-type': 'image/svg+xml' } }))
+      .mockResolvedValueOnce(imgResponse('png-bytes', 'image/png'));
+    vi.stubGlobal('fetch', fetchMock);
+    const blob = await fetchAndStoreFavicon('https://example.com');
+    expect(blob).not.toBeNull();
+    // 拿到的是第二源 PNG，不是被跳过的 SVG
+    expect(await blob!.text()).toBe('png-bytes');
+    expect(blob!.type).toBe('image/png');
+  });
+
+  it('源 1+2+3 失败 → 源 4（源站 favicon.ico）命中', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))  // icon.horse
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))  // _favicon
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))  // duckduckgo
+      .mockResolvedValueOnce(imgResponse('origin-bytes'));          // 源站
     vi.stubGlobal('fetch', fetchMock);
     const blob = await fetchAndStoreFavicon('http://localhost:3000');
     expect(blob).not.toBeNull();
-    const thirdCallUrl = String(fetchMock.mock.calls[2]![0]);
-    expect(thirdCallUrl).toBe('http://localhost:3000/favicon.ico');
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const fourthCallUrl = String(fetchMock.mock.calls[3]![0]);
+    expect(fourthCallUrl).toBe('http://localhost:3000/favicon.ico');
   });
 
-  it('三源全失败 → 返回 null 且不写空记录', async () => {
+  it('四源全失败 → 返回 null 且不写空记录', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
     const blob = await fetchAndStoreFavicon('https://noicon.example');
     expect(blob).toBeNull();
@@ -181,13 +196,15 @@ describe('缓存读写与失效', () => {
 });
 
 describe('buildSourceList', () => {
-  it('返回三源：icon.horse（高清）/ DuckDuckGo / 源站 favicon.ico', () => {
+  it('返回四源：icon.horse / _favicon / DuckDuckGo / 源站 favicon.ico', () => {
     const list = buildSourceList('https://github.com/a/b');
-    expect(list).toHaveLength(3);
-    // icon.horse 优先（返回站点最大 icon，retina 屏清晰）；_favicon 仅作渲染占位，不参与抓取
+    expect(list).toHaveLength(4);
+    // icon.horse 优先（站点最大 icon，高清；PNG/ICO 站生效，SVG 站会被 fetchAndStore 跳过）
     expect(list[0]).toBe('https://icon.horse/icon/github.com');
-    expect(list[1]).toBe('https://icons.duckduckgo.com/ip3/github.com.ico');
-    expect(list[2]).toBe('https://github.com/favicon.ico');
+    // _favicon 同源兜底（浏览器缓存的 PNG/ICO），覆盖 icon.horse 返回 SVG / 未收录的站
+    expect(list[1]).toContain('_favicon/?pageUrl=');
+    expect(list[2]).toBe('https://icons.duckduckgo.com/ip3/github.com.ico');
+    expect(list[3]).toBe('https://github.com/favicon.ico');
   });
 });
 

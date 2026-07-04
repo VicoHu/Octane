@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 
 - **打开 newtab 的卡顿**：移除加载书签列表时对每条书签串行回写 favicon 的「自愈」循环（N 条书签会触发 N 次写库），100 条书签的 newtab 打开不再有额外写盘开销。
 - **部分书签图标卡在首字母**：后台抓取成功的 favicon 曾被早先加载失败的 error 态遮盖（先显示占位 → 加载失败置 error → 后台抓取成功切 blob，但 error 未重置，blob 被遮盖成首字母）。现 `useFavicon` src 变化时重置 error 态，后台抓到即正确显示，无需手动刷新。
+- **个别站点（如 platform.deepseek.com）favicon 抓不到**：icon.horse 对这类站返回 SVG，而扩展 `<img>` 渲染 SVG blob 不可靠会失败。修复：抓取链跳过 SVG blob 试下一源，并恢复 `_favicon` 同源兜底（浏览器缓存的 PNG/ICO）——用户访问过的站点能从浏览器缓存拿到图标。
 
 ### 内部
 

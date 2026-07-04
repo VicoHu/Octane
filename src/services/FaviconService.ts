@@ -34,15 +34,17 @@ export function buildFaviconRenderUrl(url: string): string {
 
 /**
  * 构造抓取回退源链（每源 5s 超时，串行，首有效即停）：
- * 1. icon.horse（返回站点最大 icon，retina 屏高清；第三方服务，国内一般可达）
- * 2. icons.duckduckgo.com（icon.horse 失败时的第三方兜底）
- * 3. <origin>/favicon.ico（源站，覆盖 localhost/内网）
- * 完全避开 google.com。_favicon 仅用于渲染占位（buildFaviconRenderUrl），不参与抓取。
+ * 1. icon.horse（返回站点最大 icon，retina 屏高清；PNG/ICO 站生效，SVG 站会被跳过）
+ * 2. _favicon（浏览器缓存的 PNG/ICO，同源最可靠，覆盖 icon.horse 返 SVG / 未收录的站）
+ * 3. icons.duckduckgo.com（第三方兜底）
+ * 4. <origin>/favicon.ico（源站，覆盖 localhost/内网）
+ * 完全避开 google.com。SVG 在扩展 img 渲染不可靠，fetchAndStoreFavicon 会跳过。
  */
 export function buildSourceList(url: string): string[] {
   const u = new URL(url);
   return [
     `https://icon.horse/icon/${u.hostname}`,
+    buildFaviconRenderUrl(url),
     `https://icons.duckduckgo.com/ip3/${u.hostname}.ico`,
     `${u.origin}/favicon.ico`,
   ];
@@ -81,6 +83,9 @@ export async function fetchAndStoreFavicon(url: string): Promise<Blob | null> {
       const res = await fetchWithTimeout(src, FETCH_TIMEOUT_MS);
       const blob = await res.blob();
       if (blob.size === 0) continue; // 空响应视为失败，试下一源
+      // SVG 在扩展 page 的 <img> via blob 渲染不可靠（扩展对 blob SVG 的安全限制），
+      // 跳过试下一源（如 deepseek 的 icon.horse 返 SVG → fallback _favicon 的 PNG/ICO）
+      if (blob.type.includes('svg')) continue;
       const record: FaviconRecord = {
         hostname,
         blob,
