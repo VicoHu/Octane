@@ -63,6 +63,8 @@
   --sidebar-active-bg: var(--semi-color-fill-2);
   --sidebar-hover-bg: var(--semi-color-fill-1);
   --sidebar-border: var(--semi-color-border);
+  /* 抬升面：常驻 chip 等需要从 sidebar-bg 微微凸出的卡片底（Semi Modal/Popover 同款 elevated token） */
+  --sidebar-surface: var(--semi-color-elevated);
 }
 
 *, *::before, *::after {

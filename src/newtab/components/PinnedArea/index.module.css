@@ -1,0 +1,191 @@
+.area {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* 「常驻」小节标题：与 Sidebar 既有 sectionLabel 同节奏 */
+.sectionLabel {
+  font-size: var(--font-xs);
+  font-weight: 500;
+  color: var(--sidebar-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-sm) var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.emptyHint {
+  font-size: var(--font-xs);
+  color: var(--sidebar-text-muted);
+  padding: 0 var(--space-xs);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 0 var(--space-xs);
+}
+
+/* chip 外包：相对定位，承载删除按钮的绝对定位 */
+.chipWrap {
+  position: relative;
+  width: 52px;
+  height: 52px;
+}
+
+/* chip 本体：方向 A 方形，图标上/名称下，中性炭灰抬升面（不用绿，守 §2.3 绿色预算） */
+.chip {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
+  cursor: pointer;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chip:hover {
+  /* 极轻中性提亮，不用绿 */
+  background: var(--sidebar-hover-bg);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-focus);
+}
+
+.chip:active {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.favicon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.faviconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* favicon 无源时首字母回退（§7 唯一非扁平例外：渐变 + 白字） */
+.fallback {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), #1ad6a8);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.chipName {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--sidebar-text-muted);
+  max-width: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* × 删除按钮：默认隐藏，hover chip 时右上浮现；触屏 @media(hover:none) 常驻 */
+.deleteBtn {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 1;
+}
+
+.chipWrap:hover .deleteBtn,
+.deleteBtn:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .deleteBtn {
+    opacity: 1;
+  }
+}
+
+/* 「+ 添加常驻」按钮：与 chip 同尺寸，虚线边框，hover 转绿（该区唯一 action，瞬时非状态，允许绿） */
+.addBtn {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--sidebar-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--sidebar-text-muted);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.addBtn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.addBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-focus);
+}
+
+.addBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.previewRow {
+  margin-top: var(--space-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip,
+  .deleteBtn,
+  .addBtn {
+    transition: none;
+  }
+}

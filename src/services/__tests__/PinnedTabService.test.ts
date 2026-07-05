@@ -18,6 +18,27 @@ afterEach(async () => {
 
 describe('PinnedTabService', () => {
   describe('createPinnedTab', () => {
+    it('拒绝非 http/https scheme（防御 javascript:/data: 等危险 URL 落库）', async () => {
+      await expect(
+        PinnedTabService.createPinnedTab('ws-1', { name: 'X', url: 'javascript:alert(1)' }),
+      ).rejects.toThrow('http/https');
+      await expect(
+        PinnedTabService.createPinnedTab('ws-1', { name: 'X', url: 'data:text/html,<script>' }),
+      ).rejects.toThrow('http/https');
+      await expect(
+        PinnedTabService.createPinnedTab('ws-1', { name: 'X', url: 'ftp://example.com' }),
+      ).rejects.toThrow('http/https');
+    });
+
+    it('拒绝无法解析的 URL', async () => {
+      await expect(
+        PinnedTabService.createPinnedTab('ws-1', { name: 'X', url: '不是有效链接' }),
+      ).rejects.toThrow('无效');
+      // 确保危险/无效 URL 都没落库
+      const db = await getDB();
+      expect(await db.count('pinnedTabs')).toBe(0);
+    });
+
     it('写入并返回完整 PinnedTab（含 id/workspaceId/order/createdAt）', async () => {
       const pin = await PinnedTabService.createPinnedTab('ws-1', {
         name: 'GitHub',

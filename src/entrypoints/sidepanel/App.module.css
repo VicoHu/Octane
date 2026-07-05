@@ -2,6 +2,12 @@
   min-height: 100vh;
   background: var(--semi-color-bg-0, #fff);
 }
+.pinBar {
+  /* 根级 Pin 按钮：与 StickyHeader 同节奏，置于 app 最顶（Codex #4 P1） */
+  padding: 8px 12px;
+  display: flex;
+  justify-content: flex-end;
+}
 .list {
   padding-bottom: 16px;
 }

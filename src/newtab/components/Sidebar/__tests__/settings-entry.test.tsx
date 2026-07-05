@@ -1,18 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-// Semi 加载动画依赖 lottie-web；jsdom 无 canvas，mock 掉
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
+// lottie-web 由 vitest.config.ts 全局 alias 处理（见 docs/standards/testing.md §4.4.1），无需 vi.mock
 // Sidebar 不再直接读 useCrypto（主密码移入 SettingsModal/PasswordSection），
 // 但 SettingsModal 渲染会拉 PasswordSection → 需可控 useCrypto + mock ChangePasswordModal。
 const { cryptoState } = vi.hoisted(() => ({
@@ -44,6 +31,8 @@ vi.mock('@/services/cloud/providers', () => {
 vi.mock('@/services/CloudStorageService', () => ({
   getLastBackupAt: () => Promise.resolve(null),
 }));
+// PinnedArea 子组件有专属测试；这里 mock 掉避免触发 IndexedDB（本测试无 fake-indexeddb）
+vi.mock('@/newtab/components/PinnedArea', () => ({ PinnedArea: () => null }));
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '@/newtab/components/Sidebar';

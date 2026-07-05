@@ -6,6 +6,7 @@ import type { Category } from '@/shared/types';
 import { IconPicker } from '@/shared/components/IconPicker';
 import { ManagePanel } from '@/newtab/components/ManagePanel';
 import { SettingsModal } from '@/newtab/components/SettingsModal';
+import { PinnedArea } from '@/newtab/components/PinnedArea';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -98,6 +99,9 @@ export const Sidebar: React.FC = () => {
       <Button block size="small" theme="borderless" onClick={() => setShowManage(true)}>
         管理
       </Button>
+
+      {/* 常驻标签区：per-workspace 跨分类，挂在工作区切换下方、分类列表上方 */}
+      {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} />}
 
       <Modal
         title="新建工作区"

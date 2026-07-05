@@ -1,18 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-// Semi 加载动画依赖 lottie-web；jsdom 无 canvas，mock 掉
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
+// lottie-web 由 vitest.config.ts 全局 alias 处理（见 docs/standards/testing.md §4.4.1），无需 vi.mock
 vi.mock('@/store/useCrypto', () => ({
   useCrypto: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ passwordSet: false, unlocked: false, openUnlockModal: vi.fn(), lockSession: vi.fn() }),
@@ -28,6 +15,8 @@ vi.mock('@/services/cloud/providers', () => {
   };
 });
 vi.mock('@/services/CloudStorageService', () => ({ getLastBackupAt: () => Promise.resolve(null) }));
+// PinnedArea 子组件有专属测试；这里 mock 掉避免触发 IndexedDB（本测试无 fake-indexeddb）
+vi.mock('@/newtab/components/PinnedArea', () => ({ PinnedArea: () => null }));
 
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '@/newtab/components/Sidebar';

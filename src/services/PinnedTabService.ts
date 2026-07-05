@@ -33,7 +33,25 @@ export async function listByWorkspace(workspaceId: string): Promise<PinnedTab[]>
 }
 
 /**
+ * URL scheme 校验（防御边界）：仅接受 http/https。
+ * service 是单一 chokepoint——所有 caller（Modal / sidepanel / 未来同步）入库前都过这里，
+ * 阻止 javascript:/data: 等危险 scheme 落库后被 window.open / useFavicon 消费。
+ */
+function assertValidUrl(raw: string): void {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error('URL 格式无效，请输入完整链接');
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+    throw new Error('仅支持 http/https 链接');
+  }
+}
+
+/**
  * 创建常驻标签（单 readwrite 事务，原子保证 dedup/cap 校验）。
+ * - URL 校验：仅 http/https（assertValidUrl）
  * - dedup：同工作区同 URL（规范化后比较）已存在则抛错
  * - cap：已达 PINNED_TAB_CAP(8) 抛错
  * - order = 现有最大 order + 1（删除留洞不影响，避免碰撞）
@@ -45,6 +63,7 @@ export async function createPinnedTab(
   workspaceId: string,
   data: { name: string; url: string },
 ): Promise<PinnedTab> {
+  assertValidUrl(data.url);
   const db = await getDB();
   const tx = db.transaction('pinnedTabs', 'readwrite');
   const store = tx.objectStore('pinnedTabs');

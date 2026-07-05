@@ -2,6 +2,13 @@ import { create } from 'zustand';
 import type { PinnedTab } from '@/shared/types';
 import * as PinnedTabService from '@/services/PinnedTabService';
 
+/**
+ * loadPinnedTabs 请求序列号：快速切工作区（A→B）时，A 的旧响应可能晚于 B 返回，
+ * 若不guard 会用 A 的常驻标签覆盖 B 的切片（用户以为在看 B，实际点到 A 的链接）。
+ * 仅最新请求的结果才落切片。
+ */
+let loadSeq = 0;
+
 interface PinnedTabsState {
   pinnedTabs: PinnedTab[];
   loading: boolean;
@@ -22,13 +29,15 @@ export const usePinnedTabs = create<PinnedTabsState>((set) => ({
   loading: false,
 
   loadPinnedTabs: async (workspaceId) => {
+    const mySeq = ++loadSeq;
     set({ loading: true });
     try {
       const pinnedTabs = await PinnedTabService.listByWorkspace(workspaceId);
+      // 丢弃过期响应：切工作区后旧请求晚返回时不覆盖最新切片
+      if (mySeq !== loadSeq) return;
       set({ pinnedTabs });
     } finally {
-      // 失败也必须复位 loading，否则 UI 永久 spinner
-      set({ loading: false });
+      if (mySeq === loadSeq) set({ loading: false });
     }
   },
 
