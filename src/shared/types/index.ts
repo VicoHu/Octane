@@ -129,8 +129,10 @@ export interface PinnedTab {
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
-/** 备份格式版本（schema 变更时递增；校验仅接受已知版本） */
-export const BACKUP_VERSION = 1;
+/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs） */
+export const BACKUP_VERSION = 2;
+/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs，校验时补 []） */
+export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2];
 
 /** 备份数据载荷：6 表存储态（contexts 含密文，不解密） */
 export interface BackupData {

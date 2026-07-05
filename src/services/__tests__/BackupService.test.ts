@@ -14,12 +14,12 @@ function makeFile(dataOver: Partial<BackupData> = {}, fileOver: Partial<BackupFi
     version: BACKUP_VERSION,
     exportedAt: 1000,
     appVersion: '0.1.3.4',
-    data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null, ...dataOver },
+    data: { workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null, ...dataOver },
     ...fileOver,
   };
 }
 
-const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null };
+const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null };
 
 describe('validateBackup', () => {
   it('合法空备份 → ok', () => {
@@ -36,8 +36,70 @@ describe('validateBackup', () => {
     expect(validateBackup(makeFile({}, { schema: 'other' as never })).ok).toBe(false);
   });
 
-  it('version=2（未知）→ 拒绝', () => {
-    expect(validateBackup(makeFile({}, { version: 2 })).ok).toBe(false);
+  it('version=3（未知）→ 拒绝', () => {
+    expect(validateBackup(makeFile({}, { version: 3 })).ok).toBe(false);
+  });
+
+  it('v1 备份（无 pinnedTabs 字段）→ ok 且 pinnedTabs 保持 undefined（让 replaceAllDataRaw 保留现有数据）', () => {
+    // 模拟真实 v1 备份：version=1，data 不含 pinnedTabs
+    const v1File = {
+      schema: BACKUP_SCHEMA,
+      version: 1,
+      exportedAt: 1,
+      appVersion: '0.1.10.1',
+      data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
+    };
+    const r = validateBackup(v1File);
+    expect(r.ok).toBe(true);
+    // 关键契约：v1 缺字段时保持 undefined，不 backfill []——
+    // 否则 replaceAllDataRaw 的 if(data.pinnedTabs) 会因 [] truthy 而清空现有 pinnedTabs
+    if (r.ok) expect(r.data.pinnedTabs).toBeUndefined();
+  });
+
+  it('v2 备份缺 pinnedTabs 字段 → 拒绝（v2 必须含此字段，缺失判 corrupt）', () => {
+    const v2File = {
+      schema: BACKUP_SCHEMA,
+      version: 2,
+      exportedAt: 1,
+      appVersion: '0.1.11.0',
+      data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
+    };
+    expect(validateBackup(v2File).ok).toBe(false);
+  });
+
+  it('version 非数字 → 拒绝', () => {
+    expect(validateBackup(makeFile({}, { version: '2' as never })).ok).toBe(false);
+    expect(validateBackup(makeFile({}, { version: null as never })).ok).toBe(false);
+  });
+
+  it('v2 备份（含 pinnedTabs）→ ok 且透传', () => {
+    const pin = { id: 'p1', workspaceId: 'w', name: 'G', url: 'https://g.com', order: 0, createdAt: 1 };
+    const r = validateBackup(makeFile({ pinnedTabs: [pin] as never }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.pinnedTabs).toEqual([pin]);
+  });
+
+  it('pinnedTabs: null → 拒绝（非 undefined 也非数组）', () => {
+    expect(validateBackup(makeFile({ pinnedTabs: null as never })).ok).toBe(false);
+  });
+
+  it('pinnedTabs 非数组 → 拒绝', () => {
+    expect(validateBackup(makeFile({ pinnedTabs: 'x' as never })).ok).toBe(false);
+  });
+
+  it('pinnedTab 缺 id → 拒绝', () => {
+    const bad = makeFile({ pinnedTabs: [{ workspaceId: 'w', url: 'u', name: 'n' } as never] });
+    expect(validateBackup(bad).ok).toBe(false);
+  });
+
+  it('pinnedTab 缺 workspaceId → 拒绝', () => {
+    const bad = makeFile({ pinnedTabs: [{ id: 'p', url: 'u', name: 'n' } as never] });
+    expect(validateBackup(bad).ok).toBe(false);
+  });
+
+  it('pinnedTab 缺 url → 拒绝', () => {
+    const bad = makeFile({ pinnedTabs: [{ id: 'p1', workspaceId: 'w', name: 'G' } as never] });
+    expect(validateBackup(bad).ok).toBe(false);
   });
 
   it('data 缺失 → 拒绝', () => {
