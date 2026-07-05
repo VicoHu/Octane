@@ -5,15 +5,17 @@ import styles from './StickyHeader.module.css';
 interface StickyHeaderProps {
   hostname: string;
   matchCount: number;
-  /** 添加按钮回调（P2 占位：导航到 newtab） */
+  /** 添加按钮回调（导航到 newtab） */
   onAdd: () => void;
+  /** Pin 当前 Tab 回调（图标按钮，挂在 addBtn 旁） */
+  onPin: () => void;
 }
 
 /**
- * side panel 顶栏：favicon + hostname + 命中统计 + 添加按钮（占位）。
+ * side panel 顶栏：favicon + hostname + 命中统计 + Pin 按钮 + 添加按钮。
  * sticky 固定在顶部，滚动时常驻。
  */
-export function StickyHeader({ hostname, matchCount, onAdd }: StickyHeaderProps) {
+export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeaderProps) {
   // CONCERN: 跨 entrypoint import（sidepanel → newtab/hooks）。wxt/vite 可解析，
   // 但耦合了 entrypoint 边界；后续可考虑提到 shared 层。
   const faviconSrc = useFavicon(`https://${hostname}`);
@@ -32,7 +34,10 @@ export function StickyHeader({ hostname, matchCount, onAdd }: StickyHeaderProps)
         <div className={styles.hostname}>{hostname}</div>
         <div className={styles.count}>{matchCount} 个书签命中</div>
       </div>
-      <button className={styles.addBtn} onClick={onAdd} aria-label="添加书签">
+      <button className={styles.iconBtn} onClick={onPin} aria-label="Pin 当前 Tab" title="Pin 当前 Tab">
+        📌
+      </button>
+      <button className={styles.addBtn} onClick={onAdd} aria-label="添加书签" title="添加书签">
         <IconPlus />
       </button>
     </div>

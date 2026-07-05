@@ -1,8 +1,9 @@
 import {
   BACKUP_SCHEMA,
   BACKUP_VERSION,
+  ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
-import type { BackupData, Bookmark, Category, Context, CryptoMetadata, Workspace } from '@/shared/types';
+import type { BackupData, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
 import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
@@ -12,6 +13,8 @@ export type ValidationResult =
   | { ok: false; error: string };
 
 const DATA_TABLES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
+// pinnedTabs 故意不在 DATA_TABLES：它是 BackupData 的 optional 字段（v1 旧备份无此字段），
+// 校验与 replaceAllDataRaw 都按「字段缺失→保留现有数据，存在→覆盖」单独处理（见 database.ts）。
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -28,12 +31,36 @@ function hasString(v: unknown, ...keys: string[]): boolean {
 export function validateBackup(parsed: unknown): ValidationResult {
   if (!isObj(parsed)) return { ok: false, error: '备份文件格式无效' };
   if (parsed.schema !== BACKUP_SCHEMA) return { ok: false, error: '不是 octane 备份文件' };
-  if (parsed.version !== BACKUP_VERSION) return { ok: false, error: '备份版本不受支持，请升级 octane' };
+  if (typeof parsed.version !== 'number' || !ACCEPTED_BACKUP_VERSIONS.includes(parsed.version)) {
+    return { ok: false, error: '备份版本不受支持，请升级 octane' };
+  }
 
   const data = parsed.data;
   if (!isObj(data)) return { ok: false, error: '备份数据缺失' };
   for (const t of DATA_TABLES) {
     if (!Array.isArray(data[t])) return { ok: false, error: `备份数据表 ${t} 缺失或非数组` };
+  }
+
+  // pinnedTabs：v2+ 必须是数组；v1 旧备份无此字段 → 保持 undefined
+  // （不 backfill []——[] 是 truthy，会让 replaceAllDataRaw 的 if(data.pinnedTabs) 误清空现有数据）
+  const rawPinnedTabs = data.pinnedTabs;
+  let pinnedTabs: PinnedTab[] | undefined;
+  if (rawPinnedTabs === undefined) {
+    if (parsed.version !== 1) {
+      return { ok: false, error: '备份缺失 pinnedTabs 字段（v2+ 必填）' };
+    }
+    pinnedTabs = undefined;
+  } else if (Array.isArray(rawPinnedTabs)) {
+    pinnedTabs = rawPinnedTabs as PinnedTab[];
+  } else {
+    return { ok: false, error: '备份数据表 pinnedTabs 非数组' };
+  }
+  if (pinnedTabs) {
+    for (const p of pinnedTabs) {
+      if (!hasString(p, 'id', 'workspaceId', 'url')) {
+        return { ok: false, error: '常驻标签数据缺少必需字段（id/workspaceId/url）' };
+      }
+    }
   }
 
   for (const b of data.bookmarks as unknown[]) {
@@ -59,6 +86,7 @@ export function validateBackup(parsed: unknown): ValidationResult {
     categories: data.categories as Category[],
     bookmarks: data.bookmarks as Bookmark[],
     contexts: data.contexts as Context[],
+    pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,
   };
   return { ok: true, data: backupData };
@@ -112,11 +140,12 @@ export async function applyImport(data: BackupData): Promise<void> {
   }
   // 清 session 旧密钥：salt 已变，旧密钥与新数据不匹配。必执行。
   await lock();
-  // 广播：side panel（store 级，按 spec 对 4 表显式触发）+ newtab（全量 import 事件）
+  // 广播：side panel（store 级，按 spec 对 5 表显式触发）+ newtab（全量 import 事件）
   broadcastChange('workspaces', 'put');
   broadcastChange('categories', 'put');
   broadcastChange('bookmarks', 'put');
   broadcastChange('contexts', 'put');
+  broadcastChange('pinnedTabs', 'put');
   broadcastImport();
 }
 

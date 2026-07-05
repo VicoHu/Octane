@@ -5,7 +5,9 @@ import { useCrypto } from '@/store/useCrypto';
 import { Sidebar } from '@/newtab/components/Sidebar';
 import { Content } from '@/newtab/components/Content';
 import { UnlockModal } from '@/newtab/components/UnlockModal';
-import { IMPORT_CHANNEL_NAME } from '@/shared/db/database';
+import { usePinnedTabs } from '@/store/usePinnedTabs';
+import { DB_NAME } from '@/shared/types';
+import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';
 import '@/styles/global.css';
 import '@/newtab/App.css';
 import '@/styles/semi-theme-override.css';
@@ -45,6 +47,32 @@ const App: React.FC = () => {
       channel?.close();
     };
   }, [checkStatus, loadWorkspaces, loadBookmarks]);
+
+  // 订阅跨 context 数据变更：sidepanel 等写入（putRecord/deleteRecord）后广播
+  // {store, action}，按 store 分发刷新对应切片。getState() 在 callback 内取最新值，
+  // 避免闭包陈旧（与上面 IMPORT_CHANNEL 订阅同一手法）。
+  useEffect(() => {
+    const channel =
+      typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
+    const onMessage = async (e: MessageEvent<DbChangeEvent>) => {
+      const { store } = e.data ?? {};
+      if (store === 'pinnedTabs') {
+        const wsId = useWorkspace.getState().currentWorkspaceId;
+        if (wsId) await usePinnedTabs.getState().loadPinnedTabs(wsId);
+      } else if (store === 'bookmarks') {
+        const cat = useWorkspace.getState().currentCategoryId;
+        if (cat) await loadBookmarks(cat);
+      } else if (store === 'workspaces' || store === 'categories') {
+        // workspaces 表变更刷新工作区列表；categories 也走 loadWorkspaces——它会
+        // 连带重载当前 ws 的 categories 并恢复 currentCategoryId（Sidebar 依赖此）。
+        await loadWorkspaces();
+      }
+    };
+    channel?.addEventListener('message', onMessage);
+    return () => {
+      channel?.close();
+    };
+  }, [loadWorkspaces, loadBookmarks]);
 
   return (
     <>

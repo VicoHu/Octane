@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.11.0] - 2026-07-06
+
+### Added
+
+- **Per-Workspace 常驻标签（Pinned Tabs）**：每个工作区有了自己的「常驻标签区」，挂在 sidebar 分类列表上方。放跨分类、高频触达的工具入口（ChatGPT、Gemini、公司文档等），切换分类时常驻区不动，切换工作区联动显示。上限 8 个（2 行 × 4 列），满了禁用 + Toast。
+- **两个创建入口**：① 常驻区「+」按钮弹 Modal 填 URL+名称（favicon 自动抓取预览）；② Side Panel 顶栏 Pin 图标按钮——有匹配书签时在 StickyHeader 添加按钮旁，无匹配时在「在 Octane 管理」旁，一键常驻当前 tab。
+- **Pin 当前 Tab 的智能工作区选择**：Side Panel 点 Pin 时按当前 hostname 命中的工作区分支处理——命中 1 个直接 pin、命中多个弹选择器、未命中弹全工作区选择器。
+
+### Changed
+
+- **DB schema v3→v4**：新增独立 `pinnedTabs` store（per-workspace，与书签完全解耦，无 faviconUrl/sourceBookmarkId 字段）。migration 抽离为纯函数 `runUpgrade(db, oldVersion, newVersion)` 便于单测，v3→v4 升级零数据丢失（既有 6 表数据完整保留），v1→v4 跨版本路径同样覆盖。
+- **备份格式 v1→v2（向后兼容）**：`BACKUP_VERSION` 升 2，新增 `ACCEPTED_BACKUP_VERSIONS=[1,2]`。v1 旧备份可读（缺 pinnedTabs 字段时保留现有常驻标签，不清空）；v2 新备份含 pinnedTabs，旧版读 v2 会被拒并提示升级。
+- **删除工作区级联清常驻标签**：`cascadeDeleteWorkspace` 现包含 pinnedTabs 删除 + 跨 context 广播，删工作区不留孤儿常驻标签。
+- **sidebar 分类列表重样式**：选中分类从 20% 绿底 tint 改为 3px 绿左竖条 + 极轻中性底，hover 统一中性微亮（守绿色预算——sidebar 唯一绿焦点是选中竖条）。
+
+### Security
+
+- **常驻标签 URL scheme 校验**：service 层入库前强制 `new URL()` + 仅 http/https，阻止 `javascript:`/`data:` 等危险 scheme 落库被 `window.open` / favicon 抓取消费。
+
+### 内部
+
+- 跨 context 实时同步：newtab 订阅 `DB_NAME` BroadcastChannel，sidepanel 创建/删除常驻标签后 newtab 常驻区即时刷新（顺手为 bookmarks/workspaces/categories 补同订阅，还架构债）。
+- `loadPinnedTabs` 加请求序列号 guard，快速切工作区时旧响应不覆盖最新切片。
+- 3 波 review（588 测试绿）：data-migration / testing / maintainability / security / design / 对抗 6 类 specialist 全过。
+- 设计文档（权威）：`~/.gstack/projects/octane/vicohu-chore-0.1.10.1-design-20260705-223311.md`。
+
 ## [0.1.10.1] - 2026-07-04
 
 ### Added
