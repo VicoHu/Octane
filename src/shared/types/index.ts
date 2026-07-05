@@ -95,7 +95,7 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 /** Favicon 缓存记录（per-hostname 去重） */
 export interface FaviconRecord {
@@ -109,17 +109,40 @@ export interface FaviconRecord {
   fetchedAt: number;
 }
 
+/**
+ * 常驻标签（Per-Workspace Pinned Tab）
+ *
+ * 独立实体（非 Bookmark 字段）：与书签完全解耦，无 faviconUrl（走 useFavicon 懒加载）、
+ * 无 sourceBookmarkId。per-workspace 跨分类（切分类不动，切工作区联动）。
+ * order 字段 v1 按数组顺序展示，v1.5 启用拖拽重排。
+ */
+export interface PinnedTab {
+  id: string;
+  /** 索引，关联工作区 */
+  workspaceId: string;
+  name: string;
+  url: string;
+  /** 排序字段，v1 按数组顺序展示；v1.5 启用拖拽重排 */
+  order: number;
+  createdAt: number;
+}
+
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
 /** 备份格式版本（schema 变更时递增；校验仅接受已知版本） */
 export const BACKUP_VERSION = 1;
 
-/** 备份数据载荷：5 表存储态（contexts 含密文，不解密） */
+/** 备份数据载荷：6 表存储态（contexts 含密文，不解密） */
 export interface BackupData {
   workspaces: Workspace[];
   categories: Category[];
   bookmarks: Bookmark[];
   contexts: Context[];
+  /**
+   * 常驻标签（v4 起）。v1 旧备份无此字段 → 解析时补 []（T3 BackupService 处理）；
+   * 此处保持 optional 以便 T1 数据层先行、向后解析不报错。
+   */
+  pinnedTabs?: PinnedTab[];
   cryptoMetadata: CryptoMetadata | null;
 }
 
