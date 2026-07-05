@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Collapse, Modal, Select, Toast } from '@douyinfe/semi-ui';
+import { Collapse, Modal, Select, Toast } from '@douyinfe/semi-ui';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
 import { useSourceMap } from './hooks/useSourceMap';
@@ -35,26 +35,30 @@ function openNewtab() {
  * 成功 → Toast.success；cap/dedup 失败 → Toast.warning（错误 message 含「上限」/「URL」）。
  * 加密 gate 不阻断：Pin 是 URL 入口，不涉及加密上下文。
  */
-function PinCurrentTabBar({ groups }: { groups: WorkspaceGroup[] }) {
+/**
+ * 「Pin 当前 Tab」逻辑：取当前 tab → 校验 http(s) → groups 三分支
+ * （=1 直接 pin / >1 命中 ws 选择器 / =0 listWorkspaces 全量选择器，Issue 2A）。
+ *
+ * 重构（真机反馈）：原根级 solid「Pin 当前 Tab」按钮太突兀；改为图标按钮，由调用方决定
+ * 挂载位置——empty 状态放「在 Octane 管理」旁，matched 状态放 StickyHeader addBtn 旁。
+ * picker Modal 由本 hook 暴露 pickerModal，调用方渲染一次。
+ */
+function usePinCurrentTab(groups: WorkspaceGroup[]) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [candidates, setCandidates] = useState<Workspace[]>([]);
   const [pendingTab, setPendingTab] = useState<{ url: string; name: string } | null>(null);
   const [selectedWs, setSelectedWs] = useState<string>('');
 
-  const doPin = useCallback(
-    async (wsId: string, wsName: string, data: { name: string; url: string }) => {
-      try {
-        await usePinnedTabs.getState().createPinnedTab(wsId, data);
-        Toast.success(`已常驻到 ${wsName}`);
-      } catch (e) {
-        // cap/dedup 错误向上抛，message 含「上限」/「URL」
-        Toast.warning((e as Error).message);
-      }
-    },
-    [],
-  );
+  const doPin = useCallback(async (wsId: string, wsName: string, data: { name: string; url: string }) => {
+    try {
+      await usePinnedTabs.getState().createPinnedTab(wsId, data);
+      Toast.success(`已常驻到 ${wsName}`);
+    } catch (e) {
+      Toast.warning((e as Error).message);
+    }
+  }, []);
 
-  const handlePin = useCallback(async () => {
+  const openPin = useCallback(async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.url) {
       Toast.error('无法获取当前标签');
@@ -86,7 +90,6 @@ function PinCurrentTabBar({ groups }: { groups: WorkspaceGroup[] }) {
     // groups > 1 → 命中工作区选择器；groups === 0 → listWorkspaces 全量选择器（Issue 2A）
     let list: Workspace[];
     if (groups.length > 1) {
-      // 命中工作区：WorkspaceGroup.workspace 仅 {name,icon}，需映射回 Workspace 形态
       list = groups.map((g) => ({
         id: g.workspaceId,
         name: g.workspace?.name ?? '未知工作区',
@@ -115,31 +118,46 @@ function PinCurrentTabBar({ groups }: { groups: WorkspaceGroup[] }) {
     await doPin(selectedWs, ws?.name ?? '工作区', pendingTab);
   }, [pendingTab, selectedWs, candidates, doPin]);
 
-  return (
-    <div className={styles.pinBar}>
-      <Button theme="solid" type="primary" size="small" onClick={handlePin}>
-        📌 Pin 当前 Tab
-      </Button>
-      <Modal
-        title="选择目标工作区"
-        visible={pickerOpen}
-        onOk={confirmPicker}
-        onCancel={() => setPickerOpen(false)}
-        okButtonProps={{ disabled: !selectedWs }}
+  const pickerModal = (
+    <Modal
+      title="选择目标工作区"
+      visible={pickerOpen}
+      onOk={confirmPicker}
+      onCancel={() => setPickerOpen(false)}
+      okButtonProps={{ disabled: !selectedWs }}
+      // side panel 视口窄（Chrome side panel 最小 ~300px），用 calc(100vw - 32px) 自适应，
+      // 避免默认 460px 横向溢出（与 SidePanelUnlockModal 同处理）
+      width="calc(100vw - 32px)"
+    >
+      <Select
+        value={selectedWs}
+        onChange={(v) => setSelectedWs((Array.isArray(v) ? v[0] : v) ?? '')}
+        style={{ width: '100%' }}
       >
-        <Select
-          value={selectedWs}
-          onChange={(v) => setSelectedWs((Array.isArray(v) ? v[0] : v) ?? '')}
-          style={{ width: '100%' }}
-        >
-          {candidates.map((w) => (
-            <Select.Option key={w.id} value={w.id}>
-              {w.icon} {w.name}
-            </Select.Option>
-          ))}
-        </Select>
-      </Modal>
-    </div>
+        {candidates.map((w) => (
+          <Select.Option key={w.id} value={w.id}>
+            {w.icon} {w.name}
+          </Select.Option>
+        ))}
+      </Select>
+    </Modal>
+  );
+
+  return { openPin, pickerModal };
+}
+
+/** Pin 图标按钮（📌）—— empty 状态与 StickyHeader 复用同一形态 */
+function PinIconButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.pinBtn}
+      onClick={onClick}
+      aria-label="Pin 当前 Tab"
+      title="Pin 当前 Tab"
+    >
+      📌
+    </button>
   );
 }
 
@@ -207,6 +225,9 @@ export default function App() {
     [groups, expandedIds],
   );
 
+  // Pin 当前 Tab 逻辑（hook 暴露 openPin + picker Modal）
+  const { openPin, pickerModal } = usePinCurrentTab(groups);
+
   /** 渲染一个工作区内的分类段 + 书签卡（Collapse / 平铺共用） */
   const renderBookmarkList = (ws: WorkspaceGroup) =>
     ws.categories.map((cat) => (
@@ -231,8 +252,8 @@ export default function App() {
     </div>
   );
 
-  // 状态分支收敛为 body：PinCurrentTabBar 在根级只挂一次（Codex #4：空状态也可见，
-  // 且避免每加一个早返回都要手工同步 PinCurrentTabBar）
+  // 状态分支收敛为 body：Pin 按钮只在 empty（管理旁）+ matched（StickyHeader 内）两态显示；
+  // loading/no-hostname/matching 瞬态不挂（用户不可操作）
   const body = tabLoading ? (
     <div className={styles.state}>加载中…</div>
   ) : !hostname ? (
@@ -242,11 +263,14 @@ export default function App() {
   ) : matched.length === 0 ? (
     <div className={styles.empty}>
       <div className={styles.emptyText}>该页面暂无匹配书签</div>
-      <button className={styles.manageBtn} onClick={openNewtab}>在 Octane 管理</button>
+      <div className={styles.emptyActions}>
+        <button className={styles.manageBtn} onClick={openNewtab}>在 Octane 管理</button>
+        <PinIconButton onClick={openPin} />
+      </div>
     </div>
   ) : (
     <>
-      <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} />
+      <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} onPin={openPin} />
       <div className={styles.list} role="list">
         {groups.length >= 2 ? (
           <Collapse
@@ -275,8 +299,8 @@ export default function App() {
   return (
     <UnlockContext.Provider value={unlockApi}>
       <div className={styles.app}>
-        <PinCurrentTabBar groups={groups} />
         {body}
+        {pickerModal}
       </div>
       <SidePanelUnlockModal open={unlockOpen} onClose={() => setUnlockOpen(false)} />
     </UnlockContext.Provider>

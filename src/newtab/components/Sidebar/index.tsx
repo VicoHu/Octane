@@ -132,7 +132,7 @@ export const Sidebar: React.FC = () => {
               return (
                 <List.Item
                   key={cat.id}
-                  className={isActive ? styles.catActive : undefined}
+                  className={`${styles.cat} ${isActive ? styles.catActive : ''}`}
                   onClick={() => useWorkspace.getState().selectCategory(cat.id)}
                   main={
                     <span className={styles.categoryName}>
