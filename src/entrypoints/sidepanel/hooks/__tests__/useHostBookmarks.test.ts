@@ -73,7 +73,7 @@ describe('useHostBookmarks — BroadcastChannel 监听', () => {
     await waitFor(() => expect(result.current.matched).toHaveLength(1));
     expect(getAll).toHaveBeenCalledTimes(1);
 
-    // 模拟 newtab 广播 bookmarks 变化（原生 BroadcastChannel 异步派发）
+    // 模拟 home 广播 bookmarks 变化（原生 BroadcastChannel 异步派发）
     const ch = new BroadcastChannel(DB_NAME);
     ch.postMessage({ store: 'bookmarks', action: 'put' });
     await waitFor(() => expect(getAll).toHaveBeenCalledTimes(2));

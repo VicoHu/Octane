@@ -10,7 +10,7 @@ interface SidePanelUnlockModalProps {
 /**
  * sidepanel 加密上下文解锁弹窗（仅 unlock 模式）。
  *
- * 与 newtab 的 UnlockModal 区别：不复用 useCrypto store，提交直接调
+ * 与 home 的 UnlockModal 区别：不复用 useCrypto store，提交直接调
  * UnlockSession.unlock('sidepanel', pwd)（每次完整 PBKDF2+verifier，防偷看）。
  * 解锁成功后写入共享 octane-derived-key + sidepanel 标记，onChanged 广播触发
  * 所有 useEncryptedContexts 重渲染。TTL 失焦/硬上限锁由 useSidePanelUnlockLifecycle 负责。

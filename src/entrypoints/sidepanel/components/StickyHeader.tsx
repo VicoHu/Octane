@@ -5,7 +5,7 @@ import styles from './StickyHeader.module.css';
 interface StickyHeaderProps {
   hostname: string;
   matchCount: number;
-  /** 添加按钮回调（导航到 newtab） */
+  /** 添加按钮回调（导航到 home tab） */
   onAdd: () => void;
   /** Pin 当前 Tab 回调（图标按钮，挂在 addBtn 旁） */
   onPin: () => void;

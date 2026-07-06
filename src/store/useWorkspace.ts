@@ -30,7 +30,7 @@ interface WorkspaceState {
   selectCategory: (id: string) => void;
 }
 
-// ── chrome.storage.local 容错读写（newtab 首屏关键路径，不能因 storage 异常白屏）──
+// ── chrome.storage.local 容错读写（home 首屏关键路径，不能因 storage 异常白屏）──
 // workspace 全局共享一份；category per-workspace map（分类是工作区作用域）。
 
 /** 读 last-selected；storage 异常时返回空（静默回退到第一个）。 */

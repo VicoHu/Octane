@@ -19,7 +19,7 @@ interface PinnedAreaProps {
 /**
  * 常驻标签区（per-workspace 跨分类）。挂在 Sidebar 工作区切换下方、分类列表上方。
  *
- * - 数据：mount/workspaceId 变更时 loadPinnedTabs；跨 context 实时刷新由 newtab App 订阅 BroadcastChannel（T6）
+ * - 数据：mount/workspaceId 变更时 loadPinnedTabs；跨 context 实时刷新由 home App 订阅 BroadcastChannel（T6）
  * - 空状态（D4=B）：始终渲染「常驻」标题 + 空提示，chip 行末位「+」按钮始终在
  * - chip：方向 A 方形（图标上/名称下），中性炭灰抬升面，不用绿（守 §2.3 绿色预算）
  * - 上限：PINNED_TAB_CAP=8，满则「+」disabled + Toast

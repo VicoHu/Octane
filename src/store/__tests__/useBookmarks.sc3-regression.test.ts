@@ -8,7 +8,7 @@ import { useBookmarks } from '../useBookmarks';
  * SC3 性能回归 guard：loadBookmarks 不自愈写 favicon
  *
  * 背景：loadBookmarks 曾对每条书签串行 await updateBookmark 回填 faviconUrl（N 条 → N 次
- * IndexedDB put + N 次 broadcast），打开含 100 条书签的 newtab 会卡顿。favicon 本地缓存
+ * IndexedDB put + N 次 broadcast），打开含 100 条书签的 home 会卡顿。favicon 本地缓存
  * 系统上线后已删除该自愈循环（favicon 改由 FaviconService.useFavicon 懒加载）。
  *
  * 本测试锁定该性能契约：loadBookmarks 加载任意数量书签时，updateBookmark / putRecord 调用

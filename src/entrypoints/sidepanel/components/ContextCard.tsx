@@ -11,7 +11,7 @@ interface ContextCardProps {
 
 /**
  * 单条上下文卡片：标题 + markdown 预览。纯展示组件。
- * 复用 newtab 同款 renderMarkdown（marked + DOMPurify 净化）。
+ * 复用 home 同款 renderMarkdown（marked + DOMPurify 净化）。
  *
  * 密文未解锁（isEncrypted 且 content 为空占位）→ 渲染可点击锁占位，点击触发 requestUnlock。
  * 解锁后 onChanged 重拉，content 填充明文，正常渲染。
