@@ -19,7 +19,7 @@ function optionLabel(field: ConfigFieldDef, value: string): string {
   return value;
 }
 
-/** 云备份区：S3(阿里/腾讯)/WebDAV(坚果云) 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/newtab 共享。 */
+/** 云备份区：S3(阿里/腾讯)/WebDAV(坚果云) 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/home 共享。 */
 export function CloudBackupSection() {
   // 主密码状态来自全局 store（newtab/popup 入口处 checkStatus 写入）
   const unlocked = useCrypto((s) => s.unlocked);

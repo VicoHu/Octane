@@ -16,8 +16,6 @@ interface StickyHeaderProps {
  * sticky 固定在顶部，滚动时常驻。
  */
 export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeaderProps) {
-  // CONCERN: 跨 entrypoint import（sidepanel → newtab/hooks）。wxt/vite 可解析，
-  // 但耦合了 entrypoint 边界；后续可考虑提到 shared 层。
   const faviconSrc = useFavicon(`https://${hostname}`);
   return (
     <div className={styles.header}>

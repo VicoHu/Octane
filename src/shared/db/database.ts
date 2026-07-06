@@ -48,12 +48,12 @@ export function broadcastChange(store: StoreName, action: 'put' | 'delete'): voi
   broadcast(store, action);
 }
 
-/** 全量导入广播 channel 名（独立于 store 级广播，供 newtab 整体 reload）。 */
+/** 全量导入广播 channel 名（独立于 store 级广播，供 home 整体 reload）。 */
 export const IMPORT_CHANNEL_NAME = 'octane-import';
 const importChannel =
   typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(IMPORT_CHANNEL_NAME) : null;
 
-/** 广播「全量导入完成」事件。newtab 订阅后整体 reload。 */
+/** 广播「全量导入完成」事件。home 订阅后整体 reload。 */
 export function broadcastImport(): void {
   importChannel?.postMessage({ type: 'imported' });
 }

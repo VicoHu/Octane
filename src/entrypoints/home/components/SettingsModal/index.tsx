@@ -15,7 +15,7 @@ interface SettingsModalProps {
  * 系统设置中心：左 Semi Tabs(type=line) 分类 + 右详情。
  * 三分区：快捷键（ShortcutsSection）/ 数据备份和同步（复用 Local+CloudBackupSection）/ 主密码。
  *
- * Modal 浅色（Portal 到 body，与 newtab 浅色主体一致；design review dark scope 决议）。
+ * Modal 浅色（Portal 到 body，与 home 浅色主体一致；design review dark scope 决议）。
  */
 export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
   return (
