@@ -20,7 +20,7 @@ vi.mock('@/services/FaviconService', () => ({
 
 import { getCachedBlob, fetchAndStoreFavicon, buildFaviconRenderUrl } from '@/services/FaviconService';
 import { resetDB } from '@/shared/db/database';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 
 beforeEach(async () => {
   resetDB();

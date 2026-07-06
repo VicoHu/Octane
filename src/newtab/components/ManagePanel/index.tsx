@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Input, Button } from '@douyinfe/semi-ui';
 import { useWorkspace } from '@/store/useWorkspace';
-import { IconPicker } from '@/shared/components/IconPicker';
+import { IconPicker } from '@/components/IconPicker';
 import styles from './index.module.css';
 
 interface EntityEditRowProps {

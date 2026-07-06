@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 // lottie-web 由 vitest.config.ts 全局 alias 处理（见 docs/standards/testing.md §4.4.1），无需 vi.mock
 // useFavicon 走真实 IDB/网络副作用，本组件测试只需静态 src 占位
-vi.mock('@/newtab/hooks/useFavicon', () => ({
+vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: (url: string) => ({ kind: 'remote', src: `https://mock-favicon/${url}` }),
 }));
 import { render, screen, fireEvent } from '@testing-library/react';

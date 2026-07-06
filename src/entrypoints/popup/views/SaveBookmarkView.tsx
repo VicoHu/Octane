@@ -10,7 +10,7 @@ import {
 import { isUrlValid, findDuplicateUrl } from '../utils';
 import styles from '../popup.module.css';
 import SubPageHeader from './SubPageHeader';
-import { BookmarkFaviconPreview } from '@/newtab/components/BookmarkFaviconPreview';
+import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import {
   LAST_WS_KEY,
   LAST_CAT_BY_WS_KEY,

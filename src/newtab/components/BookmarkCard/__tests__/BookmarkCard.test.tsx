@@ -10,10 +10,10 @@ vi.mock('lottie-web', () => ({
 }));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BookmarkCard } from '@/newtab/components/BookmarkCard';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 import type { Bookmark } from '@/shared/types';
 
-vi.mock('@/newtab/hooks/useFavicon', () => ({
+vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => null),
 }));
 

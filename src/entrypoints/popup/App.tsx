@@ -3,7 +3,7 @@ import type { View } from './navigation';
 import HomeView from './views/HomeView';
 import SaveBookmarkView from './views/SaveBookmarkView';
 import SettingsView from './views/SettingsView';
-import { UnlockModal } from '@/newtab/components/UnlockModal';
+import { UnlockModal } from '@/components/UnlockModal';
 import { useCrypto } from '@/store/useCrypto';
 import styles from './popup.module.css';
 

@@ -10,7 +10,7 @@ import { useCrypto } from '@/store/useCrypto';
 // 隔离渲染：子组件（含 lottie/canvas 等重依赖）不影响订阅逻辑，全部 mock 掉
 vi.mock('@/newtab/components/Sidebar', () => ({ Sidebar: () => null }));
 vi.mock('@/newtab/components/Content', () => ({ Content: () => null }));
-vi.mock('@/newtab/components/UnlockModal', () => ({ UnlockModal: () => null }));
+vi.mock('@/components/UnlockModal', () => ({ UnlockModal: () => null }));
 
 // 还原 store：避免 spy 跨用例污染（与 I1 新增 loadBookmarks 兜底共用）
 afterEach(() => {

@@ -13,7 +13,7 @@ vi.mock('@/services/PinnedTabService', () => ({
   deletePinnedTab: vi.fn(async () => undefined),
   PINNED_TAB_CAP: 8,
 }));
-vi.mock('@/newtab/hooks/useFavicon', () => ({
+vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => ({ kind: 'blob', src: 'blob:test' })),
 }));
 vi.mock('@douyinfe/semi-ui', async (orig) => {

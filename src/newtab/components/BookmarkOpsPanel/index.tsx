@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
 import { Form, Banner, useFieldState } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
-import { BookmarkFaviconPreview } from '@/newtab/components/BookmarkFaviconPreview';
+import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import styles from './index.module.css';
 
 /** 面板提交值 */

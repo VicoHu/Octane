@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
 import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 import styles from './index.module.css';
 
 // Semi Card 的 CardProps 未声明 role / onClick，运行时透传到 DOM 但类型缺失。

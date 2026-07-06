@@ -4,7 +4,7 @@ import { useBookmarks } from '@/store/useBookmarks';
 import { useCrypto } from '@/store/useCrypto';
 import { Sidebar } from '@/newtab/components/Sidebar';
 import { Content } from '@/newtab/components/Content';
-import { UnlockModal } from '@/newtab/components/UnlockModal';
+import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
 import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';

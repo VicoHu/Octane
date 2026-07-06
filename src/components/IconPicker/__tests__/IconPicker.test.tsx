@@ -15,7 +15,7 @@ vi.mock('lottie-web', () => ({
 }));
 
 import { render, screen, fireEvent } from '@testing-library/react';
-import { IconPicker } from '@/shared/components/IconPicker';
+import { IconPicker } from '@/components/IconPicker';
 
 describe('IconPicker — emoji 图标选择器', () => {
   beforeEach(() => {

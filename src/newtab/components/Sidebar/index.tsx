@@ -3,7 +3,7 @@ import { Select, Button, Input, Modal, List } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import type { Category } from '@/shared/types';
-import { IconPicker } from '@/shared/components/IconPicker';
+import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '@/newtab/components/ManagePanel';
 import { SettingsModal } from '@/newtab/components/SettingsModal';
 import { PinnedArea } from '@/newtab/components/PinnedArea';

@@ -1,5 +1,5 @@
 import { IconPlus } from '@douyinfe/semi-icons';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 import styles from './StickyHeader.module.css';
 
 interface StickyHeaderProps {

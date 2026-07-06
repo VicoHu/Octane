@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 import { refreshFavicon, pickHostname } from '@/services/FaviconService';
 import styles from './index.module.css';
 

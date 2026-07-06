@@ -5,7 +5,7 @@ import { render } from '@testing-library/react';
 // 隔离子组件依赖：仅验证 App 装配 + 广播分发，不测内部
 vi.mock('@/newtab/components/Sidebar', () => ({ Sidebar: () => null }));
 vi.mock('@/newtab/components/Content', () => ({ Content: () => null }));
-vi.mock('@/newtab/components/UnlockModal', () => ({ UnlockModal: () => null }));
+vi.mock('@/components/UnlockModal', () => ({ UnlockModal: () => null }));
 
 // 可控 store：实例化时捕获方法用于断言
 const loadWorkspaces = vi.fn(async () => {});

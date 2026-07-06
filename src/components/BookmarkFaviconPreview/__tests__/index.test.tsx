@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BookmarkFaviconPreview } from '@/newtab/components/BookmarkFaviconPreview';
+import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import * as FaviconService from '@/services/FaviconService';
 import { resetDB } from '@/shared/db/database';
 
@@ -12,10 +12,10 @@ vi.mock('@douyinfe/semi-ui', async () => {
   return { ...actual, Toast: { error: vi.fn(), success: vi.fn() } };
 });
 
-vi.mock('@/newtab/hooks/useFavicon', () => ({
+vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => ({ kind: 'blob', src: 'blob:mock' })),
 }));
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 
 beforeEach(async () => {
   resetDB();
