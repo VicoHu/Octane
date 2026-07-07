@@ -100,10 +100,15 @@
 判断原则：
 - 产品型 UI（newtab / sidepanel / 设置等）默认走 Semi + `semi-ui-skills`；需要设计决策时叠加 `ui-ux-pro-max`。
 - 落地页 / 作品集类页面才用 `taste-skill` 做整体设计落地（其 Tailwind 默认栈需替换为本项目 Semi token）；扩展内功能型 UI 不要用 `taste-skill`，挑配色 / 字体等单点决策用 `ui-ux-pro-max`。
-- 极简微调（改间距 / 颜色 token 等）可直接手动，无需调用 skill。
+- 极简微调（改间距 / 颜色 token 等）可直接手动（以 `DESIGN.md` 为 token 真源），无需调用 skill（需要使用Semi Design 组件时，优先使用 `semi-ui-skills` skill）。
 
-### Semi Design 定制规范（Token 参考手册）
-[Semi Design 定制规范（Token 参考手册）](docs/semi-design-spec.md)
+### 设计规范文档
+
+| 文档 | 角色 |
+|------|------|
+| `DESIGN.md` | 设计规范（token 单一真源，遵循 Google DESIGN.md alpha spec）。做任何视觉/UI 决策前必读；改主题只动 token |
+| `docs/design-guidelines.md` | 设计规范补充：完整理由、现状审视、设计债务清单、交付检查清单 |
+| `docs/semi-design-spec.md` | Semi-design DSM Token 参考手册：Semi 组件 token 机制（机制层，非项目决策） |
 
 ## 测试规范
 写测试或改测试时，**必须**先读 [测试设计规范](docs/standards/testing.md)。核心：
