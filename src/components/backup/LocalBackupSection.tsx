@@ -3,7 +3,7 @@ import { Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/se
 import { useBackup } from '@/store/useBackup';
 import styles from './LocalBackupSection.module.css';
 
-/** 本地备份区：导出 + 导入（覆盖式，破坏性强确认）。popup/newtab 共享。 */
+/** 本地备份区：导出 + 导入（覆盖式，破坏性强确认）。popup/home 共享。 */
 export function LocalBackupSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmed, setConfirmed] = useState(false);

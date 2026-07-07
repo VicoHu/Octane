@@ -88,7 +88,7 @@ export async function createPinnedTab(
   };
   await store.put(pin);
   await tx.done;
-  // 跨 context 广播（T6 newtab 订阅后刷新）；事务外触发，不阻塞原子性
+  // 跨 context 广播（T6 home 订阅后刷新）；事务外触发，不阻塞原子性
   broadcastChange('pinnedTabs', 'put');
   return pin;
 }

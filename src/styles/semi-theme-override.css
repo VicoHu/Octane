@@ -21,7 +21,7 @@ html body {
 }
 
 /* 暗色：html body .semi-always-dark 特异性 (0,1,2) > body .semi-always-dark (0,1,1)。
- * 项目 Sidebar 渲染在 .semi-always-dark scope（src/newtab/App.tsx），
+ * 项目 Sidebar 渲染在 .semi-always-dark scope（src/entrypoints/home/App.tsx），
  * 不覆盖此处则暗色侧栏的 Semi 组件全部留蓝。 */
 html body .semi-always-dark {
   --semi-color-primary: #00b894;

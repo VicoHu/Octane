@@ -1,11 +1,11 @@
 import { IconPlus } from '@douyinfe/semi-icons';
-import { useFavicon } from '@/newtab/hooks/useFavicon';
+import { useFavicon } from '@/hooks/useFavicon';
 import styles from './StickyHeader.module.css';
 
 interface StickyHeaderProps {
   hostname: string;
   matchCount: number;
-  /** 添加按钮回调（导航到 newtab） */
+  /** 添加按钮回调（导航到 home tab） */
   onAdd: () => void;
   /** Pin 当前 Tab 回调（图标按钮，挂在 addBtn 旁） */
   onPin: () => void;
@@ -16,8 +16,6 @@ interface StickyHeaderProps {
  * sticky 固定在顶部，滚动时常驻。
  */
 export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeaderProps) {
-  // CONCERN: 跨 entrypoint import（sidepanel → newtab/hooks）。wxt/vite 可解析，
-  // 但耦合了 entrypoint 边界；后续可考虑提到 shared 层。
   const faviconSrc = useFavicon(`https://${hostname}`);
   return (
     <div className={styles.header}>

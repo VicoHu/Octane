@@ -140,7 +140,7 @@ export async function applyImport(data: BackupData): Promise<void> {
   }
   // 清 session 旧密钥：salt 已变，旧密钥与新数据不匹配。必执行。
   await lock();
-  // 广播：side panel（store 级，按 spec 对 5 表显式触发）+ newtab（全量 import 事件）
+  // 广播：side panel（store 级，按 spec 对 5 表显式触发）+ home（全量 import 事件）
   broadcastChange('workspaces', 'put');
   broadcastChange('categories', 'put');
   broadcastChange('bookmarks', 'put');

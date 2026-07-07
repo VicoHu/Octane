@@ -9,7 +9,7 @@
   `onUpdated` 每次属性变化(标题/favicon/状态/audible)都触发全量 `chrome.tabs.query` + setState。
   活跃浏览 + 30+ tab 时可能有冗余 re-render。v1 影响有限(setState 轻量、React 批处理),
   未做以保持简单。需要时加 ~200ms debounce(cleanup 清 timer),注意 fake-timer + async query
-  的测试脆弱性。相关:`src/newtab/hooks/useOpenTabs.ts`。
+  的测试脆弱性。相关:`src/entrypoints/home/hooks/useOpenTabs.ts`。
 
 ### 0.2.x — 战略切入点(详见 ceo-plans/2026-06-29-tab-workset-session-save.md)
 - 会话保存/恢复(整组 tab 捕获为命名会话)— Workona/Toby 级杀手锏

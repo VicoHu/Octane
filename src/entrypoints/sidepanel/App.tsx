@@ -18,7 +18,7 @@ import type { Workspace } from '@/shared/types';
 import styles from './App.module.css';
 
 /** 唤起 logo tab：当前窗口已有 pinned home tab → 聚焦，否则创建 pinned。 */
-function openNewtab() {
+function openHomeTab() {
   void focusOrCreateHomeTab();
 }
 
@@ -264,13 +264,13 @@ export default function App() {
     <div className={styles.empty}>
       <div className={styles.emptyText}>该页面暂无匹配书签</div>
       <div className={styles.emptyActions}>
-        <button className={styles.manageBtn} onClick={openNewtab}>在 Octane 管理</button>
+        <button className={styles.manageBtn} onClick={openHomeTab}>在 Octane 管理</button>
         <PinIconButton onClick={openPin} />
       </div>
     </div>
   ) : (
     <>
-      <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openNewtab} onPin={openPin} />
+      <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openHomeTab} onPin={openPin} />
       <div className={styles.list} role="list">
         {groups.length >= 2 ? (
           <Collapse

@@ -29,6 +29,6 @@ export function mockChrome(activeTab: { url: string; title: string }): void {
         }),
       },
     },
-    runtime: { getURL: vi.fn().mockReturnValue('chrome-extension://x/newtab.html') },
+    runtime: { getURL: vi.fn().mockReturnValue('chrome-extension://x/home.html') },
   };
 }

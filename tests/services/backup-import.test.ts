@@ -94,7 +94,7 @@ describe('applyImport', () => {
     spy.mockRestore();
   });
 
-  it('广播 octane-import 事件（newtab reload 用）', async () => {
+  it('广播 octane-import 事件（home reload 用）', async () => {
     const ch = new BroadcastChannel(IMPORT_CHANNEL_NAME);
     let got = false;
     ch.onmessage = () => { got = true; };

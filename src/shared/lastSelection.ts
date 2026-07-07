@@ -5,7 +5,7 @@
  * - category 用 per-workspace map key：分类是工作区作用域的，单 key 会在多工作区
  *   切换时静默丢失前一个工作区的分类偏好（切回 A 拿不到 A 的 last-cat）。
  *
- * 读写落在 chrome.storage.local；调用方负责 try/catch 容错（newtab 首屏关键路径）。
+ * 读写落在 chrome.storage.local；调用方负责 try/catch 容错（home 首屏关键路径）。
  */
 
 /** 全局：上次选中的工作区 id */
