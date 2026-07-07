@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.11.2] - 2026-07-08
+
+### Added
+
+- **隐私政策**：新增 `docs/PRIVACY.md`，完整披露扩展的数据处理方式——本地存储位置、加密机制、云同步、网站图标获取、权限使用、留存与删除。用户可随时查阅扩展如何处理自己的数据，满足 Chrome Web Store 上架要求。
+
+### Changed
+
+- **商店描述合规化**：manifest description 去掉「最方便」等绝对化用语（违反 Chrome Web Store 夸大声明政策），改为准确凸显核心差异化——「不止存网址——给书签加上下文笔记，侧栏随当前网页自动联动；本地加密，自有云同步」。
+
+### 内部
+
+- Chrome Web Store 上架准备版本。纯文档与配置字符串变更，零运行时代码改动。test 588/588 通过。
+- 经 adversarial review（Claude subagent + Codex + 代码验证三方一致）修正隐私政策初版：删除「云备份密文」虚假声明（`buildBackupBlob` 实为明文 JSON，存于用户自有云存储）、点名披露 favicon 第三方服务（icon.horse / DuckDuckGo）、密钥存储措辞准确化（`chrome.storage.session` 会话存储）。
+
 ## [0.1.11.1] - 2026-07-07
 
 ### Changed
