@@ -5,7 +5,7 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'Octane',
-    description: '书签 + 上下文 + 安全 — 浏览器里最方便的带上下文书签夹',
+    description: '不止存网址——给书签加上下文笔记，侧栏随当前网页自动联动；本地加密，自有云同步。',
     permissions: ['storage', 'tabs', 'sidePanel', 'favicon'],
     host_permissions: ['https://*.aliyuncs.com/*', 'https://*.myqcloud.com/*', 'https://dav.jianguoyun.com/*'],
     content_security_policy: {
