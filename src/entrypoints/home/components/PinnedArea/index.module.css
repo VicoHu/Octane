@@ -113,23 +113,29 @@
 /* × 删除按钮：默认隐藏，hover chip 时右上浮现；触屏 @media(hover:none) 常驻 */
 .deleteBtn {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 14px;
-  height: 14px;
+  top: -3px;
+  right: -3px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: var(--danger);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
   color: #fff;
-  font-size: 9px;
+  font-size: 12px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
   z-index: 1;
+}
+
+.deleteBtn:hover {
+  background: var(--danger);
+  box-shadow: none;
 }
 
 .chipWrap:hover .deleteBtn,
