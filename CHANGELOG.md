@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.11.1] - 2026-07-07
+
+### Changed
+
+- **home 页目录归位与公用代码抽离**：纠正历史命名债务 —— `src/newtab/` 业务代码归位到 `src/entrypoints/home/`（与 popup/sidepanel 结构统一），4 个跨 entrypoint 共用成员（UnlockModal / BookmarkFaviconPreview / IconPicker / useFavicon）抽到顶层公用区（`src/components` 与新建 `src/hooks`）。`src/shared/components/IconPicker` 并入 `src/components`，统一公用组件区。消灭全部 60 处 `@/newtab` import 与 newtab 注释残留（保留 `chrome://newtab` 字面量与「放弃 newtab override」历史 narrative）。
+
+### 内部
+
+- 零运行时行为变更（纯目录 / import / 注释迁移）。test 588/588，typecheck 0 error，build 产物 home.html / popup.html / sidepanel.html 齐全（WXT 未误判 `entrypoints/home/` 内文件为 entrypoint）。
+- 删除 PinnedArea 重复 interface 声明（baseline 遗留）。
+- 设计文档：`docs/superpowers/specs/2026-07-06-home-newtab-rename-design.md`；实现计划：`docs/superpowers/plans/2026-07-06-home-newtab-rename.md`。
+
 ## [0.1.11.0] - 2026-07-06
 
 ### Added
