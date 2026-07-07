@@ -12,10 +12,6 @@ interface PinnedAreaProps {
   workspaceId: string;
 }
 
-interface PinnedAreaProps {
-  workspaceId: string;
-}
-
 /**
  * 常驻标签区（per-workspace 跨分类）。挂在 Sidebar 工作区切换下方、分类列表上方。
  *
