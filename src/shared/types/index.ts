@@ -129,10 +129,25 @@ export interface PinnedTab {
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
-/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs） */
-export const BACKUP_VERSION = 2;
-/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs，校验时补 []） */
-export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2];
+/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind） */
+export const BACKUP_VERSION = 3;
+/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup） */
+export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3];
+
+/** 备份文件种类：backup=全量覆盖恢复（灾备），share=部分合并导入（分享） */
+export type BackupKind = 'backup' | 'share';
+
+/**
+ * 分享选择集：导出方勾选 + 接收方再勾选共用同一 shape。
+ * workspaceIds 整选 → 含其全部分类 + pinnedTabs；
+ * categoryIds 在未整选的工作区内挑部分分类 → 连带其书签。
+ */
+export interface ShareSelection {
+  /** 选中的工作区 ID（整选 → 含其全部分类 + pinnedTabs） */
+  workspaceIds: string[];
+  /** 选中的分类 ID（在未整选的工作区内挑部分分类 → 连带其书签） */
+  categoryIds: string[];
+}
 
 /** 备份数据载荷：6 表存储态（contexts 含密文，不解密） */
 export interface BackupData {
@@ -152,6 +167,8 @@ export interface BackupData {
 export interface BackupFile {
   schema: typeof BACKUP_SCHEMA;
   version: number;
+  /** v3 起；缺失（v1/v2 旧文件）→ 解析时默认 'backup'（向后兼容） */
+  kind?: BackupKind;
   exportedAt: number;
   appVersion: string;
   data: BackupData;

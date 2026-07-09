@@ -32,7 +32,7 @@ describe('LocalBackupSection', () => {
 
   it('选合法文件 → 弹出覆盖确认 Modal', async () => {
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({
-      ok: true, data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
+      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
     });
     render(<LocalBackupSection />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
@@ -43,7 +43,7 @@ describe('LocalBackupSection', () => {
 
   it('未勾选确认 Checkbox 时，确认按钮禁用', async () => {
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({
-      ok: true, data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
+      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
     });
     render(<LocalBackupSection />);
     fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {

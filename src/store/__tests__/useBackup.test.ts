@@ -43,7 +43,7 @@ beforeEach(() => {
 
 describe('useBackup', () => {
   it('pickFile 合法文件 → confirming + pendingData', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: okData });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, kind: 'backup', data: okData });
     await useBackup.getState().pickFile(new File(['x'], 'b.json'));
     expect(useBackup.getState().status).toBe('confirming');
     expect(useBackup.getState().pendingData).toEqual(okData);
@@ -57,7 +57,7 @@ describe('useBackup', () => {
   });
 
   it('confirmImport → 发消息给 background → success', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: okData });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, kind: 'backup', data: okData });
     await useBackup.getState().pickFile(new File(['x'], 'b.json'));
     sendMessage.mockResolvedValue({ ok: true });
     await useBackup.getState().confirmImport();
@@ -66,7 +66,7 @@ describe('useBackup', () => {
   });
 
   it('confirmImport background 失败 → error', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: okData });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, kind: 'backup', data: okData });
     await useBackup.getState().pickFile(new File(['x'], 'b.json'));
     sendMessage.mockResolvedValue({ ok: false, error: '写入失败' });
     await useBackup.getState().confirmImport();
@@ -118,7 +118,7 @@ describe('useBackup cloud actions', () => {
 
   it('restoreFromCloud → download → parseBackupFile → 返回 data', async () => {
     cloud.downloadBackup.mockResolvedValue(new Blob(['x']));
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: okData });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, kind: 'backup', data: okData });
     const data = await useBackup.getState().restoreFromCloud('s3');
     expect(data).toEqual(okData);
   });

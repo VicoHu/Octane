@@ -3,13 +3,13 @@ import {
   BACKUP_VERSION,
   ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
-import type { BackupData, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
+import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
 import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
 
 export type ValidationResult =
-  | { ok: true; data: BackupData }
+  | { ok: true; data: BackupData; kind: BackupKind }
   | { ok: false; error: string };
 
 const DATA_TABLES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
@@ -33,6 +33,19 @@ export function validateBackup(parsed: unknown): ValidationResult {
   if (parsed.schema !== BACKUP_SCHEMA) return { ok: false, error: '不是 octane 备份文件' };
   if (typeof parsed.version !== 'number' || !ACCEPTED_BACKUP_VERSIONS.includes(parsed.version)) {
     return { ok: false, error: '备份版本不受支持，请升级 octane' };
+  }
+
+  // kind：v3 起区分 backup（全量覆盖恢复）/ share（部分合并导入）。
+  // 缺失（v1/v2 旧文件）→ 默认 'backup'（向后兼容）；非法值 → 拒绝。
+  // kind 误入口防护（C2）依赖此字段：备份入口拒绝 share、分享入口拒绝 backup。
+  const rawKind = parsed.kind;
+  let kind: BackupKind;
+  if (rawKind === undefined) {
+    kind = 'backup';
+  } else if (rawKind === 'backup' || rawKind === 'share') {
+    kind = rawKind;
+  } else {
+    return { ok: false, error: '备份种类字段无效' };
   }
 
   const data = parsed.data;
@@ -89,7 +102,7 @@ export function validateBackup(parsed: unknown): ValidationResult {
     pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,
   };
-  return { ok: true, data: backupData };
+  return { ok: true, data: backupData, kind };
 }
 
 /** 备份文件大小上限：50MB（防止 JSON.parse 卡死/内存溢出） */
@@ -158,6 +171,7 @@ export async function buildBackupBlob(): Promise<Blob> {
   const file = {
     schema: BACKUP_SCHEMA,
     version: BACKUP_VERSION,
+    kind: 'backup' as const,
     exportedAt: Date.now(),
     appVersion: browser.runtime.getManifest().version,
     data,
