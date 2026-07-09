@@ -4,9 +4,11 @@ import {
   ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
 import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace, ShareSelection } from '@/shared/types';
-import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
+import { exportAllData, replaceAllDataRaw, mergeImportRaw, getAll, getByKey, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
+import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy } from '@/services/shareImport';
+import type { ExistingNames } from '@/services/shareImport';
 
 export type ValidationResult =
   | { ok: true; data: BackupData; kind: BackupKind }
@@ -202,6 +204,89 @@ export function buildShareData(
   const cryptoMetadata = includeContexts ? all.cryptoMetadata : null;
 
   return { workspaces, categories, bookmarks, contexts, pinnedTabs, cryptoMetadata };
+}
+
+/** 分享包导入结果(返回给 UI 显示数量 + salt 冲突提示) */
+export interface ShareImportResult {
+  workspaces: number;
+  categories: number;
+  bookmarks: number;
+  /** 因接收方 salt 不同被过滤的加密 context 数 */
+  skippedEncrypted: number;
+}
+
+/**
+ * 合并导入分享包(接收方)。单事务 put 不 clear,不覆盖接收方现有数据。
+ * 编排(design doc 导入步骤5-10):
+ *   buildShareData 过滤(复用,决策 B 对称)→ remapShareIds → recomputeRedundancy →
+ *   resolveNameConflicts(读接收方同名)→ filterEncryptedBySalt(读接收方 cryptoMetadata)→
+ *   mergeImportRaw 单事务 → syncContextMeta 兜底 → broadcast。
+ * 不调 lock()(合并不改接收方加密设置)。
+ */
+export async function applyShareImport(
+  data: BackupData,
+  selection: ShareSelection,
+): Promise<ShareImportResult> {
+  // 1. 识别模式:全拷贝(cryptoMetadata 非空)vs 仅结构
+  const senderSalt = data.cryptoMetadata?.salt ?? null;
+  const includeContexts = data.cryptoMetadata !== null;
+  // 2. 接收方过滤(复用 buildShareData,决策 B 对称)
+  const selected = buildShareData(data, selection, includeContexts);
+  // 3. ID 重映射(5 Map + 双 FK + pinnedTab 主键)
+  const remapped = remapShareIds(selected);
+  // 4. 冗余字段预修正(按包内实际 context 数)
+  const recomputed: BackupData = {
+    ...remapped,
+    bookmarks: recomputeRedundancy(remapped.bookmarks, remapped.contexts),
+  };
+  // 5. 读接收方现有同名(workspace/category)
+  const [existingWs, existingCat] = await Promise.all([
+    getAll<Workspace>('workspaces'),
+    getAll<Category>('categories'),
+  ]);
+  const existing: ExistingNames = {
+    workspaces: new Set(existingWs.map((w) => w.name)),
+    categories: new Set(existingCat.map((c) => c.name)),
+  };
+  // 6. 同名后缀
+  const resolved = resolveNameConflicts(recomputed, existing);
+  // 7. 读接收方 cryptoMetadata
+  const receiverMeta = (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null;
+  // 8. 死密文过滤(salt 冲突)
+  const { contexts: filteredContexts, skippedEncrypted } = filterEncryptedBySalt(
+    resolved.contexts,
+    senderSalt,
+    receiverMeta,
+  );
+  // 9. cryptoMetadata 写入决策:接收方无 / salt 相同 → 写发送方;salt 不同 → 不写(保留接收方)
+  const writeMeta =
+    !receiverMeta || senderSalt === null || senderSalt === receiverMeta.salt
+      ? resolved.cryptoMetadata
+      : undefined;
+  // 10. 单事务合并(cryptoMetaToWrite 为 null/undefined 时不写)
+  await mergeImportRaw({ ...resolved, contexts: filteredContexts }, writeMeta ?? undefined);
+  // 11. syncContextMeta 兜底(非致命)
+  try {
+    for (const b of resolved.bookmarks) {
+      await syncContextMeta(b.id);
+    }
+  } catch (e) {
+    console.warn('[octane] 分享导入重算冗余字段部分失败', e);
+  }
+  // 12. 广播(不 lock)
+  broadcastChange('workspaces', 'put');
+  broadcastChange('categories', 'put');
+  broadcastChange('bookmarks', 'put');
+  broadcastChange('contexts', 'put');
+  broadcastChange('pinnedTabs', 'put');
+  broadcastImport();
+  // 13. 返回数量 + 冲突计数
+  return {
+    workspaces: resolved.workspaces.length,
+    categories: resolved.categories.length,
+    bookmarks: resolved.bookmarks.length,
+    skippedEncrypted,
+  };
 }
 
 /**
