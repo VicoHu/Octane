@@ -2,6 +2,7 @@ import { Modal, Tabs } from '@douyinfe/semi-ui';
 import { ShortcutsSection } from './sections/ShortcutsSection';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { CloudBackupSection } from '@/components/backup/CloudBackupSection';
+import { ShareSection } from '@/components/backup/ShareSection';
 import { PasswordSection } from './sections/PasswordSection';
 import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
 import { FaviconCacheSection } from './sections/FaviconCacheSection';
@@ -41,6 +42,7 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
           <LocalBackupSection />
           <CloudBackupSection />
           <FaviconCacheSection />
+          <ShareSection />
         </Tabs.TabPane>
         <Tabs.TabPane tab="主密码" itemKey="password">
           <PasswordSection />
