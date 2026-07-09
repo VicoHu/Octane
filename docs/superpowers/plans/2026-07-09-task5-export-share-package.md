@@ -88,12 +88,13 @@ describe('buildShareData — 分享包精确取数', () => {
     expect(out.cryptoMetadata).toBeNull();
   });
 
-  it('跨边界:整选 ws-1 + 单选 ws-2 的 cat-2a → 含 ws-1 全部分类与 cat-2a 及其书签', () => {
+  it('跨边界:整选 ws-1 + 单选 ws-2 的 cat-2a → 含 ws-1 全部分类、ws-2(自洽连带)与 cat-2a 书签', () => {
     const out = buildShareData(all, { workspaceIds: ['ws-1'], categoryIds: ['cat-2a'] }, false);
+    expect(out.workspaces.map((w) => w.id).sort()).toEqual(['ws-1', 'ws-2']); // ws-2 因 cat-2a 自洽连带
     // ws-1 整选(含 cat1a/cat1b),ws-2 未整选但单选 cat-2a
     expect(out.categories.map((c) => c.id).sort()).toEqual(['cat-1a', 'cat-1b', 'cat-2a']);
     expect(out.bookmarks.map((b) => b.id).sort()).toEqual(['bm-1a', 'bm-1b', 'bm-2a']);
-    // ws-2 未整选 → 其 pinnedTabs 不带(只 ws-1 的)
+    // pinnedTabs 只跟整选 ws-1;ws-2 单选连带但其 pin 不带(决策 B)
     expect(out.pinnedTabs?.map((p) => p.id)).toEqual(['pin-1']);
   });
 
@@ -104,19 +105,12 @@ describe('buildShareData — 分享包精确取数', () => {
     expect(out.cryptoMetadata).toEqual(meta);
   });
 
-  it('自洽校验:category 指向未选 workspace → throw', () => {
-    // cat-2a 属 ws-2,但只单选 cat-2a 不选 ws-2 是合法的(单选分类);
-    // 非法场景:构造 selection 直接要一个孤立 category(其 workspace 未在 workspaceIds)
-    // buildShareData 的规范化会把整选 ws 的分类纳入,单选的分类本身允许其 ws 未整选。
-    // 真正非法:selection 里出现 all 中不存在的 id,或 bookmark 的 ws/cat 不一致(数据本身损坏)。
-    // 这里测数据损坏:bookmark 的 workspaceId 指向未选 ws 且 categoryId 未选
-    const broken: BackupData = {
-      ...all,
-      bookmarks: [{ ...bm1a, workspaceId: 'ws-2', categoryId: 'cat-2a' }], // bm 归 ws-2/cat-2a
-    };
-    // 选 ws-1(整选) → 不含 ws-2 的 cat-2a,故 broken bookmark 不应被选中,不触发校验
-    const out = buildShareData(broken, { workspaceIds: ['ws-1'], categoryIds: [] }, false);
-    expect(out.bookmarks).toEqual([]);
+  it('单选一个分类(其 workspace 未整选)→ 连带 parent workspace(自洽),但不连带 pinnedTabs(决策 B)', () => {
+    const out = buildShareData(all, { workspaceIds: [], categoryIds: ['cat-2a'] }, false);
+    expect(out.workspaces.map((w) => w.id)).toEqual(['ws-2']); // ws-2 自洽连带(防孤儿 category)
+    expect(out.categories.map((c) => c.id)).toEqual(['cat-2a']);
+    expect(out.bookmarks.map((b) => b.id)).toEqual(['bm-2a']);
+    expect(out.pinnedTabs).toEqual([]); // 单选分类不连带 ws-2 的常驻标签(隐私克制)
   });
 
   it('空 selection(workspaceIds 与 categoryIds 都空)→ 空包(调用方 buildBackupBlob 会走全量分支,不调此函数)', () => {
@@ -141,11 +135,13 @@ Expected: FAIL — `buildShareData` 未从 `@/services/BackupService` 导出（`
 ```typescript
 /**
  * 按分享选择集从全量数据精确取数，产出 kind:'share' 的自洽 BackupData（不含顶层 schema 包装）。
- * 纯函数：不碰 DB/crypto/网络。自洽校验失败 throw（Premise 2：无孤儿）。
+ * 纯函数：不碰 DB/crypto/网络。自洽由取数顺序保证（Premise 2：无孤儿）。
  *
- * 规范化（导出方自洽，对称 design doc 导入步骤4）：
- * - 整选 workspace → 纳入其全部分类（+ 该 workspace 的 pinnedTabs）
- * - 单选 category（其 workspace 未整选）→ 连带其书签
+ * 规范化（导出方自洽）：
+ * - 整选 workspace → 纳入其全部分类 + 该 workspace 的 pinnedTabs
+ * - 单选 category（其 workspace 未整选）→ 连带 parent workspace（自洽必需，防孤儿 category）
+ *   + 其书签，但【不连带】该 workspace 的 pinnedTabs
+ *   （用户决策 B：隐私克制——单选分类不多带可能私密的常驻标签）
  */
 export function buildShareData(
   all: BackupData,
@@ -153,15 +149,23 @@ export function buildShareData(
   includeContexts: boolean,
 ): BackupData {
   const wsIdSet = new Set(selection.workspaceIds);
+  // 规范化分类集：整选 ws 的全部分类 + 单选 category
   const effectiveCatIds = new Set(selection.categoryIds);
   for (const c of all.categories) {
     if (wsIdSet.has(c.workspaceId)) effectiveCatIds.add(c.id);
   }
+  // 规范化工作区集：单选 category 的 parent ws 纳入（自洽——category.workspaceId 必须指向包内 ws）
+  const effectiveWsIds = new Set(selection.workspaceIds);
+  for (const c of all.categories) {
+    if (effectiveCatIds.has(c.id)) effectiveWsIds.add(c.workspaceId);
+  }
 
-  const workspaces = all.workspaces.filter((w) => wsIdSet.has(w.id));
+  const workspaces = all.workspaces.filter((w) => effectiveWsIds.has(w.id));
   const categories = all.categories.filter((c) => effectiveCatIds.has(c.id));
   const bookmarks = all.bookmarks.filter((b) => effectiveCatIds.has(b.categoryId));
   const bookmarkIds = new Set(bookmarks.map((b) => b.id));
+  // pinnedTabs 只跟「整选工作区」(wsIdSet=selection.workspaceIds)——单选 category 连带的 ws
+  //（在 effectiveWsIds 但不在 wsIdSet）的常驻标签不连带（决策 B）。
   const pinnedTabs = (all.pinnedTabs ?? []).filter((p) => wsIdSet.has(p.workspaceId));
   const contexts = includeContexts
     ? all.contexts.filter((ctx) => bookmarkIds.has(ctx.bookmarkId))
@@ -172,7 +176,7 @@ export function buildShareData(
 }
 ```
 
-> 说明：自洽性由"先过滤 workspace/category，再以 effectiveCatIds 过滤 bookmark"的取数顺序天然保证——bookmark 只能来自选中分类，不可能孤儿。无需额外 throw 校验（YAGNI；测试中"broken bookmark"用例验证了未选中数据被正确排除）。
+> 说明：自洽由取数顺序保证——单选 category 时 `effectiveWsIds` 纳入其 parent ws（防孤儿 category），bookmark 只能来自选中分类。无需额外 throw 校验（YAGNI）。pinnedTabs 只跟整选 workspace（决策 B）。
 
 - [ ] **Step 4: 重构 buildBackupBlob 签名**
 
@@ -287,9 +291,9 @@ describe('shareStats — 选集数量统计(含整选 ws 连带分类)', () => {
       .toEqual({ ws: 1, cat: 2, bm: 2 });
   });
 
-  it('单选 cat-2a(ws-2 未整选)→ ws=0, cat=1, bm=1', () => {
+  it('单选 cat-2a(ws-2 未整选)→ ws=1(连带 ws-2), cat=1, bm=1', () => {
     expect(shareStats(workspaces, categories, bookmarks, { workspaceIds: [], categoryIds: ['cat-2a'] }))
-      .toEqual({ ws: 0, cat: 1, bm: 1 });
+      .toEqual({ ws: 1, cat: 1, bm: 1 });
   });
 
   it('空选 → 全 0', () => {
@@ -362,8 +366,13 @@ export function shareStats(
   for (const c of categories) {
     if (wsSet.has(c.workspaceId)) catIds.add(c.id);
   }
+  // 单选 category 的 parent ws 纳入（与 buildShareData 自洽补全一致——success 文案「N 工作区」含连带的）
+  const effectiveWs = new Set(selection.workspaceIds);
+  for (const c of categories) {
+    if (catIds.has(c.id)) effectiveWs.add(c.workspaceId);
+  }
   return {
-    ws: workspaces.filter((w) => wsSet.has(w.id)).length,
+    ws: workspaces.filter((w) => effectiveWs.has(w.id)).length,
     cat: categories.filter((c) => catIds.has(c.id)).length,
     bm: bookmarks.filter((b) => catIds.has(b.categoryId)).length,
   };
@@ -901,3 +910,4 @@ git commit -m "feat(share): ShareSection 入口 + 接入 SettingsModal backup ta
 1. SelectionTree 数据源：spec §4.2 说"从 store 取"，实际 store 切片式 → 改 `exportAllData()`（Task 4）。
 2. 主按钮文字色：spec/design doc "绿底白字" → DESIGN.md 禁白字，改炭灰 `primary-on`（Task 4 注记 + Task8 design-review 兜底）。
 3. buildShareData 自洽校验：spec §5.3 写"throw"，实现改为"取数顺序天然保证无孤儿"（YAGNI，更简洁，测试验证等效）。
+4. **单选分类的 pinnedTabs 连带（Pre-Flight 发现 design doc 内部矛盾，用户决策 B）**：design doc Premise 2（pinnedTabs 只跟整选工作区）与导入步骤4（勾 category 连带 ws+pinnedTabs）矛盾。**决策 B**：单选分类连带 parent workspace（自洽必需，防孤儿 category）但【不连带】pinnedTabs（隐私克制，符合"部分导出隐藏"初衷）。`buildShareData` 的 pinnedTabs 只跟 `selection.workspaceIds`；`shareStats` 的 ws 计数含单选 category 连带的 ws。
