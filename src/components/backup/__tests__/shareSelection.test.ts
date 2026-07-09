@@ -22,6 +22,14 @@ describe('treeValueToSelection — Semi Tree value[] 转 ShareSelection', () => 
     const sel = treeValueToSelection(['ws-2', 'cat-1a'], tree);
     expect(sel).toEqual({ workspaceIds: ['ws-2'], categoryIds: ['cat-1a'] });
   });
+
+  it('父+全子 key(autoMergeValue 未生效情形)→ 仍只 workspaceIds(else-if 兜底,组件不依赖 autoMergeValue)', () => {
+    // autoMergeValue 生效时勾父只回父 key['ws-1'];未生效时回父+全子['ws-1','cat-1a','cat-1b']。
+    // else-if 结构:父 key 命中走 if 分支进 workspaceIds,不再扫子,categoryIds 保持空。
+    // 故两种 Semi 原始 value 产出相同 ShareSelection,组件正确性不依赖 autoMergeValue 是否生效。
+    const sel = treeValueToSelection(['ws-1', 'cat-1a', 'cat-1b'], tree);
+    expect(sel).toEqual({ workspaceIds: ['ws-1'], categoryIds: [] });
+  });
 });
 
 const workspaces: Workspace[] = [
