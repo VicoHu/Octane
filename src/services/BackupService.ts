@@ -3,7 +3,7 @@ import {
   BACKUP_VERSION,
   ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
-import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
+import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace, ShareSelection } from '@/shared/types';
 import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
@@ -163,18 +163,67 @@ export async function applyImport(data: BackupData): Promise<void> {
 }
 
 /**
- * 构建备份 Blob（导出与云上传共用同一份）。
- * 内部取存储态 exportAllData（contexts 含密文，不解密）。
+ * 按分享选择集从全量数据精确取数,产出 kind:'share' 的自洽 BackupData(不含顶层 schema 包装)。
+ * 纯函数:不碰 DB/crypto/网络。自洽由取数顺序保证(Premise 2:无孤儿)。
+ *
+ * 规范化(导出方自洽):
+ * - 整选 workspace → 纳入其全部分类 + 该 workspace 的 pinnedTabs
+ * - 单选 category(其 workspace 未整选)→ 连带 parent workspace(自洽必需,防孤儿 category)
+ *   + 其书签,但【不连带】该 workspace 的 pinnedTabs
+ *   (用户决策 B:隐私克制——单选分类不多带可能私密的常驻标签)
  */
-export async function buildBackupBlob(): Promise<Blob> {
+export function buildShareData(
+  all: BackupData,
+  selection: ShareSelection,
+  includeContexts: boolean,
+): BackupData {
+  const wsIdSet = new Set(selection.workspaceIds);
+  // 规范化分类集:整选 ws 的全部分类 + 单选 category
+  const effectiveCatIds = new Set(selection.categoryIds);
+  for (const c of all.categories) {
+    if (wsIdSet.has(c.workspaceId)) effectiveCatIds.add(c.id);
+  }
+  // 规范化工作区集:单选 category 的 parent ws 纳入(自洽——category.workspaceId 必须指向包内 ws)
+  const effectiveWsIds = new Set(selection.workspaceIds);
+  for (const c of all.categories) {
+    if (effectiveCatIds.has(c.id)) effectiveWsIds.add(c.workspaceId);
+  }
+
+  const workspaces = all.workspaces.filter((w) => effectiveWsIds.has(w.id));
+  const categories = all.categories.filter((c) => effectiveCatIds.has(c.id));
+  const bookmarks = all.bookmarks.filter((b) => effectiveCatIds.has(b.categoryId));
+  const bookmarkIds = new Set(bookmarks.map((b) => b.id));
+  // pinnedTabs 只跟「整选工作区」(wsIdSet=selection.workspaceIds)——单选 category 连带的 ws
+  //(在 effectiveWsIds 但不在 wsIdSet)的常驻标签不连带(决策 B)。
+  const pinnedTabs = (all.pinnedTabs ?? []).filter((p) => wsIdSet.has(p.workspaceId));
+  const contexts = includeContexts
+    ? all.contexts.filter((ctx) => bookmarkIds.has(ctx.bookmarkId))
+    : [];
+  const cryptoMetadata = includeContexts ? all.cryptoMetadata : null;
+
+  return { workspaces, categories, bookmarks, contexts, pinnedTabs, cryptoMetadata };
+}
+
+/**
+ * 构建备份 Blob(导出与云上传共用同一份)。
+ * - 无 selection / 空选 → 全量备份(kind:'backup'),逐字节与历史一致(灾备网锁定)。
+ * - 有 selection → 分享包(kind:'share'),按选择集精确取数,上下文按 includeContexts 全带/全不带。
+ */
+export async function buildBackupBlob(
+  selection?: ShareSelection,
+  includeContexts = false,
+): Promise<Blob> {
   const data = await exportAllData();
+  const hasSelection =
+    !!selection && (selection.workspaceIds.length > 0 || selection.categoryIds.length > 0);
+  const shareData = hasSelection ? buildShareData(data, selection!, includeContexts) : data;
   const file = {
     schema: BACKUP_SCHEMA,
     version: BACKUP_VERSION,
-    kind: 'backup' as const,
+    kind: (hasSelection ? 'share' : 'backup') as BackupKind,
     exportedAt: Date.now(),
     appVersion: browser.runtime.getManifest().version,
-    data,
+    data: shareData,
   };
   return new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
 }
