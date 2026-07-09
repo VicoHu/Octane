@@ -32,6 +32,11 @@ export const useBackup = create<BackupState>((set, get) => ({
     set({ status: 'validating', errorMessage: null });
     const r = await parseBackupFile(file);
     if (r.ok) {
+      // kind 防护（C2）：备份入口只接受 backup；分享包走分享导入入口
+      if (r.kind === 'share') {
+        set({ status: 'error', errorMessage: '此为分享包,请使用分享导入入口', pendingData: null });
+        return;
+      }
       set({ status: 'confirming', pendingData: r.data, errorMessage: null });
     } else {
       set({ status: 'error', errorMessage: r.error, pendingData: null });

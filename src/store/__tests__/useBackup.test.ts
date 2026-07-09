@@ -49,6 +49,15 @@ describe('useBackup', () => {
     expect(useBackup.getState().pendingData).toEqual(okData);
   });
 
+  it('pickFile kind=share → error 分流到分享导入入口，不进 confirming', async () => {
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, kind: 'share', data: okData });
+    await useBackup.getState().pickFile(new File(['x'], 's.json'));
+    const s = useBackup.getState();
+    expect(s.status).toBe('error');
+    expect(s.errorMessage).toMatch(/分享包|分享导入/);
+    expect(s.pendingData).toBeNull();
+  });
+
   it('pickFile 非法文件 → error', async () => {
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: false, error: '坏文件' });
     await useBackup.getState().pickFile(new File(['x'], 'b.json'));
