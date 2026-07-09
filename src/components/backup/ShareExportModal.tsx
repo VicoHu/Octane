@@ -66,6 +66,26 @@ export function ShareExportModal({ visible, onClose }: ShareExportModalProps) {
     onClose();
   };
 
+  // footer 按 status 动态：success=关闭；其余=取消+导出分享包
+  const footer =
+    status === 'success' ? (
+      <Button onClick={onClose}>关闭</Button>
+    ) : (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <Button onClick={handleClose} disabled={status === 'exporting'}>
+          取消
+        </Button>
+        <Button
+          theme="solid"
+          loading={status === 'exporting'}
+          disabled={!hasSelection}
+          onClick={handleExport}
+        >
+          导出分享包
+        </Button>
+      </div>
+    );
+
   return (
     <Modal
       title="导出分享包"
@@ -73,7 +93,7 @@ export function ShareExportModal({ visible, onClose }: ShareExportModalProps) {
       onCancel={handleClose}
       maskClosable={false}
       width={560}
-      footer={null}
+      footer={footer}
     >
       {status === 'success' ? (
         <Typography.Text>
@@ -118,28 +138,12 @@ export function ShareExportModal({ visible, onClose }: ShareExportModalProps) {
             </Typography.Text>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <Button onClick={handleClose} disabled={status === 'exporting'}>取消</Button>
-            <Button
-              theme="solid"
-              loading={status === 'exporting'}
-              disabled={!hasSelection}
-              onClick={handleExport}
-            >
-              导出分享包
-            </Button>
-          </div>
           {!hasSelection && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 12 }}>
               勾选至少一个工作区或分类
             </Typography.Text>
           )}
         </>
-      )}
-      {status === 'success' && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <Button onClick={onClose}>关闭</Button>
-        </div>
       )}
     </Modal>
   );
