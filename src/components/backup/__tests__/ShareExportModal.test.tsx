@@ -24,6 +24,7 @@ vi.mock('@/services/BackupService', () => ({ buildBackupBlob }));
 // 下载副作用：createObjectURL/click/revoke 是合法副作用边界 mock
 const clickSpy = vi.fn();
 beforeEach(() => {
+  useShare.getState().resetExport();
   vi.clearAllMocks();
   URL.createObjectURL = vi.fn(() => 'blob:fake');
   URL.revokeObjectURL = vi.fn();
@@ -37,6 +38,7 @@ beforeEach(() => {
   });
 });
 
+import { useShare } from '@/store/useShare';
 import { ShareExportModal } from '@/components/backup/ShareExportModal';
 
 describe('ShareExportModal — 导出分享包弹窗', () => {
