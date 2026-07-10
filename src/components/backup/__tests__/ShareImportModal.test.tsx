@@ -20,8 +20,12 @@ vi.mock('@/services/BackupService', () => ({ parseBackupFile }));
 // WXT 全局注入 browser；测试统一 mock wxt/browser（与 useBackup.test 一致）
 vi.mock('wxt/browser', () => ({ browser: { runtime: { sendMessage } } }));
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  useShare.getState().resetImport();
+  vi.clearAllMocks();
+});
 
+import { useShare } from '@/store/useShare';
 import { ShareImportModal } from '@/components/backup/ShareImportModal';
 
 describe('ShareImportModal — 接收方导入预览', () => {

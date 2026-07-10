@@ -1,73 +1,29 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useRef, type ChangeEvent } from 'react';
 import { Modal, Button, Banner, Spin, Typography } from '@douyinfe/semi-ui';
-import { parseBackupFile, type ShareImportResult } from '@/services/BackupService';
 import { SelectionTree } from './SelectionTree';
 import { shareStats } from './shareSelection';
-import type { BackupData, ShareSelection } from '@/shared/types';
+import { useShare } from '@/store/useShare';
 
 interface ShareImportModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-type Status = 'idle' | 'parsing' | 'previewing' | 'importing' | 'success' | 'error';
-
 /**
- * 接收方导入分享包 Modal：选文件 → 预览（数量+安全提示）→ 勾选 → background 合并导入。
- * 复用 SelectionTree（双向勾选）+ shareStats（数量）。local state（Task7 才接 useShare 状态机）。
- * browser 全局由 WXT auto-inject（与 useBackup 一致，测试 mock wxt/browser）。
+ * 接收方导入分享包 Modal：消费 useShare 状态机（Task7）。
+ * 选文件 → 预览（数量+安全提示）→ 勾选 → background 合并导入。状态源在 store。
  */
 export function ShareImportModal({ visible, onClose }: ShareImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [status, setStatus] = useState<Status>('idle');
-  const [data, setData] = useState<BackupData | null>(null);
-  const [selection, setSelection] = useState<ShareSelection>({ workspaceIds: [], categoryIds: [] });
-  const [result, setResult] = useState<ShareImportResult | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const {
+    importStatus: status, importData: data, importSelection: selection, importResult: result, importError: errorMessage,
+    pickImportFile, setImportSelection, runImport, resetImport,
+  } = useShare();
 
-  const reset = () => {
-    setStatus('idle'); setData(null); setSelection({ workspaceIds: [], categoryIds: [] });
-    setResult(null); setErrorMessage(null);
-  };
-
-  const handlePick = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handlePick = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) return;
-    reset();
-    setStatus('parsing');
-    const r = await parseBackupFile(f);
-    if (!r.ok) { setStatus('error'); setErrorMessage(r.error); return; }
-    // kind 防护（C2）：分享入口只接受 share；全量备份走备份恢复入口
-    if (r.kind !== 'share') {
-      setStatus('error');
-      setErrorMessage('此为全量备份,会覆盖现有数据,请使用备份恢复入口');
-      return;
-    }
-    setData(r.data);
-    setStatus('previewing');
+    if (f) pickImportFile(f);
     e.target.value = '';
-  };
-
-  const handleImport = async () => {
-    if (!data) return;
-    setStatus('importing');
-    try {
-      const res = await browser.runtime.sendMessage({
-        type: 'octane:apply-share-import',
-        data,
-        selection,
-      });
-      if (res && res.ok) {
-        setResult(res.result ?? null);
-        setStatus('success');
-      } else {
-        setStatus('error');
-        setErrorMessage((res?.error as string) || '导入失败');
-      }
-    } catch (e) {
-      setStatus('error');
-      setErrorMessage((e as Error).message || '导入失败');
-    }
   };
 
   const stats = data
@@ -77,32 +33,25 @@ export function ShareImportModal({ visible, onClose }: ShareImportModalProps) {
   // footer 按 status 动态：success=关闭；previewing|importing=取消+合并导入（importing 时 loading）；其余=关闭
   const footer =
     status === 'success' ? (
-      <Button onClick={() => { reset(); onClose(); }}>关闭</Button>
+      <Button onClick={() => { resetImport(); onClose(); }}>关闭</Button>
     ) : status === 'previewing' || status === 'importing' ? (
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button onClick={() => { reset(); onClose(); }} disabled={status === 'importing'}>取消</Button>
+        <Button onClick={() => { resetImport(); onClose(); }} disabled={status === 'importing'}>取消</Button>
         <Button
           theme="solid"
           loading={status === 'importing'}
           disabled={stats.ws === 0 && stats.cat === 0}
-          onClick={handleImport}
+          onClick={runImport}
         >
           合并导入{stats.ws > 0 ? ` ${stats.ws} 个工作区` : ''}
         </Button>
       </div>
     ) : (
-      <Button onClick={() => { reset(); onClose(); }}>关闭</Button>
+      <Button onClick={() => { resetImport(); onClose(); }}>关闭</Button>
     );
 
   return (
-    <Modal
-      title="导入分享包"
-      visible={visible}
-      onCancel={() => { reset(); onClose(); }}
-      maskClosable={false}
-      width={560}
-      footer={footer}
-    >
+    <Modal title="导入分享包" visible={visible} onCancel={() => { resetImport(); onClose(); }} maskClosable={false} width={560} footer={footer}>
       <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={handlePick} />
 
       {status === 'idle' && (
@@ -128,7 +77,7 @@ export function ShareImportModal({ visible, onClose }: ShareImportModalProps) {
               categories={data.categories}
               bookmarks={data.bookmarks}
               value={selection}
-              onChange={setSelection}
+              onChange={setImportSelection}
             />
           )}
         </>
