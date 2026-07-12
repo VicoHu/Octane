@@ -3,13 +3,15 @@ import {
   BACKUP_VERSION,
   ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
-import type { BackupData, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
-import { exportAllData, replaceAllDataRaw, broadcastChange, broadcastImport } from '@/shared/db/database';
+import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace, ShareSelection } from '@/shared/types';
+import { exportAllData, replaceAllDataRaw, mergeImportRaw, getAll, getByKey, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
+import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy } from '@/services/shareImport';
+import type { ExistingNames } from '@/services/shareImport';
 
 export type ValidationResult =
-  | { ok: true; data: BackupData }
+  | { ok: true; data: BackupData; kind: BackupKind }
   | { ok: false; error: string };
 
 const DATA_TABLES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
@@ -33,6 +35,19 @@ export function validateBackup(parsed: unknown): ValidationResult {
   if (parsed.schema !== BACKUP_SCHEMA) return { ok: false, error: '不是 octane 备份文件' };
   if (typeof parsed.version !== 'number' || !ACCEPTED_BACKUP_VERSIONS.includes(parsed.version)) {
     return { ok: false, error: '备份版本不受支持，请升级 octane' };
+  }
+
+  // kind：v3 起区分 backup（全量覆盖恢复）/ share（部分合并导入）。
+  // 缺失（v1/v2 旧文件）→ 默认 'backup'（向后兼容）；非法值 → 拒绝。
+  // kind 误入口防护（C2）依赖此字段：备份入口拒绝 share、分享入口拒绝 backup。
+  const rawKind = parsed.kind;
+  let kind: BackupKind;
+  if (rawKind === undefined) {
+    kind = 'backup';
+  } else if (rawKind === 'backup' || rawKind === 'share') {
+    kind = rawKind;
+  } else {
+    return { ok: false, error: '备份种类字段无效' };
   }
 
   const data = parsed.data;
@@ -89,7 +104,7 @@ export function validateBackup(parsed: unknown): ValidationResult {
     pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,
   };
-  return { ok: true, data: backupData };
+  return { ok: true, data: backupData, kind };
 }
 
 /** 备份文件大小上限：50MB（防止 JSON.parse 卡死/内存溢出） */
@@ -150,17 +165,150 @@ export async function applyImport(data: BackupData): Promise<void> {
 }
 
 /**
- * 构建备份 Blob（导出与云上传共用同一份）。
- * 内部取存储态 exportAllData（contexts 含密文，不解密）。
+ * 按分享选择集从全量数据精确取数,产出 kind:'share' 的自洽 BackupData(不含顶层 schema 包装)。
+ * 纯函数:不碰 DB/crypto/网络。自洽由取数顺序保证(Premise 2:无孤儿)。
+ *
+ * 规范化(导出方自洽):
+ * - 整选 workspace → 纳入其全部分类 + 该 workspace 的 pinnedTabs
+ * - 单选 category(其 workspace 未整选)→ 连带 parent workspace(自洽必需,防孤儿 category)
+ *   + 其书签,但【不连带】该 workspace 的 pinnedTabs
+ *   (用户决策 B:隐私克制——单选分类不多带可能私密的常驻标签)
  */
-export async function buildBackupBlob(): Promise<Blob> {
+export function buildShareData(
+  all: BackupData,
+  selection: ShareSelection,
+  includeContexts: boolean,
+): BackupData {
+  const wsIdSet = new Set(selection.workspaceIds);
+  // 规范化分类集:整选 ws 的全部分类 + 单选 category
+  const effectiveCatIds = new Set(selection.categoryIds);
+  for (const c of all.categories) {
+    if (wsIdSet.has(c.workspaceId)) effectiveCatIds.add(c.id);
+  }
+  // 规范化工作区集:单选 category 的 parent ws 纳入(自洽——category.workspaceId 必须指向包内 ws)
+  const effectiveWsIds = new Set(selection.workspaceIds);
+  for (const c of all.categories) {
+    if (effectiveCatIds.has(c.id)) effectiveWsIds.add(c.workspaceId);
+  }
+
+  const workspaces = all.workspaces.filter((w) => effectiveWsIds.has(w.id));
+  const categories = all.categories.filter((c) => effectiveCatIds.has(c.id));
+  const bookmarks = all.bookmarks.filter((b) => effectiveCatIds.has(b.categoryId));
+  const bookmarkIds = new Set(bookmarks.map((b) => b.id));
+  // pinnedTabs 只跟「整选工作区」(wsIdSet=selection.workspaceIds)——单选 category 连带的 ws
+  //(在 effectiveWsIds 但不在 wsIdSet)的常驻标签不连带(决策 B)。
+  const pinnedTabs = (all.pinnedTabs ?? []).filter((p) => wsIdSet.has(p.workspaceId));
+  const contexts = includeContexts
+    ? all.contexts.filter((ctx) => bookmarkIds.has(ctx.bookmarkId))
+    : [];
+  const cryptoMetadata = includeContexts ? all.cryptoMetadata : null;
+
+  return { workspaces, categories, bookmarks, contexts, pinnedTabs, cryptoMetadata };
+}
+
+/** 分享包导入结果(返回给 UI 显示数量 + salt 冲突提示) */
+export interface ShareImportResult {
+  workspaces: number;
+  categories: number;
+  bookmarks: number;
+  /** 因接收方 salt 不同被过滤的加密 context 数 */
+  skippedEncrypted: number;
+}
+
+/**
+ * 合并导入分享包(接收方)。单事务 put 不 clear,不覆盖接收方现有数据。
+ * 编排(design doc 导入步骤5-10):
+ *   buildShareData 过滤(复用,决策 B 对称)→ remapShareIds → recomputeRedundancy →
+ *   resolveNameConflicts(读接收方同名)→ filterEncryptedBySalt(读接收方 cryptoMetadata)→
+ *   mergeImportRaw 单事务 → syncContextMeta 兜底 → broadcast。
+ * 不调 lock()(合并不改接收方加密设置)。
+ */
+export async function applyShareImport(
+  data: BackupData,
+  selection: ShareSelection,
+): Promise<ShareImportResult> {
+  // 1. 识别模式:全拷贝(cryptoMetadata 非空)vs 仅结构
+  const senderSalt = data.cryptoMetadata?.salt ?? null;
+  const includeContexts = data.cryptoMetadata !== null;
+  // 2. 接收方过滤(复用 buildShareData,决策 B 对称)
+  const selected = buildShareData(data, selection, includeContexts);
+  // 3. ID 重映射(5 Map + 双 FK + pinnedTab 主键)
+  const remapped = remapShareIds(selected);
+  // 4. 冗余字段预修正(按包内实际 context 数)
+  const recomputed: BackupData = {
+    ...remapped,
+    bookmarks: recomputeRedundancy(remapped.bookmarks, remapped.contexts),
+  };
+  // 5. 读接收方现有同名(workspace/category)
+  const [existingWs, existingCat] = await Promise.all([
+    getAll<Workspace>('workspaces'),
+    getAll<Category>('categories'),
+  ]);
+  const existing: ExistingNames = {
+    workspaces: new Set(existingWs.map((w) => w.name)),
+    categories: new Set(existingCat.map((c) => c.name)),
+  };
+  // 6. 同名后缀
+  const resolved = resolveNameConflicts(recomputed, existing);
+  // 7. 读接收方 cryptoMetadata
+  const receiverMeta = (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null;
+  // 8. 死密文过滤(salt 冲突)
+  const { contexts: filteredContexts, skippedEncrypted } = filterEncryptedBySalt(
+    resolved.contexts,
+    senderSalt,
+    receiverMeta,
+  );
+  // 9. cryptoMetadata 写入决策:接收方无 / salt 相同 → 写发送方;salt 不同 → 不写(保留接收方)
+  const writeMeta =
+    !receiverMeta || senderSalt === null || senderSalt === receiverMeta.salt
+      ? resolved.cryptoMetadata
+      : undefined;
+  // 10. 单事务合并(cryptoMetaToWrite 为 null/undefined 时不写)
+  await mergeImportRaw({ ...resolved, contexts: filteredContexts }, writeMeta ?? undefined);
+  // 11. syncContextMeta 兜底(非致命)
+  try {
+    for (const b of resolved.bookmarks) {
+      await syncContextMeta(b.id);
+    }
+  } catch (e) {
+    console.warn('[octane] 分享导入重算冗余字段部分失败', e);
+  }
+  // 12. 广播(不 lock)
+  broadcastChange('workspaces', 'put');
+  broadcastChange('categories', 'put');
+  broadcastChange('bookmarks', 'put');
+  broadcastChange('contexts', 'put');
+  broadcastChange('pinnedTabs', 'put');
+  broadcastImport();
+  // 13. 返回数量 + 冲突计数
+  return {
+    workspaces: resolved.workspaces.length,
+    categories: resolved.categories.length,
+    bookmarks: resolved.bookmarks.length,
+    skippedEncrypted,
+  };
+}
+
+/**
+ * 构建备份 Blob(导出与云上传共用同一份)。
+ * - 无 selection / 空选 → 全量备份(kind:'backup'),逐字节与历史一致(灾备网锁定)。
+ * - 有 selection → 分享包(kind:'share'),按选择集精确取数,上下文按 includeContexts 全带/全不带。
+ */
+export async function buildBackupBlob(
+  selection?: ShareSelection,
+  includeContexts = false,
+): Promise<Blob> {
   const data = await exportAllData();
+  const hasSelection =
+    !!selection && (selection.workspaceIds.length > 0 || selection.categoryIds.length > 0);
+  const shareData = hasSelection ? buildShareData(data, selection!, includeContexts) : data;
   const file = {
     schema: BACKUP_SCHEMA,
     version: BACKUP_VERSION,
+    kind: (hasSelection ? 'share' : 'backup') as BackupKind,
     exportedAt: Date.now(),
     appVersion: browser.runtime.getManifest().version,
-    data,
+    data: shareData,
   };
   return new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
 }

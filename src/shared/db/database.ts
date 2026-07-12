@@ -298,5 +298,34 @@ export async function replaceAllDataRaw(data: BackupData): Promise<void> {
   await tx.done;
 }
 
+/**
+ * 合并导入(分享包):单 readwrite 事务,纯 put 不 clear —— 保留接收方现有数据。
+ *
+ * 与 replaceAllDataRaw(全量覆盖)的关键区别:
+ *  - 不 clear 任何 store(合并追加,非覆盖)
+ *  - 不重算冗余字段 / 不 lock / 不广播(由调用方服务层编排)
+ *
+ * ID 重映射 + 同名后缀 + 冲突过滤由调用方在事务前完成,本函数只做原子搬运。
+ * cryptoMeta 单独传入:经 salt 冲突过滤后的「最终写入决策」(全拷贝包 salt 相同时才写);
+ * undefined → 不动接收方 cryptoMetadata store(保留原值)。
+ * remapped.cryptoMetadata 是发送方原值,仅供决策参考,本函数不直接落盘。
+ * 任一步失败事务整体回滚(数据 + cryptoMetadata 同生共死,无部分态)。
+ */
+export async function mergeImportRaw(remapped: BackupData, cryptoMeta?: CryptoMetadata): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction([...ALL_STORES], 'readwrite');
+  for (const ws of remapped.workspaces) await tx.objectStore('workspaces').put(ws);
+  for (const c of remapped.categories) await tx.objectStore('categories').put(c);
+  for (const b of remapped.bookmarks) await tx.objectStore('bookmarks').put(b);
+  for (const ctx of remapped.contexts) await tx.objectStore('contexts').put(ctx);
+  if (remapped.pinnedTabs) {
+    for (const p of remapped.pinnedTabs) await tx.objectStore('pinnedTabs').put(p);
+  }
+  if (cryptoMeta) {
+    await tx.objectStore('cryptoMetadata').put(cryptoMeta);
+  }
+  await tx.done;
+}
+
 // 导出类型供其他模块使用
 export type { OctaneDB, StoreName };

@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.11.3] - 2026-07-10
+
+### Added
+
+- **部分导出/导入（分享包）**：可选取工作区或分类打包成分享包 JSON 文件，发给同事;对方导入即合并到他的书签库，**不覆盖**现有数据。
+  - 导出分享包 Modal：SelectionTree 勾选工作区/分类 + 上下文二选一 checkbox（不勾=仅结构分享给他人;勾=含加密笔记的全拷贝，适合自己跨设备迁移）。
+  - 导入分享包 Modal：接收方预览（数量 +「不覆盖」安全提示）+ 勾选 + 后台单事务合并导入 + salt 冲突提示（「X 条加密笔记因本机加密设置不同未导入」）。
+  - kind 双向防护：分享包走备份恢复入口、备份包走分享导入入口，均被拒绝（防误操作覆盖/合并错乱）。
+- **useShare 状态机**：分享导出/导入状态集中到 zustand store（与 useBackup 模式一致），两个 Modal 消费 store、移除 local state。
+- **隐私政策**：新增第 8 节「数据导出与分享包」，披露分享包数据内容（书签明文 / 上下文二选一）与传输责任。
+
+### Changed
+
+- **类型层 v3**：`BackupFile.kind`（backup/share 区分全量备份 vs 分享包）+ `BACKUP_VERSION=3`。
+- **数据层**：`mergeImportRaw` 单事务合并导入（纯 put 不 clear，原子提交，失败整体回滚）。
+- **服务层纯函数**：ID 重映射（5 Map + 双 FK + pinnedTab 主键）、同名后缀冲突、死密文过滤（salt 冲突时过滤加密 context 防永久占位）、冗余字段预修正。
+
+### 内部
+
+- 灾备回归测试网先行（锁定全量备份 round-trip 逐表一致，含加密 contexts/pinnedTabs/cryptoMetadata），保护灾备管道。
+- 全量 87 files / 664 tests 通过 + typecheck 双绿;真机 e2e 6 场景全过（含 salt 过滤、kind 双向拒绝、useShare 重构不破坏）。
+
 ## [0.1.11.2] - 2026-07-08
 
 ### Added

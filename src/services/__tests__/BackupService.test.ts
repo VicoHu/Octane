@@ -36,8 +36,30 @@ describe('validateBackup', () => {
     expect(validateBackup(makeFile({}, { schema: 'other' as never })).ok).toBe(false);
   });
 
-  it('version=3（未知）→ 拒绝', () => {
-    expect(validateBackup(makeFile({}, { version: 3 })).ok).toBe(false);
+  it('version=4（未知版本）→ 拒绝', () => {
+    expect(validateBackup(makeFile({}, { version: 4 } as never)).ok).toBe(false);
+  });
+
+  it('version=3（v3 新格式）→ ok', () => {
+    expect(validateBackup(makeFile({}, { version: 3 } as never)).ok).toBe(true);
+  });
+
+  it('kind 透传：v3 backup → kind=backup', () => {
+    const r = validateBackup(makeFile({}, { kind: 'backup' } as never));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.kind).toBe('backup');
+  });
+
+  it('kind 透传：v3 share → kind=share', () => {
+    const r = validateBackup(makeFile({}, { kind: 'share' } as never));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.kind).toBe('share');
+  });
+
+  it('kind 缺失（v1/v2 旧文件）→ 默认 backup（向后兼容）', () => {
+    const r = validateBackup(makeFile());
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.kind).toBe('backup');
   });
 
   it('v1 备份（无 pinnedTabs 字段）→ ok 且 pinnedTabs 保持 undefined（让 replaceAllDataRaw 保留现有数据）', () => {
@@ -166,12 +188,13 @@ describe('buildBackupBlob', () => {
     getManifest.mockClear();
   });
 
-  it('生成 schema/version/appVersion/data 正确的备份 Blob', async () => {
+  it('生成 schema/version/kind/appVersion/data 正确的备份 Blob（v3, kind=backup）', async () => {
     vi.spyOn(DB, 'exportAllData').mockResolvedValue(okData);
     const blob = await buildBackupBlob();
     const parsed = JSON.parse(await blob.text());
     expect(parsed.schema).toBe(BACKUP_SCHEMA);
     expect(parsed.version).toBe(BACKUP_VERSION);
+    expect(parsed.kind).toBe('backup');
     expect(parsed.appVersion).toBe('0.1.3.5');
     expect(parsed.data).toEqual(okData);
     expect(getManifest).toHaveBeenCalled();

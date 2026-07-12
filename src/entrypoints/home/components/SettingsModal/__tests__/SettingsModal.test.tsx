@@ -42,6 +42,7 @@ vi.mock('../../ChangePasswordModal', () => ({
     visible ? ('修改主密码弹窗' as any) : (null as any),
 }));
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import userEvent from '@testing-library/user-event';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SettingsModal } from '../index';
 
@@ -58,12 +59,13 @@ describe('SettingsModal（系统设置中心）', () => {
     };
   });
 
-  it('渲染「系统设置」标题 + 三 menu 项', () => {
+  it('渲染「系统设置」标题 + 四 menu 项', () => {
     render(<SettingsModal visible={true} onCancel={() => {}} />);
-    expect(screen.getByText('系统设置')).toBeTruthy();
-    expect(screen.getByText('快捷键')).toBeTruthy();
-    expect(screen.getByText('数据备份和同步')).toBeTruthy();
-    expect(screen.getByText('主密码')).toBeTruthy();
+    expect(screen.getByText('系统设置')).toBeInTheDocument();
+    expect(screen.getByText('快捷键')).toBeInTheDocument();
+    expect(screen.getByText('数据备份和同步')).toBeInTheDocument();
+    expect(screen.getByText('数据维护')).toBeInTheDocument();
+    expect(screen.getByText('主密码')).toBeInTheDocument();
   });
 
   it('默认显示快捷键分区（「前往自定义」按钮可见）', async () => {
@@ -85,5 +87,31 @@ describe('SettingsModal（系统设置中心）', () => {
     fireEvent.click(screen.getByText('主密码'));
     // PasswordSection 默认未设 → 「设置主密码」按钮（验证主密码分区已接入）
     expect(screen.getByRole('button', { name: '设置主密码' })).toBeTruthy();
+  });
+
+  it('「数据备份和同步」内含 3 个 card 子 tab,默认本地备份,可切到云端同步', async () => {
+    const user = userEvent.setup();
+    render(<SettingsModal visible={true} onCancel={() => {}} />);
+    // 等快捷键分区渲染完（chrome.commands.getAll 异步）
+    await screen.findByRole('button', { name: /前往自定义/ });
+    // 进入「数据备份和同步」外层 tab
+    await user.click(screen.getByRole('tab', { name: '数据备份和同步' }));
+
+    // 3 个子 tab 存在
+    const localTab = screen.getByRole('tab', { name: '本地备份' });
+    const cloudTab = screen.getByRole('tab', { name: '云端同步' });
+    const shareTab = screen.getByRole('tab', { name: '分享' });
+    expect(localTab).toBeInTheDocument();
+    expect(cloudTab).toBeInTheDocument();
+    expect(shareTab).toBeInTheDocument();
+    // 默认激活「本地备份」
+    expect(localTab).toHaveAttribute('aria-selected', 'true');
+    // 本地备份区内容渲染（导出数据按钮）
+    expect(screen.getByRole('button', { name: '导出数据' })).toBeInTheDocument();
+
+    // 切到「云端同步」
+    await user.click(cloudTab);
+    expect(cloudTab).toHaveAttribute('aria-selected', 'true');
+    expect(localTab).toHaveAttribute('aria-selected', 'false');
   });
 });
