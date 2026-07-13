@@ -112,6 +112,14 @@ export interface FaviconRecord {
   height?: number;
   fetchedAt?: number;
   expiresAt?: number;
+  /** 成功缓存版本 ID，用于避免迟到的图片错误删除更新版本。 */
+  cacheId?: string;
+  /** 抓取中的跨运行时请求令牌；只有持有当前令牌的请求可以提交结果。 */
+  refreshToken?: string;
+  refreshMode?: 'normal' | 'force';
+  refreshStartedAt?: number;
+  /** 最近一次强制刷新的开始时间，阻止更早启动的 normal 请求迟到提交。 */
+  lastForceStartedAt?: number;
   /** 第三方全失败后的下次允许重试时间 */
   thirdPartyRetryAt?: number;
 }

@@ -37,6 +37,10 @@ function imageResponse(body: string, type = 'image/png'): Response {
   });
 }
 
+function readFaviconRecord(hostname: string): Promise<FaviconRecord | undefined> {
+  return getByKey<FaviconRecord>('favicons', hostname);
+}
+
 function normalizer(map: Record<string, { size: number; vector?: boolean } | null>): FaviconNormalizer {
   return async (blob) => {
     const text = await blob.text();
@@ -347,7 +351,7 @@ describe('第三方并行升级', () => {
     const oldBlob = new Blob(['broken'], { type: 'image/png' });
     await putRecord('favicons', {
       hostname: 'example.com', blob: oldBlob, source: 'icon-horse', mimeType: 'image/png',
-      width: 64, height: 64, fetchedAt: 1, expiresAt: 2,
+      width: 64, height: 64, fetchedAt: 1, expiresAt: 2, cacheId: 'cache-broken',
     } satisfies FaviconRecord);
 
     const rejectors: Array<(reason?: unknown) => void> = [];
@@ -359,7 +363,7 @@ describe('第三方并行升级', () => {
     });
     await vi.waitFor(() => expect(rejectors).toHaveLength(2));
 
-    const invalidation = invalidateFavicon('example.com');
+    const invalidation = invalidateFavicon('example.com', 'cache-broken');
     rejectors.forEach((reject) => reject(new TypeError('CORS')));
     await Promise.all([invalidation, pending]);
 
@@ -394,6 +398,40 @@ describe('第三方并行升级', () => {
     expect(cached?.fetchedAt).toBe(200);
   });
 
+  it('不同扩展运行时并发时，旧 normal 也不得覆盖较新的 force', async () => {
+    vi.resetModules();
+    const serviceA = await import('@/services/FaviconService');
+    vi.resetModules();
+    const serviceB = await import('@/services/FaviconService');
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => resolvers.push(resolve))));
+    const normalize = normalizer({
+      'normal-icon': { size: 64 },
+      'force-icon': { size: 64 },
+      'letter-r': { size: 256 },
+    });
+
+    const normal = serviceA.fetchBestThirdPartyFavicon('https://cross-realm.example', {
+      now: 100, normalize,
+    });
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    const forced = serviceB.fetchBestThirdPartyFavicon('https://cross-realm.example', {
+      force: true, now: 200, normalize,
+    });
+    await vi.waitFor(() => expect(resolvers).toHaveLength(4));
+
+    resolvers[2]!(imageResponse('force-icon'));
+    resolvers[3]!(imageResponse('letter-r'));
+    await forced;
+    resolvers[0]!(imageResponse('normal-icon'));
+    resolvers[1]!(imageResponse('letter-r'));
+    expect(await normal).toBeNull();
+
+    const cached = await readFaviconRecord('cross-realm.example');
+    expect(await cached?.blob?.text()).toBe('force-icon-normalized');
+    expect(cached?.fetchedAt).toBe(200);
+  });
+
   it('普通 fresh-cache 查询与 force 刷新并发时，force 仍发起网络请求', async () => {
     await putRecord('favicons', {
       hostname: 'force.example',
@@ -412,6 +450,40 @@ describe('第三方并行升级', () => {
     await Promise.all([normal, forced]);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('早于 force 启动的 normal 即使延迟 claim，也不能覆盖已完成的 force', async () => {
+    await putRecord('favicons', {
+      hostname: 'late-claim.example',
+      lastForceStartedAt: 200,
+    } satisfies FaviconRecord);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchBestThirdPartyFavicon('https://late-claim.example', { now: 100 });
+
+    expect(result).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('崩溃遗留的 force 令牌过期后，normal 可以重新抓取', async () => {
+    await putRecord('favicons', {
+      hostname: 'expired-force.example',
+      refreshToken: 'abandoned-force',
+      refreshMode: 'force',
+      refreshStartedAt: 1,
+      lastForceStartedAt: 1,
+    } satisfies FaviconRecord);
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(imageResponse('real-icon'))
+      .mockResolvedValueOnce(imageResponse('letter-e')));
+
+    const result = await fetchBestThirdPartyFavicon('https://expired-force.example', {
+      now: 100_000,
+      normalize: normalizer({ 'real-icon': { size: 64 }, 'letter-e': { size: 256 } }),
+    });
+
+    expect(await result?.blob.text()).toBe('real-icon-normalized');
   });
 
   it('超时覆盖响应体读取，body 挂起不会永久占用 single-flight', async () => {
@@ -482,6 +554,23 @@ describe('第三方并行升级', () => {
 });
 
 describe('缓存管理', () => {
+  it('迟到图片错误只能删除自己对应的缓存版本', async () => {
+    await putRecord('favicons', {
+      hostname: 'a.com',
+      blob: new Blob(['new-icon'], { type: 'image/png' }),
+      source: 'icon-horse',
+      cacheId: 'cache-new',
+      fetchedAt: 200,
+      expiresAt: 300,
+    } satisfies FaviconRecord);
+
+    await invalidateFavicon('a.com', 'cache-old');
+    expect(await readFaviconRecord('a.com')).toBeDefined();
+
+    await invalidateFavicon('a.com', 'cache-new');
+    expect(await readFaviconRecord('a.com')).toBeUndefined();
+  });
+
   it('读取、删除与清空缓存', async () => {
     await putRecord('favicons', { hostname: 'a.com', thirdPartyRetryAt: 1 } satisfies FaviconRecord);
     await putRecord('favicons', { hostname: 'b.com', thirdPartyRetryAt: 1 } satisfies FaviconRecord);

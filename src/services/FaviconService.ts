@@ -7,6 +7,7 @@ import type {
 export const THIRD_PARTY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const THIRD_PARTY_RETRY_MS = 24 * 60 * 60 * 1000;
 export const THIRD_PARTY_TIMEOUT_MS = 3000;
+const REFRESH_CLAIM_TTL_MS = 30_000;
 
 function extFaviconBase(): string {
   const chrome = globalThis.chrome as { runtime?: { getURL?: (path: string) => string } } | undefined;
@@ -244,6 +245,7 @@ export interface ThirdPartyFaviconResult {
   blob: Blob;
   width: number;
   height: number;
+  cacheId?: string;
 }
 
 export interface FetchThirdPartyOptions {
@@ -254,15 +256,13 @@ export interface FetchThirdPartyOptions {
 }
 
 const inFlight = new Map<string, Promise<ThirdPartyFaviconResult | null>>();
-const latestGeneration = new Map<string, number>();
-let nextGeneration = 0;
 
 function inFlightKey(hostname: string, force: boolean): string {
   return `${hostname}:${force ? 'force' : 'normal'}`;
 }
 
-function isCurrentGeneration(hostname: string, generation: number): boolean {
-  return latestGeneration.get(hostname) === generation;
+function createRefreshToken(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 function resultFromRecord(record: FaviconRecord): ThirdPartyFaviconResult | null {
@@ -273,25 +273,70 @@ function resultFromRecord(record: FaviconRecord): ThirdPartyFaviconResult | null
     blob: record.blob,
     width: record.width ?? 64,
     height: record.height ?? 64,
+    cacheId: record.cacheId,
   };
+}
+
+async function claimRefresh(
+  hostname: string,
+  mode: 'normal' | 'force',
+  startedAt: number,
+): Promise<string | null> {
+  const refreshToken = createRefreshToken();
+  const db = await getDB();
+  const tx = db.transaction('favicons', 'readwrite');
+  const store = tx.objectStore('favicons');
+  const current = await store.get(hostname) as FaviconRecord | undefined;
+
+  if (mode === 'normal') {
+    const newerForceExists = (current?.lastForceStartedAt ?? -Infinity) >= startedAt;
+    const forceClaimAge = startedAt - (current?.refreshStartedAt ?? -Infinity);
+    const activeForceExists = current?.refreshMode === 'force'
+      && forceClaimAge >= 0
+      && forceClaimAge < REFRESH_CLAIM_TTL_MS;
+    if (activeForceExists || newerForceExists) {
+      await tx.done;
+      return null;
+    }
+  }
+
+  await store.put({
+    ...current,
+    hostname,
+    refreshToken,
+    refreshMode: mode,
+    refreshStartedAt: startedAt,
+    lastForceStartedAt: mode === 'force'
+      ? Math.max(current?.lastForceStartedAt ?? -Infinity, startedAt)
+      : current?.lastForceStartedAt,
+  });
+  await tx.done;
+  broadcastChange('favicons', 'put');
+  return refreshToken;
 }
 
 async function writeFailureCooldown(
   hostname: string,
   now: number,
-  generation: number,
+  refreshToken: string,
 ): Promise<void> {
   const db = await getDB();
-  if (!isCurrentGeneration(hostname, generation)) return;
-
-  // 同一个 readwrite transaction 内读取并更新，避免 onError 的 delete 插入 get/put 之间，
-  // 将已经删除的坏 Blob 从旧快照中复活。
   const tx = db.transaction('favicons', 'readwrite');
   const store = tx.objectStore('favicons');
   const current = await store.get(hostname) as FaviconRecord | undefined;
+  if (current?.refreshToken !== refreshToken) {
+    await tx.done;
+    return;
+  }
+
+  // 同一个 readwrite transaction 内读取并更新，避免 onError 的 delete 插入 get/put 之间，
+  // 同时用持久化令牌阻止其他扩展运行时中的旧请求提交结果。
   await store.put({
     ...current,
     hostname,
+    refreshToken: undefined,
+    refreshMode: undefined,
+    refreshStartedAt: undefined,
     thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
   });
   await tx.done;
@@ -300,15 +345,21 @@ async function writeFailureCooldown(
 
 async function writeSuccessRecord(
   record: FaviconRecord,
-  generation: number,
+  refreshToken: string,
 ): Promise<boolean> {
   const db = await getDB();
-  if (!isCurrentGeneration(record.hostname, generation)) return false;
-
-  // generation 检查后立即创建同 store 写事务；后启动的请求写事务会排在其后，
-  // 因而最终缓存始终由较新的请求决定。
   const tx = db.transaction('favicons', 'readwrite');
-  await tx.objectStore('favicons').put(record);
+  const store = tx.objectStore('favicons');
+  const current = await store.get(record.hostname) as FaviconRecord | undefined;
+  if (current?.refreshToken !== refreshToken) {
+    await tx.done;
+    return false;
+  }
+
+  await store.put({
+    ...record,
+    lastForceStartedAt: current.lastForceStartedAt,
+  });
   await tx.done;
   broadcastChange('favicons', 'put');
   return true;
@@ -318,7 +369,6 @@ async function performThirdPartyFetch(
   url: string,
   hostname: string,
   options: FetchThirdPartyOptions,
-  generation: number,
 ): Promise<ThirdPartyFaviconResult | null> {
   const now = options.now ?? Date.now();
   const normalize = options.normalize ?? normalizeFaviconBlob;
@@ -331,6 +381,8 @@ async function performThirdPartyFetch(
     if (!cache.canRefresh) return null;
   }
 
+  const refreshToken = await claimRefresh(hostname, options.force ? 'force' : 'normal', now);
+  if (!refreshToken) return null;
   const [candidateRequest, fallbackRequest] = buildThirdPartySources(url);
   const settled = await Promise.allSettled([
     fetchBlobWithTimeout(candidateRequest!.url, timeoutMs),
@@ -339,7 +391,7 @@ async function performThirdPartyFetch(
   const candidateEntry = settled[0];
   const fallbackEntry = settled[1];
   if (candidateEntry?.status !== 'fulfilled' || fallbackEntry?.status !== 'fulfilled') {
-    await writeFailureCooldown(hostname, now, generation);
+    await writeFailureCooldown(hostname, now, refreshToken);
     return null;
   }
 
@@ -347,13 +399,13 @@ async function performThirdPartyFetch(
   // Icon Horse 免费接口未命中时仍返回 HTTP 200 的首字母占位图。
   // 用同首字母的 .invalid 域名取得该占位图指纹；完全相同则拒绝升级。
   if (await blobsEqual(candidateBlob, fallbackBlob)) {
-    await writeFailureCooldown(hostname, now, generation);
+    await writeFailureCooldown(hostname, now, refreshToken);
     return null;
   }
 
   const best = await normalize(candidateBlob);
   if (!best) {
-    await writeFailureCooldown(hostname, now, generation);
+    await writeFailureCooldown(hostname, now, refreshToken);
     return null;
   }
 
@@ -366,8 +418,9 @@ async function performThirdPartyFetch(
     height: 64,
     fetchedAt: now,
     expiresAt: now + THIRD_PARTY_TTL_MS,
+    cacheId: refreshToken,
   };
-  if (!await writeSuccessRecord(record, generation)) return null;
+  if (!await writeSuccessRecord(record, refreshToken)) return null;
   return resultFromRecord(record);
 }
 
@@ -389,28 +442,54 @@ export function fetchBestThirdPartyFavicon(
   const existing = inFlight.get(taskKey);
   if (existing) return existing;
 
-  const generation = ++nextGeneration;
-  latestGeneration.set(hostname, generation);
-  const task = performThirdPartyFetch(url, hostname, options, generation)
-    .finally(() => {
-      inFlight.delete(taskKey);
-      if (!inFlight.has(inFlightKey(hostname, false)) && !inFlight.has(forceKey)) {
-        latestGeneration.delete(hostname);
-      }
-    });
+  const task = performThirdPartyFetch(url, hostname, options)
+    .finally(() => inFlight.delete(taskKey));
   inFlight.set(taskKey, task);
   return task;
 }
 
-export async function invalidateFavicon(hostname: string): Promise<void> {
-  await deleteRecord('favicons', hostname);
+export async function invalidateFavicon(
+  hostname: string,
+  expectedCacheId?: string,
+): Promise<void> {
+  if (expectedCacheId === undefined) {
+    await deleteRecord('favicons', hostname);
+    return;
+  }
+
+  const db = await getDB();
+  const tx = db.transaction('favicons', 'readwrite');
+  const store = tx.objectStore('favicons');
+  const current = await store.get(hostname) as FaviconRecord | undefined;
+  if (!current || current.cacheId !== expectedCacheId) {
+    await tx.done;
+    return;
+  }
+
+  if (current.refreshToken) {
+    await store.put({
+      hostname,
+      refreshToken: current.refreshToken,
+      refreshMode: current.refreshMode,
+      refreshStartedAt: current.refreshStartedAt,
+      lastForceStartedAt: current.lastForceStartedAt,
+      thirdPartyRetryAt: current.thirdPartyRetryAt,
+    } satisfies FaviconRecord);
+    await tx.done;
+    broadcastChange('favicons', 'put');
+    return;
+  }
+
+  await store.delete(hostname);
+  await tx.done;
+  broadcastChange('favicons', 'delete');
 }
 
 export async function refreshFavicon(
   url: string,
   options: Omit<FetchThirdPartyOptions, 'force'> = {},
-): Promise<Blob | null> {
-  return (await fetchBestThirdPartyFavicon(url, { ...options, force: true }))?.blob ?? null;
+): Promise<ThirdPartyFaviconResult | null> {
+  return fetchBestThirdPartyFavicon(url, { ...options, force: true });
 }
 
 export async function clearAllFavicons(): Promise<void> {

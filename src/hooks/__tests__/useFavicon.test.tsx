@@ -70,6 +70,7 @@ describe('useFavicon 异步升级状态机', () => {
       blob: new Blob(['fresh'], { type: 'image/png' }),
       width: 64,
       height: 64,
+      cacheId: 'cache-fresh',
     });
     const { result } = renderHook(() =>
       useFavicon('https://example.com', 'https://example.com/runtime.svg'),
@@ -100,10 +101,17 @@ describe('useFavicon 异步升级状态机', () => {
   });
 
   it('onError 按 third-party → tab → chrome → null 回退', async () => {
+    const cachedBlob = new Blob(['cached'], { type: 'image/png' });
     vi.mocked(getThirdPartyCache).mockResolvedValue({
-      blob: new Blob(['cached'], { type: 'image/png' }),
+      blob: cachedBlob,
       stale: false,
       canRefresh: false,
+      record: {
+        hostname: 'example.com',
+        blob: cachedBlob,
+        source: 'icon-horse',
+        cacheId: 'cache-old',
+      },
     });
     const { result } = renderHook(() =>
       useFavicon('https://example.com', 'https://example.com/runtime.svg'),
@@ -111,7 +119,7 @@ describe('useFavicon 异步升级状态机', () => {
     await waitFor(() => expect(result.current?.kind).toBe('third-party'));
 
     act(() => result.current?.onError());
-    expect(invalidateFavicon).toHaveBeenCalledWith('example.com');
+    expect(invalidateFavicon).toHaveBeenCalledWith('example.com', 'cache-old');
     expect(result.current?.kind).toBe('tab');
 
     act(() => result.current?.onError());
@@ -119,6 +127,35 @@ describe('useFavicon 异步升级状态机', () => {
 
     act(() => result.current?.onError());
     expect(result.current).toBeNull();
+  });
+
+  it('旧 Object URL 的迟到错误不得使当前新缓存降级或失效', async () => {
+    vi.mocked(fetchBestThirdPartyFavicon)
+      .mockResolvedValueOnce({
+        hostname: 'example.com', source: 'icon-horse',
+        blob: new Blob(['old']), width: 64, height: 64, cacheId: 'cache-old',
+      })
+      .mockResolvedValueOnce({
+        hostname: 'example.com', source: 'icon-horse',
+        blob: new Blob(['new']), width: 64, height: 64, cacheId: 'cache-new',
+      });
+    const { result, rerender } = renderHook(
+      ({ runtime }) => useFavicon('https://example.com', runtime),
+      { initialProps: { runtime: 'https://example.com/a.svg' } },
+    );
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    const oldSrc = result.current!.src;
+
+    rerender({ runtime: 'https://example.com/b.svg' });
+    await waitFor(() => expect(fetchBestThirdPartyFavicon).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    expect(result.current?.src).not.toBe(oldSrc);
+    const currentSrc = result.current!.src;
+    act(() => result.current?.onError({ currentTarget: { src: oldSrc } } as never));
+
+    expect(invalidateFavicon).not.toHaveBeenCalled();
+    expect(result.current?.kind).toBe('third-party');
+    expect(result.current?.src).toBe(currentSrc);
   });
 
   it('浏览器稍后补充 runtime favicon 时从 Chrome 切到 tab', async () => {

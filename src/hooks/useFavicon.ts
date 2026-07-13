@@ -12,7 +12,7 @@ import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
 export interface FaviconRenderSource {
   kind: 'third-party' | 'tab' | 'chrome';
   src: string;
-  onError: () => void;
+  onError: (event?: { currentTarget?: { src?: string } }) => void;
 }
 
 type ActiveKind = FaviconRenderSource['kind'] | 'none';
@@ -32,21 +32,24 @@ export function useFavicon(
   const safeRuntimeFavIconUrl = runtimeValid ? runtimeFavIconUrl : undefined;
   const fallbackKind = localKind(urlValid, safeRuntimeFavIconUrl);
   const [activeKind, setActiveKind] = useState<ActiveKind>(() => fallbackKind);
-  const [thirdPartyObjectUrl, setThirdPartyObjectUrl] = useState<string | null>(null);
+  const [thirdPartySource, setThirdPartySource] = useState<{
+    src: string;
+    cacheId?: string;
+  } | null>(null);
   const objectUrlRef = useRef<string | null>(null);
   const generationRef = useRef(0);
 
   const clearObjectUrl = useCallback(() => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     objectUrlRef.current = null;
-    setThirdPartyObjectUrl(null);
+    setThirdPartySource(null);
   }, []);
 
-  const showThirdPartyBlob = useCallback((blob: Blob) => {
+  const showThirdPartyBlob = useCallback((blob: Blob, cacheId?: string) => {
     const next = URL.createObjectURL(blob);
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     objectUrlRef.current = next;
-    setThirdPartyObjectUrl(next);
+    setThirdPartySource({ src: next, cacheId });
     setActiveKind('third-party');
   }, []);
 
@@ -67,12 +70,12 @@ export function useFavicon(
       try {
         const cache = await getThirdPartyCache(hostname);
         if (!active || generationRef.current !== generation) return;
-        if (cache.blob) showThirdPartyBlob(cache.blob);
+        if (cache.blob) showThirdPartyBlob(cache.blob, cache.record?.cacheId);
         if (!cache.canRefresh) return;
 
         const fetched = await fetchBestThirdPartyFavicon(url);
         if (!active || generationRef.current !== generation || !fetched) return;
-        showThirdPartyBlob(fetched.blob);
+        showThirdPartyBlob(fetched.blob, fetched.cacheId);
       } catch {
         // IndexedDB / CORS / 网络失败均保持浏览器本地候选。
       }
@@ -88,10 +91,13 @@ export function useFavicon(
     objectUrlRef.current = null;
   }, []);
 
-  const onError = useCallback(() => {
+  const onError = useCallback((event?: { currentTarget?: { src?: string } }) => {
     if (activeKind === 'third-party') {
+      const failedSrc = event?.currentTarget?.src;
+      if (failedSrc && thirdPartySource && failedSrc !== thirdPartySource.src) return;
+      const failedCacheId = thirdPartySource?.cacheId;
       clearObjectUrl();
-      if (hostname) void invalidateFavicon(hostname);
+      if (hostname && failedCacheId) void invalidateFavicon(hostname, failedCacheId);
       setActiveKind(runtimeValid ? 'tab' : urlValid ? 'chrome' : 'none');
       return;
     }
@@ -100,10 +106,10 @@ export function useFavicon(
       return;
     }
     if (activeKind === 'chrome') setActiveKind('none');
-  }, [activeKind, clearObjectUrl, hostname, runtimeValid, urlValid]);
+  }, [activeKind, clearObjectUrl, hostname, runtimeValid, thirdPartySource, urlValid]);
 
-  if (activeKind === 'third-party' && thirdPartyObjectUrl) {
-    return { kind: 'third-party', src: thirdPartyObjectUrl, onError };
+  if (activeKind === 'third-party' && thirdPartySource) {
+    return { kind: 'third-party', src: thirdPartySource.src, onError };
   }
   if (activeKind === 'tab' && runtimeValid) {
     return { kind: 'tab', src: safeRuntimeFavIconUrl!, onError };

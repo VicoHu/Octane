@@ -17,6 +17,18 @@ vi.mock('@/hooks/useFavicon', () => ({
 }));
 import { useFavicon } from '@/hooks/useFavicon';
 
+
+function refreshResult(blob: Blob, cacheId = 'cache-new') {
+  return {
+    hostname: 'github.com',
+    source: 'icon-horse' as const,
+    blob,
+    width: 64,
+    height: 64,
+    cacheId,
+  };
+}
+
 beforeEach(async () => {
   resetDB();
   vi.clearAllMocks();
@@ -33,7 +45,7 @@ describe('BookmarkFaviconPreview', () => {
     const newBlob = new Blob(['new-bytes']);
     const refreshSpy = vi
       .spyOn(FaviconService, 'refreshFavicon')
-      .mockResolvedValue(newBlob);
+      .mockResolvedValue(refreshResult(newBlob));
     const createURLSpy = vi
       .spyOn(URL, 'createObjectURL')
       .mockReturnValue('blob:new-override');
@@ -47,7 +59,7 @@ describe('BookmarkFaviconPreview', () => {
   });
 
   it('刷新 A 未完成时 URL 切到 B，迟到结果不得覆盖 B 的图标', async () => {
-    let resolveRefresh!: (blob: Blob | null) => void;
+    let resolveRefresh!: (result: ReturnType<typeof refreshResult> | null) => void;
     vi.spyOn(FaviconService, 'refreshFavicon').mockReturnValue(
       new Promise((resolve) => { resolveRefresh = resolve; }),
     );
@@ -61,14 +73,14 @@ describe('BookmarkFaviconPreview', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     view.rerender(<BookmarkFaviconPreview url="https://b.example" />);
-    await act(async () => resolveRefresh(new Blob(['a-icon'])));
+    await act(async () => resolveRefresh(refreshResult(new Blob(['a-icon']))));
 
     await waitFor(() => expect(screen.getByAltText('').getAttribute('src')).toBe('chrome:https://b.example'));
     expect(createURLSpy).not.toHaveBeenCalled();
   });
 
   it('组件卸载后刷新才返回，不创建无法回收的 Object URL', async () => {
-    let resolveRefresh!: (blob: Blob | null) => void;
+    let resolveRefresh!: (result: ReturnType<typeof refreshResult> | null) => void;
     vi.spyOn(FaviconService, 'refreshFavicon').mockReturnValue(
       new Promise((resolve) => { resolveRefresh = resolve; }),
     );
@@ -77,7 +89,7 @@ describe('BookmarkFaviconPreview', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     view.unmount();
-    await act(async () => resolveRefresh(new Blob(['a-icon'])));
+    await act(async () => resolveRefresh(refreshResult(new Blob(['a-icon']))));
 
     expect(createURLSpy).not.toHaveBeenCalled();
   });
@@ -93,7 +105,7 @@ describe('BookmarkFaviconPreview', () => {
 
 
   it('手动刷新图标加载失败时删除已写入的第三方缓存', async () => {
-    vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(new Blob(['broken']));
+    vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(refreshResult(new Blob(['broken']), 'cache-broken'));
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:broken-override');
     const invalidateSpy = vi.spyOn(FaviconService, 'invalidateFavicon').mockResolvedValue();
     render(<BookmarkFaviconPreview url="https://github.com/path" />);
@@ -101,7 +113,7 @@ describe('BookmarkFaviconPreview', () => {
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     fireEvent.error(screen.getByAltText(''));
 
-    expect(invalidateSpy).toHaveBeenCalledWith('github.com');
+    expect(invalidateSpy).toHaveBeenCalledWith('github.com', 'cache-broken');
   });
 
   it('图片加载失败调用 hook onError', () => {
