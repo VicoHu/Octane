@@ -28,6 +28,7 @@ export const GripButton: React.FC<GripButtonProps> = ({ listeners, disabled, cla
       type="button"
       className={`${styles.grip}${className ? ` ${className}` : ''}`}
       aria-roledescription="可拖拽项"
+      aria-label={title}
       title={title}
       disabled={disabled}
       {...(disabled ? {} : (listeners as React.ComponentProps<'button'>))}

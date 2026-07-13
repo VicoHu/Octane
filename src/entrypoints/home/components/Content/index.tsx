@@ -10,6 +10,22 @@ import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs
 import { focusTab } from '@/shared/tabs/focusTab';
 import * as CategoryService from '@/services/CategoryService';
 import { BookmarkCard } from '../BookmarkCard';
+import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
+import { SortableOverlay } from '../dnd/SortableOverlay';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
 import {
   BookmarkOpsPanel,
   type BookmarkOpsPanelHandle,
@@ -31,6 +47,7 @@ export const Content: React.FC = () => {
   const allBookmarks = useBookmarks((s) => s.allBookmarks);
   const loading = useBookmarks((s) => s.loading);
   const createBookmark = useBookmarks((s) => s.createBookmark);
+  const reorderBookmarks = useBookmarks((s) => s.reorderBookmarks);
   const loadAllByWorkspace = useBookmarks((s) => s.loadAllByWorkspace);
   const openTabs = useOpenTabs();
   const query = useSearch((s) => s.query);
@@ -69,6 +86,33 @@ export const Content: React.FC = () => {
           b.description.toLowerCase().includes(query.toLowerCase()),
       )
     : bookmarks;
+
+  // === T4 拖拽排序(Content grid 层)===
+  // activationConstraint distance:8 兜底(grip listener),防 click 误触为拖拽
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [activeBookmarkId, setActiveBookmarkId] = useState<string | null>(null);
+  const activeBookmark = activeBookmarkId
+    ? filteredBookmarks.find((b) => b.id === activeBookmarkId) ?? null
+    : null;
+
+  const handleDragStart = (e: DragStartEvent) => setActiveBookmarkId(String(e.active.id));
+  const handleDragEnd = async (e: DragEndEvent) => {
+    const { active, over } = e;
+    setActiveBookmarkId(null);
+    // 同位 / 无落区 / 无分类 → 不动(回弹由 store 乐观回滚 + useSortable transition)
+    if (!over || active.id === over.id || !currentCategoryId) return;
+    const oldIndex = filteredBookmarks.findIndex((b) => b.id === active.id);
+    const newIndex = filteredBookmarks.findIndex((b) => b.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const orderedIds = arrayMove(filteredBookmarks, oldIndex, newIndex).map((b) => b.id);
+    // store 乐观重排 + 失败回滚已处理(波2);UI 层 catch → Toast,卡片自然回弹
+    try {
+      await reorderBookmarks(currentCategoryId, orderedIds);
+      // drop 成功不弹 Toast,顺序即反馈(brief 状态矩阵)
+    } catch {
+      Toast.error('排序未保存，请重试');
+    }
+  };
 
   const openAddForTab = (tab: OpenTab) => {
     setSaveFromTab(tab);
@@ -289,6 +333,46 @@ export const Content: React.FC = () => {
               actionLabel={query ? undefined : '添加书签'}
               onAction={query ? undefined : openAddManual}
             />
+          ) : filteredBookmarks.length > 1 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => setActiveBookmarkId(null)}
+            >
+              <SortableContext
+                items={filteredBookmarks.map((b) => b.id)}
+                strategy={rectSortingStrategy}
+              >
+                <div className={styles.grid}>
+                  {filteredBookmarks.map((bookmark) => (
+                    <SortableBookmarkCard
+                      key={bookmark.id}
+                      bookmark={bookmark}
+                      disabled={!!query}
+                      hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
+                      onClick={handleCardClick}
+                      onViewContexts={handleViewContexts}
+                      onEditBookmark={handleEditBookmark}
+                      onDelete={handleDeleteBookmark}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+              <SortableOverlay tone="light">
+                {activeBookmark && (
+                  <BookmarkCard
+                    bookmark={activeBookmark}
+                    hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(activeBookmark.url, t.url))}
+                    onClick={() => {}}
+                    onViewContexts={() => {}}
+                    onEditBookmark={() => {}}
+                    onDelete={() => {}}
+                  />
+                )}
+              </SortableOverlay>
+            </DndContext>
           ) : (
             <div className={styles.grid}>
               {filteredBookmarks.map((bookmark) => (

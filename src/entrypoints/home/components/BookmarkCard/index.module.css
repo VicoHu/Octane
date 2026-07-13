@@ -167,4 +167,40 @@
   .cardHasOpenTab.pulsing::before {
     animation: none;
   }
+  .gripSlot {
+    transition: none;
+  }
+}
+
+/* === T4 拖拽 === */
+/* 拖拽手柄 slot:hover 显(浅色面 text-secondary 次色);触屏常显 */
+.gripSlot {
+  position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  z-index: 2;
+}
+.card:hover .gripSlot,
+.card:focus-within .gripSlot {
+  opacity: 1;
+}
+@media (hover: none) {
+  .gripSlot {
+    opacity: 1;
+  }
+}
+
+/* SortableBookmarkCard wrapper:grid item,承载 setNodeRef + transform 让位 */
+.sortableWrap {
+  position: relative;
+}
+/* isDragging 时原位内容隐藏,让 wrapper 的 placeholder 虚线框露出(measured rect 占位) */
+.dragGhost {
+  visibility: hidden;
 }
