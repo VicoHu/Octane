@@ -98,7 +98,7 @@ export const DB_NAME = 'octane-db';
 export const DB_VERSION = 5;
 
 /** 第三方 favicon 来源。 */
-export type ThirdPartyFaviconSource = 'icon-horse' | 'duckduckgo';
+export type ThirdPartyFaviconSource = 'icon-horse';
 
 /** Favicon 第三方高清缓存记录（per-hostname 去重）。 */
 export interface FaviconRecord {

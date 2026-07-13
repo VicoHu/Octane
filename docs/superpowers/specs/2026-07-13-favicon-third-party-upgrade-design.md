@@ -5,6 +5,8 @@
 - 取代：`docs/superpowers/specs/2026-07-04-favicon-local-cache-design.md` 中的永久缓存与严格串行回退决策
 
 ## 1. 背景
+> **2026-07-13 真机校正：** DuckDuckGo favicon 端点不返回 CORS 响应头，在不新增 host permission 的约束下无法通过 `fetch()` 读取，已从抓取链移除。Icon Horse 未命中时会返回 HTTP 200 的首字母占位图，查询参数无法让免费接口返回 404；实现改为同时请求同首字母 `.invalid` 探针，候选与探针字节完全相同时拒绝升级，保留浏览器本地 favicon。以下原始章节保留为决策演进记录，实际实现以本校正为准。
+
 
 当前书签与常驻标签统一通过 `useFavicon(url)` 获取图标：先读取按 hostname 永久保存的 IndexedDB Blob，未命中时用 Chrome `_favicon` 占位，并串行抓取 Icon Horse、`_favicon`、DuckDuckGo、源站 `/favicon.ico`。
 

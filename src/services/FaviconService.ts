@@ -26,20 +26,24 @@ export function buildFaviconRenderUrl(url: string): string {
 }
 
 export interface ThirdPartySourceRequest {
-  source: ThirdPartyFaviconSource;
+  source: 'icon-horse';
+  role: 'candidate' | 'fallback-probe';
   url: string;
 }
 
 export function buildThirdPartySources(url: string): ThirdPartySourceRequest[] {
   const hostname = new URL(url).hostname;
+  const initial = /^[a-z0-9]/i.test(hostname) ? hostname[0]!.toLowerCase() : 'x';
   return [
     {
       source: 'icon-horse',
-      url: `https://icon.horse/icon/${hostname}?status_code_404=true`,
+      role: 'candidate',
+      url: `https://icon.horse/icon/${hostname}`,
     },
     {
-      source: 'duckduckgo',
-      url: `https://icons.duckduckgo.com/ip3/${hostname}.ico`,
+      source: 'icon-horse',
+      role: 'fallback-probe',
+      url: `https://icon.horse/icon/${initial}-octane-favicon-probe.invalid`,
     },
   ];
 }
@@ -195,8 +199,15 @@ export async function normalizeFaviconBlob(blob: Blob): Promise<NormalizedFavico
   }
 }
 
-interface Candidate extends NormalizedFavicon {
-  source: ThirdPartyFaviconSource;
+async function blobsEqual(a: Blob, b: Blob): Promise<boolean> {
+  if (a.size !== b.size || a.type !== b.type) return false;
+  const [left, right] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]);
+  const leftBytes = new Uint8Array(left);
+  const rightBytes = new Uint8Array(right);
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    if (leftBytes[index] !== rightBytes[index]) return false;
+  }
+  return true;
 }
 
 export interface ThirdPartyFaviconResult {
@@ -241,26 +252,35 @@ async function performThirdPartyFetch(
     if (!cache.canRefresh) return null;
   }
 
-  const settled = await Promise.allSettled(
-    buildThirdPartySources(url).map(async ({ source, url: sourceUrl }): Promise<Candidate | null> => {
-      const response = await fetchWithTimeout(sourceUrl, THIRD_PARTY_TIMEOUT_MS);
-      const normalized = await normalize(await response.blob());
-      return normalized ? { source, ...normalized } : null;
-    }),
-  );
-
-  const candidates = settled
-    .filter((entry): entry is PromiseFulfilledResult<Candidate | null> => entry.status === 'fulfilled')
-    .map((entry) => entry.value)
-    .filter((candidate): candidate is Candidate => candidate !== null)
-    .sort((a, b) => {
-      if (a.vector !== b.vector) return a.vector ? -1 : 1;
-      if (a.originalMinSize !== b.originalMinSize) return b.originalMinSize - a.originalMinSize;
-      if (a.source === b.source) return 0;
-      return a.source === 'icon-horse' ? -1 : 1;
+  const [candidateRequest, fallbackRequest] = buildThirdPartySources(url);
+  const settled = await Promise.allSettled([
+    fetchWithTimeout(candidateRequest!.url, THIRD_PARTY_TIMEOUT_MS).then((response) => response.blob()),
+    fetchWithTimeout(fallbackRequest!.url, THIRD_PARTY_TIMEOUT_MS).then((response) => response.blob()),
+  ]);
+  const candidateEntry = settled[0];
+  const fallbackEntry = settled[1];
+  if (candidateEntry?.status !== 'fulfilled' || fallbackEntry?.status !== 'fulfilled') {
+    await putRecord('favicons', {
+      ...existing,
+      hostname,
+      thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
     });
+    return null;
+  }
 
-  const best = candidates[0];
+  const [candidateBlob, fallbackBlob] = [candidateEntry.value, fallbackEntry.value];
+  // Icon Horse 免费接口未命中时仍返回 HTTP 200 的首字母占位图。
+  // 用同首字母的 .invalid 域名取得该占位图指纹；完全相同则拒绝升级。
+  if (await blobsEqual(candidateBlob, fallbackBlob)) {
+    await putRecord('favicons', {
+      ...existing,
+      hostname,
+      thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
+    });
+    return null;
+  }
+
+  const best = await normalize(candidateBlob);
   if (!best) {
     await putRecord('favicons', {
       ...existing,
@@ -273,7 +293,7 @@ async function performThirdPartyFetch(
   const record: FaviconRecord = {
     hostname,
     blob: best.blob,
-    source: best.source,
+    source: 'icon-horse',
     mimeType: 'image/png',
     width: 64,
     height: 64,

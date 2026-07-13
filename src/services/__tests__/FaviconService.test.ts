@@ -72,15 +72,17 @@ describe('URL 与来源', () => {
     );
   });
 
-  it('第三方只包含 Icon Horse 与 DuckDuckGo', () => {
-    expect(buildThirdPartySources('https://platform.deepseek.com/chat')).toEqual([
+  it('只请求 Icon Horse 候选和同首字母 fallback 探针，不请求 DuckDuckGo', () => {
+    expect(buildThirdPartySources('https://chat.deepseek.com/chat')).toEqual([
       {
         source: 'icon-horse',
-        url: 'https://icon.horse/icon/platform.deepseek.com?status_code_404=true',
+        role: 'candidate',
+        url: 'https://icon.horse/icon/chat.deepseek.com',
       },
       {
-        source: 'duckduckgo',
-        url: 'https://icons.duckduckgo.com/ip3/platform.deepseek.com.ico',
+        source: 'icon-horse',
+        role: 'fallback-probe',
+        url: 'https://icon.horse/icon/c-octane-favicon-probe.invalid',
       },
     ]);
   });
@@ -138,7 +140,7 @@ describe('缓存状态', () => {
 
   it('过期缓存继续可显示并允许刷新', () => {
     expect(classifyCacheRecord({
-      hostname: 'a.com', blob, source: 'duckduckgo', expiresAt: now - 1,
+      hostname: 'a.com', blob, source: 'icon-horse', expiresAt: now - 1,
     }, now)).toMatchObject({ blob, stale: true, canRefresh: true });
   });
 
@@ -150,52 +152,54 @@ describe('缓存状态', () => {
 });
 
 describe('第三方并行升级', () => {
-  it('两个源并行成功时 SVG 优先于更大的栅格图', async () => {
+  it('Icon Horse 候选与同首字母探针相同 → 判定为字母占位并拒绝', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(imageResponse('horse-raster'))
-      .mockResolvedValueOnce(imageResponse('duck-svg', 'image/svg+xml'));
+      .mockResolvedValueOnce(imageResponse('letter-c'))
+      .mockResolvedValueOnce(imageResponse('letter-c'));
     vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchBestThirdPartyFavicon('https://chatgpt.com', {
+      force: true,
+      now: 100,
+      normalize: normalizer({ 'letter-c': { size: 256 } }),
+    });
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('duckduckgo'))).toBe(true);
+    expect((await getByKey<FaviconRecord>('favicons', 'chatgpt.com'))?.blob).toBeUndefined();
+  });
+
+  it('Icon Horse 候选与 fallback 探针不同 → 缓存规范化后的候选', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(imageResponse('real-icon'))
+      .mockResolvedValueOnce(imageResponse('letter-e')));
 
     const result = await fetchBestThirdPartyFavicon('https://example.com', {
       force: true,
       now: 100,
-      normalize: normalizer({
-        'horse-raster': { size: 128 },
-        'duck-svg': { size: 64, vector: true },
-      }),
+      normalize: normalizer({ 'real-icon': { size: 128 }, 'letter-e': { size: 256 } }),
     });
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result?.source).toBe('duckduckgo');
-    expect(result?.blob.type).toBe('image/png');
+    expect(result?.source).toBe('icon-horse');
+    expect(await result?.blob.text()).toBe('real-icon-normalized');
     expect(await getByKey<FaviconRecord>('favicons', 'example.com')).toMatchObject({
-      source: 'duckduckgo', width: 64, height: 64,
+      source: 'icon-horse', width: 64, height: 64,
       fetchedAt: 100, expiresAt: 100 + THIRD_PARTY_TTL_MS,
     });
   });
 
-  it('一个源 CORS 失败时使用另一个有效源', async () => {
+  it('候选或 fallback 探针任一 CORS 失败 → 保守拒绝第三方候选', async () => {
     vi.stubGlobal('fetch', vi.fn()
-      .mockRejectedValueOnce(new TypeError('CORS'))
-      .mockResolvedValueOnce(imageResponse('duck')));
+      .mockResolvedValueOnce(imageResponse('real-icon'))
+      .mockRejectedValueOnce(new TypeError('CORS')));
 
     const result = await fetchBestThirdPartyFavicon('https://example.com', {
       force: true,
-      normalize: normalizer({ duck: { size: 64 } }),
+      normalize: normalizer({ 'real-icon': { size: 64 } }),
     });
 
-    expect(result?.source).toBe('duckduckgo');
-  });
-
-  it('栅格候选选尺寸更大者，同尺寸优先 Icon Horse', async () => {
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce(imageResponse('horse'))
-      .mockResolvedValueOnce(imageResponse('duck')));
-    const result = await fetchBestThirdPartyFavicon('https://example.com', {
-      force: true,
-      normalize: normalizer({ horse: { size: 64 }, duck: { size: 64 } }),
-    });
-    expect(result?.source).toBe('icon-horse');
+    expect(result).toBeNull();
   });
 
   it('内网地址不发起任何第三方请求', async () => {
@@ -229,12 +233,14 @@ describe('第三方并行升级', () => {
   it('同 hostname 并发只执行一组两源 fetch', async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
+    let call = 0;
     const fetchMock = vi.fn(async () => {
       await gate;
-      return imageResponse('horse');
+      call += 1;
+      return imageResponse(call === 1 ? 'real-icon' : 'letter-e');
     });
     vi.stubGlobal('fetch', fetchMock);
-    const normalize = normalizer({ horse: { size: 64 } });
+    const normalize = normalizer({ 'real-icon': { size: 64 }, 'letter-e': { size: 256 } });
 
     const first = fetchBestThirdPartyFavicon('https://example.com/a', { force: true, normalize });
     const second = fetchBestThirdPartyFavicon('https://example.com/b', { force: true, normalize });
@@ -251,20 +257,20 @@ describe('第三方并行升级', () => {
       width: 64, height: 64, fetchedAt: 1, expiresAt: 10_000, thirdPartyRetryAt: 10_000,
     } satisfies FaviconRecord);
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(imageResponse('horse'))
-      .mockResolvedValueOnce(imageResponse('duck'));
+      .mockResolvedValueOnce(imageResponse('real-icon'))
+      .mockResolvedValueOnce(imageResponse('letter-e'));
     vi.stubGlobal('fetch', fetchMock);
 
     const cached = await fetchBestThirdPartyFavicon('https://example.com', {
       now: 100,
-      normalize: normalizer({ horse: { size: 64 }, duck: { size: 32 } }),
+      normalize: normalizer({ 'real-icon': { size: 64 }, 'letter-e': { size: 256 } }),
     });
     expect(await cached?.blob.text()).toBe('cached');
     expect(fetchMock).not.toHaveBeenCalled();
 
     const refreshed = await refreshFavicon('https://example.com', {
       now: 100,
-      normalize: normalizer({ horse: { size: 64 }, duck: { size: 32 } }),
+      normalize: normalizer({ 'real-icon': { size: 64 }, 'letter-e': { size: 256 } }),
     });
     expect(refreshed).not.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);

@@ -7,7 +7,7 @@ import { clearAllFavicons } from '@/services/FaviconService';
  * favicon 缓存管理（系统设置 → 数据备份和同步）。
  *
  * 只清空第三方高清 favicon 缓存。浏览器本地 favicon 仍会立即显示，
- * 外网站点随后在后台重新尝试 Icon Horse / DuckDuckGo 高清升级。
+ * 外网站点随后在后台重新尝试 Icon Horse 高清升级。
  *
  * Popconfirm onConfirm 用 `void` 包装（不返回 Promise），避免 Semi Popconfirm
  * 进入异步 loading 模式后 overlay(z-index 1030) 遮挡 Toast(1010)——与 BookmarkCard
