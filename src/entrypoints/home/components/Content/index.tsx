@@ -95,7 +95,28 @@ export const Content: React.FC = () => {
     ? filteredBookmarks.find((b) => b.id === activeBookmarkId) ?? null
     : null;
 
-  const handleDragStart = (e: DragStartEvent) => setActiveBookmarkId(String(e.active.id));
+  // === T9 首启 coachmark:首个书签 grip 提示「拖动手柄可排序」,localStorage flag 一次性 ===
+  const [coachSeen, setCoachSeen] = useState(() => {
+    try {
+      return localStorage.getItem('dragSortCoachSeen') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const markCoachSeen = useCallback(() => {
+    setCoachSeen(true);
+    try {
+      localStorage.setItem('dragSortCoachSeen', 'true');
+    } catch {
+      // 静默:隐私模式/配额异常不阻断主流程
+    }
+  }, []);
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setActiveBookmarkId(String(e.active.id));
+    // 首次拖拽关闭 coachmark(用户已发现手柄)
+    if (!coachSeen) markCoachSeen();
+  };
   const handleDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveBookmarkId(null);
@@ -346,11 +367,12 @@ export const Content: React.FC = () => {
                 strategy={rectSortingStrategy}
               >
                 <div className={styles.grid}>
-                  {filteredBookmarks.map((bookmark) => (
+                  {filteredBookmarks.map((bookmark, index) => (
                     <SortableBookmarkCard
                       key={bookmark.id}
                       bookmark={bookmark}
                       disabled={!!query}
+                      coachmark={!query && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
                       hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
                       onClick={handleCardClick}
                       onViewContexts={handleViewContexts}

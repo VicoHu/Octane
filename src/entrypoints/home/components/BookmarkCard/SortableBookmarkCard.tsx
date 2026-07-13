@@ -12,6 +12,8 @@ interface SortableBookmarkCardProps {
   hasOpenTab?: boolean;
   /** 搜索态:禁用拖拽(grip GripButton disabled + useSortable disabled) */
   disabled?: boolean;
+  /** 首启 coachmark(T9):首个书签 grip 显示提示 */
+  coachmark?: { onClose: () => void };
   onClick: (bookmark: Bookmark) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
@@ -30,6 +32,7 @@ export const SortableBookmarkCard: React.FC<SortableBookmarkCardProps> = ({
   bookmark,
   hasOpenTab,
   disabled,
+  coachmark,
   onClick,
   onViewContexts,
   onEditBookmark,
@@ -49,7 +52,7 @@ export const SortableBookmarkCard: React.FC<SortableBookmarkCardProps> = ({
         <BookmarkCard
           bookmark={bookmark}
           hasOpenTab={hasOpenTab}
-          grip={<GripButton listeners={listeners} disabled={disabled} />}
+          grip={<GripButton listeners={listeners} disabled={disabled} coachmark={coachmark} />}
           onClick={onClick}
           onViewContexts={onViewContexts}
           onEditBookmark={onEditBookmark}

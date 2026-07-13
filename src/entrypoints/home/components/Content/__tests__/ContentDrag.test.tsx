@@ -83,3 +83,29 @@ describe('Content grid 拖拽(T4)', () => {
     expect(gripButtons()).toHaveLength(0);
   });
 });
+
+describe('Content 首启 coachmark(T9)', () => {
+  beforeEach(() => {
+    localStorage.removeItem('dragSortCoachSeen');
+  });
+
+  it('首启(coachSeen 未存):首个 grip 显示「拖动手柄可排序」Popover', () => {
+    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
+    render(<Content />);
+    expect(screen.getByText('拖动手柄可排序')).toBeInTheDocument();
+  });
+
+  it('已知(localStorage flag 已存):不显示 coachmark', () => {
+    localStorage.setItem('dragSortCoachSeen', 'true');
+    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
+    render(<Content />);
+    expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
+  });
+
+  it('搜索态(query 非空):不显示 coachmark', () => {
+    searchState.query = 'Git';
+    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
+    render(<Content />);
+    expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
+  });
+});

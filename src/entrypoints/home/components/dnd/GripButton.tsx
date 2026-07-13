@@ -1,4 +1,5 @@
 import React from 'react';
+import { Popover } from '@douyinfe/semi-ui';
 import styles from './dnd.module.css';
 
 interface GripButtonProps {
@@ -11,6 +12,8 @@ interface GripButtonProps {
   /** 搜索态/≤1 元素:置灰 + cursor not-allowed + 改 title;HTML disabled 天然阻断 pointer 透传 */
   disabled?: boolean;
   className?: string;
+  /** 首启 coachmark(T9):显示「拖动手柄可排序」Popover,关闭/首次拖拽后不再显 */
+  coachmark?: { onClose: () => void };
 }
 
 /**
@@ -20,10 +23,11 @@ interface GripButtonProps {
  * - color:inherit 让 grip 自适应所在面:浅色面(BookmarkCard/ManagePanel)随深文,
  *   深色面(Sidebar/PinnedArea)随浅文;opacity .45(静止)/.9(hover)统一。
  * - 常驻态(ManagePanel)由父级 className .gripAlwaysVisible 控制常显。
+ * - T9 coachmark:首个书签 grip 首启显示 Popover 提示(localStorage flag 见 Content)。
  */
-export const GripButton: React.FC<GripButtonProps> = ({ listeners, disabled, className }) => {
+export const GripButton: React.FC<GripButtonProps> = ({ listeners, disabled, className, coachmark }) => {
   const title = disabled ? '清除搜索后可拖拽排序' : '拖拽排序';
-  return (
+  const inner = (
     <button
       type="button"
       className={`${styles.grip}${className ? ` ${className}` : ''}`}
@@ -51,5 +55,22 @@ export const GripButton: React.FC<GripButtonProps> = ({ listeners, disabled, cla
         <circle cx="14" cy="15" r="1.4" />
       </svg>
     </button>
+  );
+  // 无 coachmark:直接返回(4 层绝大多数 grip 走此路径,不引入 Popover 开销)
+  if (!coachmark) return inner;
+  return (
+    <Popover
+      visible
+      trigger="custom"
+      position="top"
+      content={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+          <span>拖动手柄可排序</span>
+          <button type="button" aria-label="知道了" onClick={coachmark.onClose}>知道了</button>
+        </div>
+      }
+    >
+      {inner}
+    </Popover>
   );
 };
