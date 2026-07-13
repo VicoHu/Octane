@@ -6,6 +6,7 @@ const ws = vi.hoisted(() => ({
   listWorkspaces: vi.fn(),
   updateWorkspace: vi.fn(),
   deleteWorkspace: vi.fn(),
+  reorderWorkspaces: vi.fn(),
 }));
 vi.mock('@/services/WorkspaceService', () => ws);
 
@@ -13,15 +14,16 @@ const cat = vi.hoisted(() => ({
   listCategories: vi.fn(),
   updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
+  reorderCategories: vi.fn(),
 }));
 vi.mock('@/services/CategoryService', () => cat);
 
 import { useWorkspace } from '@/store/useWorkspace';
 
-const wsOf = (id: string, name = 'WS') =>
-  ({ id, name, icon: '📁', createdAt: 1, order: 0 }) as never;
-const catOf = (id: string, wsId: string, name = 'CAT') =>
-  ({ id, workspaceId: wsId, name, icon: '📂', order: 0, createdAt: 1 }) as never;
+const wsOf = (id: string, name = 'WS', order = 0) =>
+  ({ id, name, icon: '📁', createdAt: 1, order }) as never;
+const catOf = (id: string, wsId: string, name = 'CAT', order = 0) =>
+  ({ id, workspaceId: wsId, name, icon: '📂', order, createdAt: 1 }) as never;
 
 beforeEach(() => {
   useWorkspace.setState({
@@ -35,9 +37,11 @@ beforeEach(() => {
   ws.listWorkspaces.mockReset();
   ws.updateWorkspace.mockReset();
   ws.deleteWorkspace.mockReset();
+  ws.reorderWorkspaces.mockReset();
   cat.listCategories.mockReset();
   cat.updateCategory.mockReset();
   cat.deleteCategory.mockReset();
+  cat.reorderCategories.mockReset();
 });
 
 describe('useWorkspace — updateWorkspace', () => {
@@ -245,5 +249,71 @@ describe('useWorkspace — delete 持久化', () => {
 
     expect(useWorkspace.getState().currentCategoryId).toBe('c2');
     expect(store.lastCategoryIdByWs).toEqual({ w1: 'c2' });
+  });
+});
+
+describe('useWorkspace — T3 reorder(乐观重排 + 失败回滚)', () => {
+  it('reorderCategories 乐观重排 categories 切片并赋 0..N', async () => {
+    useWorkspace.setState({
+      workspaces: [],
+      currentWorkspaceId: 'w1',
+      categories: [catOf('c1', 'w1', 'CAT', 0), catOf('c2', 'w1', 'CAT', 1), catOf('c3', 'w1', 'CAT', 2)],
+      currentCategoryId: 'c1',
+    });
+
+    await useWorkspace.getState().reorderCategories('w1', ['c3', 'c1', 'c2']);
+
+    expect(cat.reorderCategories).toHaveBeenCalledWith('w1', ['c3', 'c1', 'c2']);
+    const cs = useWorkspace.getState().categories;
+    expect(cs.map((c) => c.id)).toEqual(['c3', 'c1', 'c2']);
+    expect(cs.map((c) => c.order)).toEqual([0, 1, 2]);
+  });
+
+  it('reorderCategories 失败 → categories 回滚前一快照', async () => {
+    cat.reorderCategories.mockRejectedValue(new Error('排序 ID 数量与现有记录不一致'));
+    useWorkspace.setState({
+      workspaces: [],
+      currentWorkspaceId: 'w1',
+      categories: [catOf('c1', 'w1', 'CAT', 0), catOf('c2', 'w1', 'CAT', 1)],
+      currentCategoryId: 'c1',
+    });
+
+    await expect(
+      useWorkspace.getState().reorderCategories('w1', ['c2', 'c1']),
+    ).rejects.toThrow('排序 ID 数量与现有记录不一致');
+
+    const cs = useWorkspace.getState().categories;
+    expect(cs.map((c) => c.id)).toEqual(['c1', 'c2']);
+    expect(cs.map((c) => c.order)).toEqual([0, 1]);
+  });
+
+  it('reorderWorkspaces 乐观重排 workspaces 切片并赋 0..N', async () => {
+    useWorkspace.setState({
+      workspaces: [wsOf('w1', 'WS', 0), wsOf('w2', 'WS', 1)],
+      currentWorkspaceId: 'w1',
+    });
+
+    await useWorkspace.getState().reorderWorkspaces(['w2', 'w1']);
+
+    expect(ws.reorderWorkspaces).toHaveBeenCalledWith(['w2', 'w1']);
+    const list = useWorkspace.getState().workspaces;
+    expect(list.map((w) => w.id)).toEqual(['w2', 'w1']);
+    expect(list.map((w) => w.order)).toEqual([0, 1]);
+  });
+
+  it('reorderWorkspaces 失败 → workspaces 回滚前一快照', async () => {
+    ws.reorderWorkspaces.mockRejectedValue(new Error('排序 ID 数量与现有记录不一致'));
+    useWorkspace.setState({
+      workspaces: [wsOf('w1', 'WS', 0), wsOf('w2', 'WS', 1)],
+      currentWorkspaceId: 'w1',
+    });
+
+    await expect(
+      useWorkspace.getState().reorderWorkspaces(['w2', 'w1']),
+    ).rejects.toThrow('排序 ID 数量与现有记录不一致');
+
+    const list = useWorkspace.getState().workspaces;
+    expect(list.map((w) => w.id)).toEqual(['w1', 'w2']);
+    expect(list.map((w) => w.order)).toEqual([0, 1]);
   });
 });

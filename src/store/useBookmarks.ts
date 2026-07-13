@@ -21,9 +21,11 @@ interface BookmarksState {
    * 不能用 refreshBookmark 处理移动——它的 map 语义无法表达「从当前分类列表移除」,且 ContextEditor 是其第二 caller,重载会破坏上下文保存路径。
    */
   moveBookmark: (id: string, targetWorkspaceId: string, targetCategoryId: string) => Promise<void>;
+  /** 重排分类内书签(乐观重排 bookmarks 切片 + 失败回滚;allBookmarks 不动——顺序无关仅去重)。 */
+  reorderBookmarks: (categoryId: string, orderedIds: string[]) => Promise<void>;
 }
 
-export const useBookmarks = create<BookmarksState>((set) => ({
+export const useBookmarks = create<BookmarksState>((set, get) => ({
   bookmarks: [],
   allBookmarks: [],
   loading: false,
@@ -72,10 +74,9 @@ export const useBookmarks = create<BookmarksState>((set) => ({
   },
 
   moveBookmark: async (id, targetWorkspaceId, targetCategoryId) => {
-    await BookmarkService.updateBookmark(id, {
-      workspaceId: targetWorkspaceId,
-      categoryId: targetCategoryId,
-    });
+    // T3 切换:调 service moveBookmark(目标分类 maxOrder+1 重分配),替代旧 updateBookmark 保留 order。
+    // 切片同步语义保持不变(双切片 ws/cat,见 Content/index.tsx handleBookmarkSubmit 编排)。
+    await BookmarkService.moveBookmark(id, targetWorkspaceId, targetCategoryId);
     set((s) => {
       // 原工作区取自现有切片(优先 bookmarks,回退 allBookmarks)
       const existing = s.bookmarks.find((b) => b.id === id) ?? s.allBookmarks.find((b) => b.id === id);
@@ -91,5 +92,19 @@ export const useBookmarks = create<BookmarksState>((set) => ({
             ),
       };
     });
+  },
+
+  reorderBookmarks: async (categoryId, orderedIds) => {
+    // 乐观重排:按 orderedIds 重建 bookmarks 切片并赋 0..N;allBookmarks 不动(顺序无关仅去重)
+    const prev = get().bookmarks;
+    const byId = new Map(prev.map((b) => [b.id, b]));
+    set({ bookmarks: orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i })) });
+    try {
+      await BookmarkService.reorderBookmarks(categoryId, orderedIds);
+    } catch (e) {
+      // 失败回滚到前一快照
+      set({ bookmarks: prev });
+      throw e;
+    }
   },
 }));

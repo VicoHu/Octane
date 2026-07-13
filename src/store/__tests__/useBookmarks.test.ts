@@ -9,6 +9,8 @@ vi.mock('@/services/BookmarkService', () => ({
     makeBookmark('new-1', data.name, data.url),
   ),
   updateBookmark: vi.fn(async () => undefined),
+  moveBookmark: vi.fn(async () => undefined),
+  reorderBookmarks: vi.fn(async () => undefined),
   deleteBookmark: vi.fn(async () => undefined),
   getFaviconUrl: vi.fn(() => ''),
 }));
@@ -129,17 +131,17 @@ describe('useBookmarks — R2 移动/删除/编辑的双切片同步 (moveBookma
     expect(useBookmarks.getState().bookmarks[0]!.contextCount).toBe(3);
   });
 
-  it('T1 moveBookmark 跨工作区 (ws-1→ws-2): bookmarks + allBookmarks 都移除', async () => {
+  it('T1 moveBookmark 跨工作区 (ws-1→ws-2): 调 service moveBookmark(order 重分配),bookmarks + allBookmarks 都移除', async () => {
     const bm = makeBookmark('a', 'A', 'https://a.com'); // ws-1, cat-1
     useBookmarks.setState({ bookmarks: [bm], allBookmarks: [bm] });
 
     await useBookmarks.getState().moveBookmark('a', 'ws-2', 'cat-2');
 
-    expect(BookmarkService.updateBookmark).toHaveBeenCalledWith('a', {
-      workspaceId: 'ws-2',
-      categoryId: 'cat-2',
-    });
-    // 跨工作区:书签不再属于当前工作区 → 两个切片都移除
+    // T3 切换:调 service moveBookmark(目标分类 maxOrder+1 重分配),非旧 updateBookmark 保留 order。
+    // order 具体值由 BookmarkService.moveBookmark 保证(T1-4 BookmarkService.order.test.ts 覆盖)。
+    expect(BookmarkService.moveBookmark).toHaveBeenCalledWith('a', 'ws-2', 'cat-2');
+    expect(BookmarkService.updateBookmark).not.toHaveBeenCalled();
+    // 跨工作区:书签不再属于当前工作区 → 两个切片都移除(切片同步语义不变)
     expect(useBookmarks.getState().bookmarks.some((b) => b.id === 'a')).toBe(false);
     expect(useBookmarks.getState().allBookmarks.some((b) => b.id === 'a')).toBe(false);
   });
@@ -178,5 +180,45 @@ describe('useBookmarks — R2 移动/删除/编辑的双切片同步 (moveBookma
     const inAll = useBookmarks.getState().allBookmarks.find((b) => b.id === 'a');
     expect(inAll?.categoryId).toBe('cat-2');
     expect(inAll?.name).toBe('B');
+  });
+});
+
+describe('useBookmarks — T3 reorderBookmarks(乐观重排 + 失败回滚)', () => {
+  beforeEach(() => {
+    useBookmarks.setState({ bookmarks: [], allBookmarks: [], loading: false });
+    vi.clearAllMocks();
+  });
+
+  it('乐观重排:bookmarks 切片按 orderedIds 重排并赋 0..N;allBookmarks 不动(顺序无关仅去重)', async () => {
+    const a = makeBookmark('a', 'A', 'https://a.com'); a.order = 0;
+    const b = makeBookmark('b', 'B', 'https://b.com'); b.order = 1;
+    const c = makeBookmark('c', 'C', 'https://c.com'); c.order = 2;
+    const allSnapshot = [a, b, c];
+    useBookmarks.setState({ bookmarks: [a, b, c], allBookmarks: allSnapshot });
+
+    await useBookmarks.getState().reorderBookmarks('cat-1', ['c', 'a', 'b']);
+
+    expect(BookmarkService.reorderBookmarks).toHaveBeenCalledWith('cat-1', ['c', 'a', 'b']);
+    const bs = useBookmarks.getState().bookmarks;
+    expect(bs.map((x) => x.id)).toEqual(['c', 'a', 'b']);
+    expect(bs.map((x) => x.order)).toEqual([0, 1, 2]);
+    // allBookmarks 顺序无关仅用于跨分类去重,reorder 不应改动它
+    expect(useBookmarks.getState().allBookmarks).toEqual(allSnapshot);
+  });
+
+  it('失败回滚:service 抛错 → bookmarks 切片恢复前一快照', async () => {
+    const a = makeBookmark('a', 'A', 'https://a.com'); a.order = 0;
+    const b = makeBookmark('b', 'B', 'https://b.com'); b.order = 1;
+    useBookmarks.setState({ bookmarks: [a, b], allBookmarks: [] });
+    vi.mocked(BookmarkService.reorderBookmarks).mockRejectedValue(new Error('排序 ID 数量与现有记录不一致'));
+
+    await expect(
+      useBookmarks.getState().reorderBookmarks('cat-1', ['b', 'a']),
+    ).rejects.toThrow('排序 ID 数量与现有记录不一致');
+
+    // 回滚到前一快照 [a(order0), b(order1)]
+    const bs = useBookmarks.getState().bookmarks;
+    expect(bs.map((x) => x.id)).toEqual(['a', 'b']);
+    expect(bs.map((x) => x.order)).toEqual([0, 1]);
   });
 });

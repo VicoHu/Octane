@@ -28,6 +28,10 @@ interface WorkspaceState {
   updateCategory: (id: string, updates: Partial<Pick<Category, 'name' | 'icon' | 'order'>>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   selectCategory: (id: string) => void;
+  /** 重排工作区内分类(乐观重排 categories 切片 + 失败回滚)。 */
+  reorderCategories: (workspaceId: string, orderedIds: string[]) => Promise<void>;
+  /** 重排全部工作区(乐观重排 workspaces 切片 + 失败回滚)。 */
+  reorderWorkspaces: (orderedIds: string[]) => Promise<void>;
 }
 
 // ── chrome.storage.local 容错读写（home 首屏关键路径，不能因 storage 异常白屏）──
@@ -172,5 +176,31 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     // 唯一 persist category 的入口：显式选择才落盘（T2）
     const wsId = get().currentWorkspaceId;
     if (wsId) void persistCat(wsId, id);
+  },
+
+  reorderCategories: async (workspaceId, orderedIds) => {
+    // 乐观重排:按 orderedIds 重建 categories 切片并赋 0..N
+    const prev = get().categories;
+    const byId = new Map(prev.map((c) => [c.id, c]));
+    set({ categories: orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i })) });
+    try {
+      await CategoryService.reorderCategories(workspaceId, orderedIds);
+    } catch (e) {
+      set({ categories: prev });
+      throw e;
+    }
+  },
+
+  reorderWorkspaces: async (orderedIds) => {
+    // 乐观重排:按 orderedIds 重建 workspaces 切片并赋 0..N
+    const prev = get().workspaces;
+    const byId = new Map(prev.map((w) => [w.id, w]));
+    set({ workspaces: orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i })) });
+    try {
+      await WorkspaceService.reorderWorkspaces(orderedIds);
+    } catch (e) {
+      set({ workspaces: prev });
+      throw e;
+    }
   },
 }));
