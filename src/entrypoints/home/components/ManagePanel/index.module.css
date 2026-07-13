@@ -46,3 +46,31 @@
 .section:first-child {
   margin-top: 0;
 }
+
+/* === T8 workspace 拖拽 === */
+.sortableRow {
+  display: flex;
+  align-items: center;
+}
+/* grip 手柄 slot:整理语境常驻(GripButton gripAlwaysVisible),浅色面 text-secondary */
+.gripSlot {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  padding-right: var(--space-xs);
+}
+.entityWrap {
+  flex: 1;
+  min-width: 0;
+}
+/* DragOverlay 副本(workspace ghost,浅色面炭灰描边由 SortableOverlay tone=light 提供) */
+.ghostRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--card-bg);
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
