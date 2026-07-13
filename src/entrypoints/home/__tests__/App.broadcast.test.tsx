@@ -2,9 +2,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 // lottie-web 由 vitest.config.ts 全局 alias 指向 tests/stubs/lottie-web.ts，无需在此 vi.mock。
+const appMocks = vi.hoisted(() => {
+  const openTabs = [{
+    url: 'https://example.com', tabId: 1, lastAccessed: 10,
+    favIconUrl: 'https://example.com/icon.svg',
+  }];
+  return {
+    openTabs,
+    useOpenTabs: vi.fn(() => openTabs),
+    sidebarSpy: vi.fn(),
+    contentSpy: vi.fn(),
+  };
+});
+
 // 隔离子组件依赖：仅验证 App 装配 + 广播分发，不测内部
-vi.mock('../components/Sidebar', () => ({ Sidebar: () => null }));
-vi.mock('../components/Content', () => ({ Content: () => null }));
+vi.mock('../hooks/useOpenTabs', () => ({ useOpenTabs: appMocks.useOpenTabs }));
+vi.mock('../components/Sidebar', () => ({
+  Sidebar: (props: unknown) => { appMocks.sidebarSpy(props); return null; },
+}));
+vi.mock('../components/Content', () => ({
+  Content: (props: unknown) => { appMocks.contentSpy(props); return null; },
+}));
 vi.mock('@/components/UnlockModal', () => ({ UnlockModal: () => null }));
 
 // 可控 store：实例化时捕获方法用于断言
@@ -75,6 +93,7 @@ class TestBC {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  appMocks.useOpenTabs.mockReturnValue(appMocks.openTabs);
   TestBC.instances = {};
   (globalThis as unknown as { BroadcastChannel: typeof TestBC }).BroadcastChannel =
     TestBC;
@@ -88,6 +107,16 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+
+describe('App OpenTabs 装配', () => {
+  it('只查询一次，并把同一数组传给 Sidebar 与 Content', () => {
+    render(<App />);
+    expect(appMocks.useOpenTabs).toHaveBeenCalledTimes(1);
+    expect(appMocks.sidebarSpy).toHaveBeenLastCalledWith({ openTabs: appMocks.openTabs });
+    expect(appMocks.contentSpy).toHaveBeenLastCalledWith({ openTabs: appMocks.openTabs });
+  });
 });
 
 describe('App DB_NAME 订阅（T6）', () => {

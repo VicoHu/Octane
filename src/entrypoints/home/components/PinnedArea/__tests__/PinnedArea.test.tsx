@@ -29,13 +29,14 @@ import * as PinnedTabService from '@/services/PinnedTabService';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { useFavicon } from '@/hooks/useFavicon';
 import type { PinnedTab } from '@/shared/types';
+import type { OpenTab } from '../../../hooks/useOpenTabs';
 
 function makePin(id: string, name: string, url: string, order: number): PinnedTab {
   return { id, workspaceId: 'ws-1', name, url, order, createdAt: 0 };
 }
 
-function renderArea() {
-  return render(<PinnedArea workspaceId="ws-1" />);
+function renderArea(openTabs: OpenTab[] = []) {
+  return render(<PinnedArea workspaceId="ws-1" openTabs={openTabs} />);
 }
 
 beforeEach(() => {
@@ -53,7 +54,7 @@ describe('PinnedArea', () => {
     await screen.findByText('常驻');
     expect(PinnedTabService.listByWorkspace).toHaveBeenLastCalledWith('ws-1');
 
-    rerender(<PinnedArea workspaceId="ws-2" />);
+    rerender(<PinnedArea workspaceId="ws-2" openTabs={[]} />);
     await waitFor(() => {
       expect(PinnedTabService.listByWorkspace).toHaveBeenLastCalledWith('ws-2');
     });
@@ -89,8 +90,25 @@ describe('PinnedArea', () => {
     expect(onError).toHaveBeenCalledTimes(1);
 
     vi.mocked(useFavicon).mockReturnValue(null);
-    view.rerender(<PinnedArea workspaceId="ws-1" />);
+    view.rerender(<PinnedArea workspaceId="ws-1" openTabs={[]} />);
     expect(screen.getByText('G')).toBeInTheDocument();
+  });
+
+
+  it('匹配打开 Tab 后把 runtime favicon 传给 PinChip hook', async () => {
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
+      makePin('p1', 'GitHub', 'https://github.com', 0),
+    ]);
+    renderArea([{
+      url: 'https://github.com/settings', tabId: 9, lastAccessed: 200,
+      favIconUrl: 'https://github.com/runtime.svg',
+    }]);
+
+    await screen.findByRole('button', { name: /打开 GitHub/ });
+    expect(useFavicon).toHaveBeenCalledWith(
+      'https://github.com',
+      'https://github.com/runtime.svg',
+    );
   });
 
   it('点击 chip → window.open(pin.url)', async () => {

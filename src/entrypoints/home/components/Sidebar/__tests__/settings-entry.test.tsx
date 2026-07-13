@@ -54,12 +54,12 @@ beforeEach(() => {
 
 describe('Sidebar 设置入口（统一设置中心）', () => {
   it('渲染「设置」按钮', () => {
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(screen.getByRole('button', { name: /设置/ })).toBeTruthy();
   });
 
   it('点击「设置」→ 弹出系统设置 Modal（标题「系统设置」可见）', async () => {
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     fireEvent.click(screen.getByRole('button', { name: /设置/ }));
     expect(await screen.findByText('系统设置')).toBeTruthy();
   });

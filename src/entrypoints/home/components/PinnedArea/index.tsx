@@ -6,10 +6,13 @@ import { useFavicon } from '@/hooks/useFavicon';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import { PINNED_TAB_CAP } from '@/services/PinnedTabService';
 import type { PinnedTab } from '@/shared/types';
+import type { OpenTab } from '../../hooks/useOpenTabs';
+import { pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import styles from './index.module.css';
 
 interface PinnedAreaProps {
   workspaceId: string;
+  openTabs: OpenTab[];
 }
 
 /**
@@ -20,7 +23,7 @@ interface PinnedAreaProps {
  * - chip：方向 A 方形（图标上/名称下），中性炭灰抬升面，不用绿（守 §2.3 绿色预算）
  * - 上限：PINNED_TAB_CAP=8，满则「+」disabled + Toast
  */
-export function PinnedArea({ workspaceId }: PinnedAreaProps) {
+export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
   const pinnedTabs = usePinnedTabs((s) => s.pinnedTabs);
   const loadPinnedTabs = usePinnedTabs((s) => s.loadPinnedTabs);
   const createPinnedTab = usePinnedTabs((s) => s.createPinnedTab);
@@ -72,9 +75,17 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
         <div className={styles.emptyHint}>点 + 添加常驻标签</div>
       )}
       <div className={styles.chipRow}>
-        {pinnedTabs.map((pin) => (
-          <PinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
-        ))}
+        {pinnedTabs.map((pin) => {
+          const matchedTab = pickMostRecentMatchingTab(openTabs, pin.url);
+          return (
+            <PinChip
+              key={pin.id}
+              pin={pin}
+              runtimeFavIconUrl={matchedTab?.favIconUrl}
+              onDelete={() => handleDelete(pin.id)}
+            />
+          );
+        })}
         <button
           type="button"
           className={styles.addBtn}
@@ -107,8 +118,8 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
 }
 
 /** 单个常驻 chip：favicon 上 / 名称下，hover 出 × 删除 */
-function PinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
-  const faviconSrc = useFavicon(pin.url);
+function PinChip({ pin, runtimeFavIconUrl, onDelete }: { pin: PinnedTab; runtimeFavIconUrl?: string; onDelete: () => void }) {
+  const faviconSrc = useFavicon(pin.url, runtimeFavIconUrl);
   const src = faviconSrc?.src;
   const initial = (pin.name.charAt(0) || '?').toUpperCase();
 
