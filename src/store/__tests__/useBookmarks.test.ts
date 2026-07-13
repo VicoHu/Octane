@@ -29,6 +29,7 @@ function makeBookmark(id: string, name: string, url: string, categoryId = 'cat-1
     faviconUrl: '',
     contextCount: 0,
     hasEncryptedContext: false,
+    order: 0,
     createdAt: 0,
     updatedAt: 0,
   };

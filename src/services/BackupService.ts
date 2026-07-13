@@ -27,6 +27,26 @@ function hasString(v: unknown, ...keys: string[]): boolean {
 }
 
 /**
+ * 旧版本（v1/v2/v3）备份 bookmark 无 order → 按 categoryId 分组、组内 (createdAt ASC, id ASC)
+ * 回填 order=0,1,2...。与 DB v4→v5 迁移算法一致（见 database.ts runUpgrade）。
+ */
+function normalizeBookmarkOrder(bookmarks: Bookmark[]): Bookmark[] {
+  const groups = new Map<string, Bookmark[]>();
+  for (const b of bookmarks) {
+    const arr = groups.get(b.categoryId) ?? [];
+    arr.push(b);
+    groups.set(b.categoryId, arr);
+  }
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    arr.forEach((b, i) => {
+      b.order = i;
+    });
+  }
+  return bookmarks;
+}
+
+/**
  * 校验已解析的备份对象（不读文件、不碰 DB）。
  * 返回 ok 时 data 为规范化后的 BackupData。
  */
@@ -96,10 +116,15 @@ export function validateBackup(parsed: unknown): ValidationResult {
     return { ok: false, error: '备份含加密数据但缺少加密元数据，无法恢复' };
   }
 
+  // 标准化 bookmark order：v1/v2/v3 旧备份 bookmark 无 order → 按 categoryId 分组
+  //(createdAt ASC, id ASC)回填，与 DB v4→v5 迁移一致；v4+ 已有 order 原样保留。
+  const rawBookmarks = data.bookmarks as Bookmark[];
+  const bookmarks = parsed.version < 4 ? normalizeBookmarkOrder(rawBookmarks) : rawBookmarks;
+
   const backupData: BackupData = {
     workspaces: data.workspaces as Workspace[],
     categories: data.categories as Category[],
-    bookmarks: data.bookmarks as Bookmark[],
+    bookmarks,
     contexts: data.contexts as Context[],
     pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,

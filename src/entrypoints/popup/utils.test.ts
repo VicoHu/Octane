@@ -14,6 +14,7 @@ function makeBookmark(overrides: Partial<Bookmark> = {}): Bookmark {
     faviconUrl: '',
     contextCount: 0,
     hasEncryptedContext: false,
+    order: 0,
     createdAt: 1000,
     updatedAt: 1000,
     ...overrides,

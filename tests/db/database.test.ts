@@ -50,7 +50,7 @@ function makeBookmark(id: string, workspaceId: string, categoryId: string): Book
     id, workspaceId, categoryId,
     name: '测试书签', url: 'https://example.com',
     description: '', faviconUrl: '',
-    contextCount: 0, hasEncryptedContext: false,
+    contextCount: 0, hasEncryptedContext: false, order: 0,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }

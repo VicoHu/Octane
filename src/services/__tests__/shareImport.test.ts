@@ -26,7 +26,7 @@ const shareData: BackupData = {
   bookmarks: [
     {
       id: 'bm-old', workspaceId: 'ws-old', categoryId: 'cat-old', name: 'n', url: 'https://x.com',
-      description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1,
+      description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1,
     },
   ],
   contexts: [
@@ -162,8 +162,8 @@ describe('filterEncryptedBySalt — 死密文过滤(N1)', () => {
 describe('recomputeRedundancy — 冗余字段预修正(F1)', () => {
   it('按实际 context 数重算 contextCount + hasEncryptedContext(发送方冗余值失效)', () => {
     const bms: Bookmark[] = [
-      { id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
-      { id: 'b2', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
+      { id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 },
+      { id: 'b2', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 },
     ];
     const ctxs: Context[] = [
       { id: 'x1', bookmarkId: 'b1', type: ContextType.NOTE, title: 'p', content: '', isEncrypted: false, order: 0, createdAt: 1, updatedAt: 1 },
@@ -177,7 +177,7 @@ describe('recomputeRedundancy — 冗余字段预修正(F1)', () => {
   });
 
   it('纯函数:不 mutate 输入 bookmark', () => {
-    const bms: Bookmark[] = [{ id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 }];
+    const bms: Bookmark[] = [{ id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 }];
     recomputeRedundancy(bms, []);
     expect(bms[0]!.contextCount).toBe(99);
   });

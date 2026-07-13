@@ -42,9 +42,9 @@ const categories: Category[] = [
   { id: 'cat-2a', workspaceId: 'ws-2', name: '私藏', icon: '🔒', order: 0, createdAt: 1 },
 ];
 const bookmarks: Bookmark[] = [
-  { id: 'bm-1a', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'A', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
-  { id: 'bm-1b', workspaceId: 'ws-1', categoryId: 'cat-1b', name: 'B', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
-  { id: 'bm-2a', workspaceId: 'ws-2', categoryId: 'cat-2a', name: 'C', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
+  { id: 'bm-1a', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'A', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1, order: 0 },
+  { id: 'bm-1b', workspaceId: 'ws-1', categoryId: 'cat-1b', name: 'B', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1, order: 0 },
+  { id: 'bm-2a', workspaceId: 'ws-2', categoryId: 'cat-2a', name: 'C', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1, order: 0 },
 ];
 
 describe('shareStats — 选集数量统计(含整选 ws 连带分类)', () => {

@@ -58,6 +58,7 @@ async function seedV3Database(): Promise<void> {
     hasEncryptedContext: false,
     createdAt: 1,
     updatedAt: 1,
+    order: 0,
   };
   const context: Context = {
     id: 'ctx-mig',
@@ -147,8 +148,8 @@ describe('DB migration v3→v4（PinnedTab store）', () => {
     expect(typeof runUpgrade).toBe('function');
   });
 
-  it('DB_VERSION 已升到 4', () => {
-    expect(DB_VERSION).toBe(4);
+  it('DB_VERSION 已升到 5', () => {
+    expect(DB_VERSION).toBe(5);
   });
 
   it('v3 库升级到 v4 后，既有 6 表数据零丢失，且新增 pinnedTabs store', async () => {

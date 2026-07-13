@@ -61,7 +61,7 @@ const sourceMock = useSourceMap as ReturnType<typeof vi.fn>;
 function makeBookmark(id: string, name: string, wsId = 'w1', catId = 'c1'): Bookmark {
   return {
     id, workspaceId: wsId, categoryId: catId, name, url: `https://${id}.com`,
-    description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: false,
+    description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: false, order: 0,
     createdAt: 0, updatedAt: 0,
   };
 }
