@@ -137,3 +137,46 @@
 .settingsButton {
   margin-top: var(--space-xs);
 }
+
+/* === T6 分类拖拽 === */
+.catExtra {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+/* grip 手柄 slot:hover 显(深色面 sidebar-text-muted 浅灰);触屏常显 */
+.gripSlot {
+  display: inline-flex;
+  color: var(--sidebar-text-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.cat:hover .gripSlot,
+.cat:focus-within .gripSlot {
+  opacity: 1;
+}
+@media (hover: none) {
+  .gripSlot {
+    opacity: 1;
+  }
+}
+/* 拖拽中:选中竖条压暗 opacity .35(drop 线主导绿,守每区一个绿焦点) */
+.sortableCat[data-dragging="true"] .catActive::before {
+  opacity: 0.35;
+}
+/* DragOverlay 副本(分类项 ghost,深色面浅描边由 SortableOverlay tone=dark 提供) */
+.catGhost {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--sidebar-surface);
+  color: var(--sidebar-text);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-md);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gripSlot {
+    transition: none;
+  }
+}
