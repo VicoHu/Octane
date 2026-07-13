@@ -132,6 +132,21 @@ describe('useFavicon 异步升级状态机', () => {
     await waitFor(() => expect(result.current?.kind).toBe('tab'));
   });
 
+  it('runtime A 失败降级后，runtime B 出现时重新尝试 tab 来源', async () => {
+    vi.mocked(isPrivateFaviconTarget).mockReturnValue(true);
+    const { result, rerender } = renderHook(
+      ({ runtime }) => useFavicon('https://example.com', runtime),
+      { initialProps: { runtime: 'https://example.com/a.svg' } },
+    );
+    expect(result.current?.kind).toBe('tab');
+    act(() => result.current?.onError());
+    expect(result.current?.kind).toBe('chrome');
+
+    rerender({ runtime: 'https://example.com/b.svg' });
+    await waitFor(() => expect(result.current?.kind).toBe('tab'));
+    expect(result.current?.src).toBe('https://example.com/b.svg');
+  });
+
   it('非法 URL 返回 null，不访问 DB/网络', async () => {
     const { result } = renderHook(() => useFavicon('not-a-url'));
     await act(() => Promise.resolve());

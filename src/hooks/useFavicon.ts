@@ -29,7 +29,8 @@ export function useFavicon(
   const hostname = pickHostname(url);
   const urlValid = !!hostname;
   const runtimeValid = isSafeFavIcon(runtimeFavIconUrl);
-  const fallbackKind = localKind(urlValid, runtimeFavIconUrl);
+  const safeRuntimeFavIconUrl = runtimeValid ? runtimeFavIconUrl : undefined;
+  const fallbackKind = localKind(urlValid, safeRuntimeFavIconUrl);
   const [activeKind, setActiveKind] = useState<ActiveKind>(() => fallbackKind);
   const [thirdPartyObjectUrl, setThirdPartyObjectUrl] = useState<string | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -80,7 +81,7 @@ export function useFavicon(
     return () => {
       active = false;
     };
-  }, [clearObjectUrl, fallbackKind, hostname, showThirdPartyBlob, url]);
+  }, [clearObjectUrl, fallbackKind, hostname, safeRuntimeFavIconUrl, showThirdPartyBlob, url]);
 
   useEffect(() => () => {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
@@ -105,7 +106,7 @@ export function useFavicon(
     return { kind: 'third-party', src: thirdPartyObjectUrl, onError };
   }
   if (activeKind === 'tab' && runtimeValid) {
-    return { kind: 'tab', src: runtimeFavIconUrl!, onError };
+    return { kind: 'tab', src: safeRuntimeFavIconUrl!, onError };
   }
   if (activeKind === 'chrome' && urlValid) {
     return { kind: 'chrome', src: buildFaviconRenderUrl(url), onError };

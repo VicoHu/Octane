@@ -13,12 +13,75 @@ function extFaviconBase(): string {
   return chrome?.runtime?.getURL?.('/_favicon/') ?? 'chrome-extension://unknown/_favicon/';
 }
 
-export function pickHostname(url: string): string | null {
+interface ParsedFaviconTarget {
+  hostname: string;
+  private: boolean;
+}
+
+function parseIpv4(hostname: string): number[] | null {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
+  const parts = hostname.split('.').map(Number);
+  return parts.every((part) => part >= 0 && part <= 255) ? parts : null;
+}
+
+function mappedIpv4FromIpv6(ipv6: string): number[] | null {
+  const match = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ipv6);
+  if (!match) return null;
+  const high = Number.parseInt(match[1]!, 16);
+  const low = Number.parseInt(match[2]!, 16);
+  return [high >> 8, high & 0xff, low >> 8, low & 0xff];
+}
+
+function isPrivateIpv4(parts: number[]): boolean {
+  const [a = 0, b = 0] = parts;
+  return a === 10
+    || a === 127
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 168)
+    || (a === 169 && b === 254);
+}
+
+function parseFaviconTarget(raw: string): ParsedFaviconTarget | null {
+  let url: URL;
   try {
-    return new URL(url).hostname;
+    url = new URL(raw);
   } catch {
     return null;
   }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+
+  const hostname = url.hostname.toLowerCase().replace(/\.+$/, '');
+  if (!hostname) return null;
+  if (
+    hostname === 'localhost'
+    || hostname.endsWith('.localhost')
+    || hostname.endsWith('.local')
+    || (!hostname.includes('.') && !hostname.includes(':'))
+  ) {
+    return { hostname, private: true };
+  }
+
+  const ipv4 = parseIpv4(hostname);
+  if (ipv4) return { hostname, private: isPrivateIpv4(ipv4) };
+
+  const ipv6 = hostname.replace(/^\[/, '').replace(/\]$/, '');
+  if (ipv6.includes(':')) {
+    const mappedIpv4 = mappedIpv4FromIpv6(ipv6);
+    if (mappedIpv4) return { hostname, private: isPrivateIpv4(mappedIpv4) };
+    const first = ipv6.split(':')[0] ?? '';
+    return {
+      hostname,
+      private: ipv6 === '::1'
+        || /^f[cd][0-9a-f]{2}$/i.test(first)
+        || /^fe[89ab][0-9a-f]?$/i.test(first),
+    };
+  }
+
+  return { hostname, private: false };
+}
+
+export function pickHostname(url: string): string | null {
+  return parseFaviconTarget(url)?.hostname ?? null;
 }
 
 export function buildFaviconRenderUrl(url: string): string {
@@ -32,7 +95,9 @@ export interface ThirdPartySourceRequest {
 }
 
 export function buildThirdPartySources(url: string): ThirdPartySourceRequest[] {
-  const hostname = new URL(url).hostname;
+  const target = parseFaviconTarget(url);
+  if (!target || target.private) return [];
+  const { hostname } = target;
   const initial = /^[a-z0-9]/i.test(hostname) ? hostname[0]!.toLowerCase() : 'x';
   return [
     {
@@ -48,49 +113,9 @@ export function buildThirdPartySources(url: string): ThirdPartySourceRequest[] {
   ];
 }
 
-function parseIpv4(hostname: string): number[] | null {
-  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return null;
-  const parts = hostname.split('.').map(Number);
-  return parts.every((part) => part >= 0 && part <= 255) ? parts : null;
-}
-
 export function isPrivateFaviconTarget(url: string): boolean {
-  let hostname: string;
-  try {
-    hostname = new URL(url).hostname.toLowerCase();
-  } catch {
-    return true;
-  }
-
-  if (
-    hostname === 'localhost'
-    || hostname.endsWith('.localhost')
-    || hostname.endsWith('.local')
-  ) {
-    return true;
-  }
-
-  const ipv4 = parseIpv4(hostname);
-  if (ipv4) {
-    const [a = 0, b = 0] = ipv4;
-    return a === 10
-      || a === 127
-      || (a === 172 && b >= 16 && b <= 31)
-      || (a === 192 && b === 168)
-      || (a === 169 && b === 254);
-  }
-
-  const ipv6 = hostname.replace(/^\[/, '').replace(/\]$/, '');
-  if (ipv6.includes(':')) {
-    const first = ipv6.split(':')[0] ?? '';
-    return ipv6 === '::1'
-      || first === 'fc00'
-      || first === 'fd00'
-      || /^f[cd][0-9a-f]{2}$/i.test(first)
-      || /^fe[89ab][0-9a-f]?$/i.test(first);
-  }
-
-  return false;
+  const target = parseFaviconTarget(url);
+  return !target || target.private;
 }
 
 export interface FaviconCacheState {
@@ -122,13 +147,13 @@ export async function getThirdPartyCache(
   return classifyCacheRecord(await getByKey<FaviconRecord>('favicons', hostname), now);
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+async function fetchBlobWithTimeout(url: string, timeoutMs: number): Promise<Blob> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return response;
+    return await response.blob();
   } finally {
     clearTimeout(timer);
   }
@@ -162,8 +187,11 @@ export async function normalizeFaviconBlob(blob: Blob): Promise<NormalizedFavico
 
   let objectUrl: string | null = null;
   try {
+    const svgTextCandidate = blob.type === ''
+      || blob.type.includes('xml')
+      || blob.type.startsWith('text/');
     const vector = blob.type.includes('svg')
-      || (blob.type === '' && (await blob.text()).trimStart().startsWith('<svg'));
+      || (svgTextCandidate && /<svg(?:\s|>)/i.test(await blob.text()));
     objectUrl = URL.createObjectURL(blob);
     const image = await loadImage(objectUrl);
     const originalMinSize = Math.min(image.naturalWidth, image.naturalHeight);
@@ -200,7 +228,7 @@ export async function normalizeFaviconBlob(blob: Blob): Promise<NormalizedFavico
 }
 
 async function blobsEqual(a: Blob, b: Blob): Promise<boolean> {
-  if (a.size !== b.size || a.type !== b.type) return false;
+  if (a.size !== b.size) return false;
   const [left, right] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]);
   const leftBytes = new Uint8Array(left);
   const rightBytes = new Uint8Array(right);
@@ -222,6 +250,7 @@ export interface FetchThirdPartyOptions {
   force?: boolean;
   now?: number;
   normalize?: FaviconNormalizer;
+  timeoutMs?: number;
 }
 
 const inFlight = new Map<string, Promise<ThirdPartyFaviconResult | null>>();
@@ -237,6 +266,15 @@ function resultFromRecord(record: FaviconRecord): ThirdPartyFaviconResult | null
   };
 }
 
+async function writeFailureCooldown(hostname: string, now: number): Promise<void> {
+  const current = await getByKey<FaviconRecord>('favicons', hostname);
+  await putRecord('favicons', {
+    ...current,
+    hostname,
+    thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
+  });
+}
+
 async function performThirdPartyFetch(
   url: string,
   hostname: string,
@@ -244,6 +282,7 @@ async function performThirdPartyFetch(
 ): Promise<ThirdPartyFaviconResult | null> {
   const now = options.now ?? Date.now();
   const normalize = options.normalize ?? normalizeFaviconBlob;
+  const timeoutMs = options.timeoutMs ?? THIRD_PARTY_TIMEOUT_MS;
   const existing = await getByKey<FaviconRecord>('favicons', hostname);
   const cache = classifyCacheRecord(existing, now);
 
@@ -254,17 +293,13 @@ async function performThirdPartyFetch(
 
   const [candidateRequest, fallbackRequest] = buildThirdPartySources(url);
   const settled = await Promise.allSettled([
-    fetchWithTimeout(candidateRequest!.url, THIRD_PARTY_TIMEOUT_MS).then((response) => response.blob()),
-    fetchWithTimeout(fallbackRequest!.url, THIRD_PARTY_TIMEOUT_MS).then((response) => response.blob()),
+    fetchBlobWithTimeout(candidateRequest!.url, timeoutMs),
+    fetchBlobWithTimeout(fallbackRequest!.url, timeoutMs),
   ]);
   const candidateEntry = settled[0];
   const fallbackEntry = settled[1];
   if (candidateEntry?.status !== 'fulfilled' || fallbackEntry?.status !== 'fulfilled') {
-    await putRecord('favicons', {
-      ...existing,
-      hostname,
-      thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
-    });
+    await writeFailureCooldown(hostname, now);
     return null;
   }
 
@@ -272,21 +307,13 @@ async function performThirdPartyFetch(
   // Icon Horse 免费接口未命中时仍返回 HTTP 200 的首字母占位图。
   // 用同首字母的 .invalid 域名取得该占位图指纹；完全相同则拒绝升级。
   if (await blobsEqual(candidateBlob, fallbackBlob)) {
-    await putRecord('favicons', {
-      ...existing,
-      hostname,
-      thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
-    });
+    await writeFailureCooldown(hostname, now);
     return null;
   }
 
   const best = await normalize(candidateBlob);
   if (!best) {
-    await putRecord('favicons', {
-      ...existing,
-      hostname,
-      thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
-    });
+    await writeFailureCooldown(hostname, now);
     return null;
   }
 
@@ -308,15 +335,17 @@ export function fetchBestThirdPartyFavicon(
   url: string,
   options: FetchThirdPartyOptions = {},
 ): Promise<ThirdPartyFaviconResult | null> {
-  const hostname = pickHostname(url);
-  if (!hostname || isPrivateFaviconTarget(url)) return Promise.resolve(null);
+  const target = parseFaviconTarget(url);
+  if (!target || target.private) return Promise.resolve(null);
+  const { hostname } = target;
 
-  const existing = inFlight.get(hostname);
+  const inFlightKey = `${hostname}:${options.force ? 'force' : 'normal'}`;
+  const existing = inFlight.get(inFlightKey);
   if (existing) return existing;
 
   const task = performThirdPartyFetch(url, hostname, options)
-    .finally(() => inFlight.delete(hostname));
-  inFlight.set(hostname, task);
+    .finally(() => inFlight.delete(inFlightKey));
+  inFlight.set(inFlightKey, task);
   return task;
 }
 

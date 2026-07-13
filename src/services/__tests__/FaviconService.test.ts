@@ -12,6 +12,7 @@ import {
   getThirdPartyCache,
   invalidateFavicon,
   isPrivateFaviconTarget,
+  normalizeFaviconBlob,
   pickHostname,
   refreshFavicon,
   type FaviconNormalizer,
@@ -64,6 +65,8 @@ describe('URL 与来源', () => {
   it('提取 hostname，非法 URL 返回 null', () => {
     expect(pickHostname('https://github.com/a')).toBe('github.com');
     expect(pickHostname('not-a-url')).toBeNull();
+    expect(pickHostname('chrome://settings')).toBeNull();
+    expect(pickHostname('http://LOCALHOST.')).toBe('localhost');
   });
 
   it('构造 Chrome _favicon 本地渲染 URL', () => {
@@ -91,6 +94,12 @@ describe('URL 与来源', () => {
 describe('isPrivateFaviconTarget', () => {
   it.each([
     'not-a-url',
+    'chrome://settings',
+    'file:///tmp/index.html',
+    'http://intranet',
+    'http://localhost.',
+    'http://app.local.',
+    'http://[::ffff:127.0.0.1]',
     'http://localhost:3000',
     'http://app.localhost',
     'http://app.local',
@@ -106,6 +115,19 @@ describe('isPrivateFaviconTarget', () => {
     'http://[fe80::1]',
   ])('%s 不访问第三方', (url) => {
     expect(isPrivateFaviconTarget(url)).toBe(true);
+  });
+
+  it.each([
+    'chrome://settings',
+    'http://intranet',
+    'http://localhost.',
+    'http://app.local.',
+    'http://[::ffff:127.0.0.1]',
+  ])('%s 调用抓取入口时 fetch 仍为 0', async (url) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await fetchBestThirdPartyFavicon(url, { force: true })).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -151,6 +173,83 @@ describe('缓存状态', () => {
   });
 });
 
+
+describe('normalizeFaviconBlob 真实适配器', () => {
+  function installDomImage(options: {
+    width: number;
+    height: number;
+    output: Blob | null;
+  }) {
+    const drawImage = vi.fn();
+    const clearRect = vi.fn();
+    const toBlob = vi.fn((callback: BlobCallback) => callback(options.output));
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({ drawImage, clearRect })),
+      toBlob,
+    };
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string) =>
+      tagName === 'canvas' ? canvas as unknown as HTMLCanvasElement : originalCreateElement(tagName)
+    ) as typeof document.createElement);
+
+    class MockImage {
+      naturalWidth = options.width;
+      naturalHeight = options.height;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', MockImage);
+    return { drawImage, toBlob };
+  }
+
+  it('带 XML 声明且 MIME 不可信的 SVG 仍按矢量图规范化', async () => {
+    const output = new Blob(['png'], { type: 'image/png' });
+    const { drawImage } = installDomImage({ width: 16, height: 16, output });
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+
+    const result = await normalizeFaviconBlob(new Blob([
+      '<?xml version="1.0"?><svg viewBox="0 0 16 16"></svg>',
+    ], { type: 'text/xml' }));
+
+    expect(result).toMatchObject({ width: 64, height: 64, vector: true });
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 64, 64);
+    expect(revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('横向 raster 等比居中绘制为 64x64 PNG', async () => {
+    const output = new Blob(['png'], { type: 'image/png' });
+    const { drawImage } = installDomImage({ width: 128, height: 64, output });
+
+    const result = await normalizeFaviconBlob(new Blob(['raster'], { type: 'image/png' }));
+
+    expect(result).toMatchObject({ width: 64, height: 64, originalMinSize: 64, vector: false });
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 16, 64, 32);
+  });
+
+  it('小于 32px 的 raster 被拒绝且临时 URL 仍回收', async () => {
+    const { toBlob } = installDomImage({
+      width: 16,
+      height: 16,
+      output: new Blob(['png'], { type: 'image/png' }),
+    });
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+
+    expect(await normalizeFaviconBlob(new Blob(['tiny'], { type: 'image/png' }))).toBeNull();
+    expect(toBlob).not.toHaveBeenCalled();
+    expect(revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('Canvas toBlob 失败返回 null', async () => {
+    installDomImage({ width: 64, height: 64, output: null });
+    expect(await normalizeFaviconBlob(new Blob(['raster'], { type: 'image/png' }))).toBeNull();
+  });
+});
+
 describe('第三方并行升级', () => {
   it('Icon Horse 候选与同首字母探针相同 → 判定为字母占位并拒绝', async () => {
     const fetchMock = vi.fn()
@@ -167,6 +266,20 @@ describe('第三方并行升级', () => {
     expect(result).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls.every(([url]) => !String(url).includes('duckduckgo'))).toBe(true);
+    expect((await getByKey<FaviconRecord>('favicons', 'chatgpt.com'))?.blob).toBeUndefined();
+  });
+
+  it('相同占位字节即使 MIME 不同也必须拒绝', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(new Blob(['letter-c'], { type: 'image/png' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(new Blob(['letter-c'], { type: '' }), { status: 200 })));
+
+    const result = await fetchBestThirdPartyFavicon('https://chatgpt.com', {
+      force: true,
+      normalize: normalizer({ 'letter-c': { size: 256 } }),
+    });
+
+    expect(result).toBeNull();
     expect((await getByKey<FaviconRecord>('favicons', 'chatgpt.com'))?.blob).toBeUndefined();
   });
 
@@ -228,6 +341,71 @@ describe('第三方并行升级', () => {
     const cached = await getByKey<FaviconRecord>('favicons', 'example.com');
     expect(await cached?.blob?.text()).toBe('old');
     expect(cached?.thirdPartyRetryAt).toBe(100 + THIRD_PARTY_RETRY_MS);
+  });
+
+  it('刷新期间缓存被 onError 删除，失败写冷却时不得复活旧 Blob', async () => {
+    const oldBlob = new Blob(['broken'], { type: 'image/png' });
+    await putRecord('favicons', {
+      hostname: 'example.com', blob: oldBlob, source: 'icon-horse', mimeType: 'image/png',
+      width: 64, height: 64, fetchedAt: 1, expiresAt: 2,
+    } satisfies FaviconRecord);
+
+    const rejectors: Array<(reason?: unknown) => void> = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((_resolve, reject) => rejectors.push(reject))));
+    const pending = fetchBestThirdPartyFavicon('https://example.com', {
+      force: true,
+      now: 100,
+      normalize: normalizer({}),
+    });
+    await vi.waitFor(() => expect(rejectors).toHaveLength(2));
+
+    await invalidateFavicon('example.com');
+    rejectors.forEach((reject) => reject(new TypeError('CORS')));
+    await pending;
+
+    const cached = await getByKey<FaviconRecord>('favicons', 'example.com');
+    expect(cached?.blob).toBeUndefined();
+    expect(cached?.thirdPartyRetryAt).toBe(100 + THIRD_PARTY_RETRY_MS);
+  });
+
+  it('普通 fresh-cache 查询与 force 刷新并发时，force 仍发起网络请求', async () => {
+    await putRecord('favicons', {
+      hostname: 'force.example',
+      blob: new Blob(['cached'], { type: 'image/png' }),
+      source: 'icon-horse', mimeType: 'image/png', width: 64, height: 64,
+      fetchedAt: 1, expiresAt: 10_000,
+    } satisfies FaviconRecord);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(imageResponse('real-icon'))
+      .mockResolvedValueOnce(imageResponse('letter-f'));
+    vi.stubGlobal('fetch', fetchMock);
+    const normalize = normalizer({ 'real-icon': { size: 64 }, 'letter-f': { size: 256 } });
+
+    const normal = fetchBestThirdPartyFavicon('https://force.example', { now: 100, normalize });
+    const forced = fetchBestThirdPartyFavicon('https://force.example', { force: true, now: 100, normalize });
+    await Promise.all([normal, forced]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('超时覆盖响应体读取，body 挂起不会永久占用 single-flight', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => Promise.resolve({
+      ok: true,
+      status: 200,
+      blob: () => new Promise<Blob>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      }),
+    } as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchBestThirdPartyFavicon('https://body-timeout.example', {
+      force: true,
+      normalize: normalizer({}),
+      timeoutMs: 10,
+    });
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('同 hostname 并发只执行一组两源 fetch', async () => {

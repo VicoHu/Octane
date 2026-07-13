@@ -35,8 +35,14 @@ type StoreName =
  */
 export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete' };
 
-const dbChannel =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
+function createExtensionChannel(name: string): BroadcastChannel | null {
+  const inExtensionContext = typeof window !== 'undefined' || typeof chrome !== 'undefined';
+  return inExtensionContext && typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel(name)
+    : null;
+}
+
+const dbChannel = createExtensionChannel(DB_NAME);
 
 /** 广播数据变更。无原生 BroadcastChannel 时静默跳过。 */
 function broadcast(store: StoreName, action: 'put' | 'delete'): void {
@@ -50,8 +56,7 @@ export function broadcastChange(store: StoreName, action: 'put' | 'delete'): voi
 
 /** 全量导入广播 channel 名（独立于 store 级广播，供 home 整体 reload）。 */
 export const IMPORT_CHANNEL_NAME = 'octane-import';
-const importChannel =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(IMPORT_CHANNEL_NAME) : null;
+const importChannel = createExtensionChannel(IMPORT_CHANNEL_NAME);
 
 /** 广播「全量导入完成」事件。home 订阅后整体 reload。 */
 export function broadcastImport(): void {
