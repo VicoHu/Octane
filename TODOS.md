@@ -33,3 +33,12 @@
 - **抓取当前页面选区/整页 markdown → 上下文**：双 voice 共识这是 side panel 结构性优势（喂养加密护城河），但本期就地创建先做 inline；页面抓取列后续。
 - **sidepanel 加密 context 锁定后自动隐藏**：~~`useEncryptedContexts` 无 cryptoMetadata 订阅，本期不修，记为既有局限。~~ **✓ 已在 0.1.8.0 实现**：加密分层解锁（`UnlockSession` 分 surface gate，切断 home 联动）+ 上下文级粒度（密文未解锁渲染锁占位、明文始终可见）+ TTL（grace 失焦锁 / hardCap 硬上限）+ home lockSession 连带锁 sidepanel。
 - **import channel（`octane-import`）全量刷新**：sourceMap/useHostBookmarks 均不监听，与 newtab reload 对齐留后续。
+
+## 0.1.12 — 拖拽排序 a11y 债（V1.1，本期仅鼠标）
+
+> 来源：plan-design-review 2026-07-14（D11），用户选「本期仅鼠标，键盘拖拽推迟 V1.1」。绑定 V1.1 跨容器拖拽（需三栏布局）一起做。设计文档：`~/.gstack/projects/octane/vicohu-master-design-20260713-191433.md`。
+
+- **键盘拖拽**：grip 本期已是 `<button>`（为 focus/语义预留），V1.1 挂 dnd-kit keyboard sensor（空格拾起 / 方向键移动 / 回车落）。`src/entrypoints/home/components/{BookmarkCard,Sidebar,PinnedArea,ManagePanel}`。
+- **announcement 中文化**：dnd-kit `accessibility.customAnnouncements` 默认英文（"item picked up"），V1.1 配置中文（"已拾起 X" / "移动到第 N 位" / "已放下"）。
+- **焦点管理**：drop 后焦点回源 grip（本期未定义去向）。
+- **触屏 grip 44px**：本期 grip 20×20（桌面鼠标优先），Chromebook/触屏难命中，V1.1 提到 ≥44px 或区分手势。
