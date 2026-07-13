@@ -19,6 +19,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@douyinfe/semi-icons": "^2.101.0",
     "@douyinfe/semi-ui": "^2.100.0",
     "aws4fetch": "^1.0.20",
     "dompurify": "^3.4.9",
