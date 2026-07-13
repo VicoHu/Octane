@@ -24,9 +24,7 @@ export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeade
         alt=""
         className={styles.favicon}
         style={{ visibility: faviconSrc ? undefined : 'hidden' }}
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.visibility = 'hidden';
-        }}
+        onError={faviconSrc?.onError}
       />
       <div className={styles.info}>
         <div className={styles.hostname}>{hostname}</div>
