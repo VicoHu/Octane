@@ -7,7 +7,7 @@ import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadat
 import { exportAllData, replaceAllDataRaw, mergeImportRaw, getAll, getByKey, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
-import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy } from '@/services/shareImport';
+import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy, reorderForImport } from '@/services/shareImport';
 import type { ExistingNames } from '@/services/shareImport';
 
 export type ValidationResult =
@@ -264,7 +264,7 @@ export async function applyShareImport(
     ...remapped,
     bookmarks: recomputeRedundancy(remapped.bookmarks, remapped.contexts),
   };
-  // 5. 读接收方现有同名(workspace/category)
+  // 5. 读接收方现有同名(workspace/category)+ 现有 ws max order(T2:分享 ws 追加在其后)
   const [existingWs, existingCat] = await Promise.all([
     getAll<Workspace>('workspaces'),
     getAll<Category>('categories'),
@@ -273,8 +273,10 @@ export async function applyShareImport(
     workspaces: new Set(existingWs.map((w) => w.name)),
     categories: new Set(existingCat.map((c) => c.name)),
   };
-  // 6. 同名后缀
-  const resolved = resolveNameConflicts(recomputed, existing);
+  // 接收方现有 ws 最大 order(空库 → -1,新 ws 从 0 起);单用户扩展无并发,maxOrder 读在事务前
+  const receiverMaxWsOrder = existingWs.reduce((m, w) => Math.max(m, w.order), -1);
+  // 6. 同名后缀 + order 重映射(T2:ws 追加 maxOrder+1;cat/bm/pin 按父容器各自从 0 起)
+  const resolved = reorderForImport(resolveNameConflicts(recomputed, existing), receiverMaxWsOrder);
   // 7. 读接收方 cryptoMetadata
   const receiverMeta = (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null;
   // 8. 死密文过滤(salt 冲突)

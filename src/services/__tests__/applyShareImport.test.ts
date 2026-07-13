@@ -95,3 +95,74 @@ describe('applyShareImport — 分享包合并导入编排', () => {
     expect(broadcastImport).toHaveBeenCalled();
   });
 });
+
+describe('applyShareImport — T2 多工作区 order 重映射(Success Criteria 6)', () => {
+  it('接收方 2 ws(order 0,1)+ 分享 2 ws(各 2 cat,各 cat 2 bm)→ 新 ws order=2,3;每 ws 内 cat 从 0 起;每 cat 内 bm 从 0 起', async () => {
+    // 接收方预置 2 ws(order 0,1)——分享内容应追加在其后
+    await putRecord('workspaces', { id: 'recv-ws1', name: '接收1', icon: '📁', createdAt: 1, order: 0 });
+    await putRecord('workspaces', { id: 'recv-ws2', name: '接收2', icon: '📁', createdAt: 2, order: 1 });
+
+    // 分享包:2 ws(各 2 cat,各 cat 2 bm),发送方 order 故意跨容器重叠 + 乱序
+    const sharePkg: BackupData = {
+      workspaces: [
+        { id: 'ws-s1', name: '分享1', icon: '📁', createdAt: 10, order: 5 },
+        { id: 'ws-s2', name: '分享2', icon: '📁', createdAt: 20, order: 3 },
+      ],
+      categories: [
+        { id: 'c-s1a', workspaceId: 'ws-s1', name: 'Cat1A', icon: '📂', order: 7, createdAt: 1 },
+        { id: 'c-s1b', workspaceId: 'ws-s1', name: 'Cat1B', icon: '📂', order: 2, createdAt: 2 },
+        { id: 'c-s2a', workspaceId: 'ws-s2', name: 'Cat2A', icon: '📂', order: 9, createdAt: 3 },
+        { id: 'c-s2b', workspaceId: 'ws-s2', name: 'Cat2B', icon: '📂', order: 1, createdAt: 4 },
+      ],
+      bookmarks: [
+        { id: 'b-s1a-x', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 8, createdAt: 1, updatedAt: 1 },
+        { id: 'b-s1a-y', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 4, createdAt: 2, updatedAt: 2 },
+        { id: 'b-s1b-x', workspaceId: 'ws-s1', categoryId: 'c-s1b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 3, updatedAt: 3 },
+        { id: 'b-s2a-x', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 6, createdAt: 4, updatedAt: 4 },
+        { id: 'b-s2a-y', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 1, createdAt: 5, updatedAt: 5 },
+        { id: 'b-s2b-x', workspaceId: 'ws-s2', categoryId: 'c-s2b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 3, createdAt: 6, updatedAt: 6 },
+      ],
+      contexts: [],
+      pinnedTabs: [],
+      cryptoMetadata: null,
+    };
+
+    const result = await applyShareImport(sharePkg, { workspaceIds: ['ws-s1', 'ws-s2'], categoryIds: [] });
+    expect(result.workspaces).toBe(2);
+
+    // 断言 1:接收方现有 ws 保留 order 0,1;新 ws 追加 order=2,3
+    const allWs = await getAll<Workspace>('workspaces');
+    expect(allWs).toHaveLength(4);
+    const newWs1 = allWs.find((w) => w.name === '分享1')!;
+    const newWs2 = allWs.find((w) => w.name === '分享2')!;
+    expect(allWs.find((w) => w.name === '接收1')!.order).toBe(0);
+    expect(allWs.find((w) => w.name === '接收2')!.order).toBe(1);
+    // 新 ws 按发送方 order 升序:ws-s2(order=3) < ws-s1(order=5) → 分享2=2, 分享1=3
+    expect(newWs2.order).toBe(2);
+    expect(newWs1.order).toBe(3);
+
+    // 断言 2:每个新 ws 内 category 各自从 0 起(非全局连续 0,1,2,3)
+    const allCat = await getAll<Category>('categories');
+    expect(allCat).toHaveLength(4);
+    const catsInWs1 = allCat.filter((c) => c.workspaceId === newWs1.id).sort((a, b) => a.order - b.order);
+    const catsInWs2 = allCat.filter((c) => c.workspaceId === newWs2.id).sort((a, b) => a.order - b.order);
+    // 分享1:c-s1b(order=2) < c-s1a(order=7) → Cat1B=0, Cat1A=1
+    expect(catsInWs1.map((c) => c.name)).toEqual(['Cat1B', 'Cat1A']);
+    expect(catsInWs1.map((c) => c.order)).toEqual([0, 1]);
+    // 分享2:c-s2b(order=1) < c-s2a(order=9) → Cat2B=0, Cat2A=1(非 2,3)
+    expect(catsInWs2.map((c) => c.name)).toEqual(['Cat2B', 'Cat2A']);
+    expect(catsInWs2.map((c) => c.order)).toEqual([0, 1]);
+
+    // 断言 3:每个 category 内 bookmark 各自从 0 起(非全局连续)
+    const allBm = await getAll<Bookmark>('bookmarks');
+    expect(allBm).toHaveLength(6);
+    const cat1a = allCat.find((c) => c.name === 'Cat1A')!;
+    const cat2a = allCat.find((c) => c.name === 'Cat2A')!;
+    const bmsInCat1a = allBm.filter((b) => b.categoryId === cat1a.id).sort((a, b) => a.order - b.order);
+    const bmsInCat2a = allBm.filter((b) => b.categoryId === cat2a.id).sort((a, b) => a.order - b.order);
+    // Cat1A:b-s1a-y(order=4) < b-s1a-x(order=8) → 0, 1
+    expect(bmsInCat1a.map((b) => b.order)).toEqual([0, 1]);
+    // Cat2A:b-s2a-y(order=1) < b-s2a-x(order=6) → 0, 1(非全局连续)
+    expect(bmsInCat2a.map((b) => b.order)).toEqual([0, 1]);
+  });
+});
