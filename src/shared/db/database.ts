@@ -104,7 +104,10 @@ export function runUpgrade(
     db.createObjectStore('cryptoMetadata', { keyPath: 'id' });
   }
 
-  // favicon 缓存（v2→v3）：per-hostname 去重，不进备份
+  // favicon 缓存（v4→v5）：旧记录可能含 Chrome 默认图，缓存可重建，升级时清空。
+  if (oldVersion < 5 && db.objectStoreNames.contains('favicons')) {
+    db.deleteObjectStore('favicons');
+  }
   if (!db.objectStoreNames.contains('favicons')) {
     db.createObjectStore('favicons', { keyPath: 'hostname' });
   }

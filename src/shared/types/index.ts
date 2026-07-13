@@ -95,18 +95,25 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
-/** Favicon 缓存记录（per-hostname 去重） */
+/** 第三方 favicon 来源。 */
+export type ThirdPartyFaviconSource = 'icon-horse' | 'duckduckgo';
+
+/** Favicon 第三方高清缓存记录（per-hostname 去重）。 */
 export interface FaviconRecord {
   /** 主键：hostname（new URL().hostname），同站多书签共享一份 */
   hostname: string;
-  /** 原始图片字节 */
-  blob: Blob;
-  /** image/png 等，用于诊断 */
-  mimeType: string;
-  /** 抓取时间戳；永久缓存（D2），仅手动刷新或 URL 变更时失效 */
-  fetchedAt: number;
+  /** 验证并规范化后的 64×64 PNG；失败冷却记录可无 blob */
+  blob?: Blob;
+  source?: ThirdPartyFaviconSource;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  fetchedAt?: number;
+  expiresAt?: number;
+  /** 第三方全失败后的下次允许重试时间 */
+  thirdPartyRetryAt?: number;
 }
 
 /**
