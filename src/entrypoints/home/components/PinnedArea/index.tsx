@@ -1,10 +1,28 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Input, Toast } from '@douyinfe/semi-ui';
 import { IconPlus, IconClose } from '@douyinfe/semi-icons';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { useFavicon } from '@/hooks/useFavicon';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import { PINNED_TAB_CAP } from '@/services/PinnedTabService';
+import { GripButton } from '../dnd/GripButton';
+import { SortableOverlay } from '../dnd/SortableOverlay';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  arrayMove,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { PinnedTab } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -19,12 +37,14 @@ interface PinnedAreaProps {
  * - 空状态（D4=B）：始终渲染「常驻」标题 + 空提示，chip 行末位「+」按钮始终在
  * - chip：方向 A 方形（图标上/名称下），中性炭灰抬升面，不用绿（守 §2.3 绿色预算）
  * - 上限：PINNED_TAB_CAP=8，满则「+」disabled + Toast
+ * - T7 拖拽:>1 chip 接 DndContext(2D rectSortingStrategy),grip 收敛(D6),深色面浅描边 overlay
  */
 export function PinnedArea({ workspaceId }: PinnedAreaProps) {
   const pinnedTabs = usePinnedTabs((s) => s.pinnedTabs);
   const loadPinnedTabs = usePinnedTabs((s) => s.loadPinnedTabs);
   const createPinnedTab = usePinnedTabs((s) => s.createPinnedTab);
   const deletePinnedTab = usePinnedTabs((s) => s.deletePinnedTab);
+  const reorderPinnedTabs = usePinnedTabs((s) => s.reorderPinnedTabs);
 
   useEffect(() => {
     loadPinnedTabs(workspaceId);
@@ -33,6 +53,27 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
+
+  // === T7 chip 拖拽 ===
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const [activePinId, setActivePinId] = useState<string | null>(null);
+  const activePin = activePinId ? pinnedTabs.find((p) => p.id === activePinId) ?? null : null;
+
+  const handleDragStart = (e: DragStartEvent) => setActivePinId(String(e.active.id));
+  const handleDragEnd = async (e: DragEndEvent) => {
+    const { active, over } = e;
+    setActivePinId(null);
+    if (!over || active.id === over.id) return;
+    const oldIndex = pinnedTabs.findIndex((p) => p.id === active.id);
+    const newIndex = pinnedTabs.findIndex((p) => p.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const orderedIds = arrayMove(pinnedTabs, oldIndex, newIndex).map((p) => p.id);
+    try {
+      await reorderPinnedTabs(workspaceId, orderedIds);
+    } catch {
+      Toast.error('排序未保存，请重试');
+    }
+  };
 
   const atCap = pinnedTabs.length >= PINNED_TAB_CAP;
 
@@ -72,9 +113,31 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
         <div className={styles.emptyHint}>点 + 添加常驻标签</div>
       )}
       <div className={styles.chipRow}>
-        {pinnedTabs.map((pin) => (
-          <PinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
-        ))}
+        {pinnedTabs.length > 1 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={() => setActivePinId(null)}
+          >
+            <SortableContext
+              items={pinnedTabs.map((p) => p.id)}
+              strategy={rectSortingStrategy}
+            >
+              {pinnedTabs.map((pin) => (
+                <SortablePinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
+              ))}
+            </SortableContext>
+            <SortableOverlay tone="dark">
+              {activePin && <PinChip pin={activePin} onDelete={() => {}} />}
+            </SortableOverlay>
+          </DndContext>
+        ) : (
+          pinnedTabs.map((pin) => (
+            <PinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
+          ))
+        )}
         <button
           type="button"
           className={styles.addBtn}
@@ -106,14 +169,24 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
   );
 }
 
-/** 单个常驻 chip：favicon 上 / 名称下，hover 出 × 删除 */
-function PinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
+/** 单个常驻 chip:favicon 上 / 名称下,hover 出 × 删除 + grip(可选,sortable 注入) */
+function PinChip({
+  pin,
+  onDelete,
+  grip,
+}: {
+  pin: PinnedTab;
+  onDelete: () => void;
+  /** 拖拽手柄 slot(可选;由 SortablePinChip 注入 GripButton,纯 PinChip 不传) */
+  grip?: React.ReactNode;
+}) {
   const faviconSrc = useFavicon(pin.url);
   const src = faviconSrc?.src;
   const initial = (pin.name.charAt(0) || '?').toUpperCase();
 
   return (
     <div className={styles.chipWrap}>
+      {grip && <span className={styles.gripSlot}>{grip}</span>}
       <button
         type="button"
         className={styles.chip}
@@ -134,6 +207,7 @@ function PinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
         type="button"
         className={styles.deleteBtn}
         aria-label={`取消常驻 ${pin.name}`}
+        data-no-dnd
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
@@ -141,6 +215,20 @@ function PinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
       >
         <IconClose />
       </button>
+    </div>
+  );
+}
+
+/** SortablePinChip —— chip 拖拽 wrapper(T7)。D6:listeners 收敛到 grip,chip onClick(window.open)保留 */
+function SortablePinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
+  const { listeners, setNodeRef, transform, transition } = useSortable({ id: pin.id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={styles.sortableChip}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <PinChip pin={pin} onDelete={onDelete} grip={<GripButton listeners={listeners} />} />
     </div>
   );
 }

@@ -197,3 +197,33 @@
     transition: none;
   }
 }
+
+/* === T7 chip 拖拽 === */
+.sortableChip {
+  display: inline-block;
+  position: relative;
+}
+/* grip 手柄 slot:chip 左上角外(hover 显,与右上角 deleteBtn 对称;深色面 sidebar-text-muted);触屏常显 */
+.gripSlot {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  z-index: 2;
+  display: inline-flex;
+  color: var(--sidebar-text-muted);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.chipWrap:hover .gripSlot {
+  opacity: 1;
+}
+@media (hover: none) {
+  .gripSlot {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gripSlot {
+    transition: none;
+  }
+}

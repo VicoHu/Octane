@@ -145,3 +145,32 @@ describe('PinnedArea', () => {
     });
   });
 });
+
+describe('PinnedArea chip 拖拽(T7)', () => {
+  const gripButtons = () =>
+    screen.getAllByRole('button').filter((b) => b.getAttribute('aria-roledescription') === '可拖拽项');
+
+  it('>1 chip:每 chip 渲染 grip 手柄', async () => {
+    const pins = [makePin('p1', 'GitHub', 'https://github.com', 0), makePin('p2', 'Notion', 'https://notion.so', 1)];
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue(pins);
+    renderArea();
+    await screen.findByRole('button', { name: /打开 GitHub/ });
+    expect(gripButtons()).toHaveLength(2);
+  });
+
+  it('≤1 chip:不渲染 grip(纯 PinChip 无 Sortable)', async () => {
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([makePin('p1', 'GitHub', 'https://github.com', 0)]);
+    renderArea();
+    await screen.findByRole('button', { name: /打开 GitHub/ });
+    expect(gripButtons()).toHaveLength(0);
+  });
+
+  it('IconClose × 带 data-no-dnd(防拖拽冒泡)', async () => {
+    const pins = [makePin('p1', 'GitHub', 'https://github.com', 0), makePin('p2', 'Notion', 'https://notion.so', 1)];
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue(pins);
+    renderArea();
+    await screen.findByRole('button', { name: /打开 GitHub/ });
+    const del = screen.getByRole('button', { name: /取消常驻 GitHub/ });
+    expect(del.hasAttribute('data-no-dnd')).toBe(true);
+  });
+});
