@@ -78,6 +78,8 @@ interface SortableWorkspaceProps {
   name: string;
   icon: string;
   onSave: (id: string, updates: { name: string; icon: string }) => Promise<void> | void;
+  /** 连发锁:drop 写入期间禁用该 item 拖拽 */
+  disabled?: boolean;
 }
 
 /**
@@ -87,8 +89,8 @@ interface SortableWorkspaceProps {
  * - 1D verticalListSortingStrategy:wrapper 承载 setNodeRef + translateY 让位。
  * - 浅色面(Modal 白底)overlay tone=light 炭灰描边;DragOverlay portal body z-index 1005 > Modal 1000。
  */
-const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, onSave }) => {
-  const { listeners, setNodeRef, transform, transition } = useSortable({ id });
+const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, onSave, disabled }) => {
+  const { listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
@@ -129,6 +131,8 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeWsId, setActiveWsId] = useState<string | null>(null);
   const activeWs = activeWsId ? workspaces.find((w) => w.id === activeWsId) ?? null : null;
+  // 连发锁:drop 写入期间锁定 workspace 容器(防 store 乐观重排与回滚竞态)
+  const [reordering, setReordering] = useState(false);
 
   const handleDragStart = (e: DragStartEvent) => setActiveWsId(String(e.active.id));
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -139,10 +143,13 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
     const newIndex = workspaces.findIndex((w) => w.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     const orderedIds = arrayMove(workspaces, oldIndex, newIndex).map((w) => w.id);
+    setReordering(true);
     try {
       await reorderWorkspaces(orderedIds);
     } catch {
       Toast.error('排序未保存，请重试');
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -176,6 +183,7 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
                 name={w.name}
                 icon={w.icon}
                 onSave={updateWorkspace}
+                disabled={reordering}
               />
             ))}
           </SortableContext>

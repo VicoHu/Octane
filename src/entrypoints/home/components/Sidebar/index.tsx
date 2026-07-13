@@ -55,6 +55,8 @@ export const Sidebar: React.FC = () => {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
   const activeCat = activeCatId ? categories.find((c) => c.id === activeCatId) ?? null : null;
+  // 连发锁:drop 写入期间锁定分类容器(防 store 乐观重排与回滚竞态)
+  const [reordering, setReordering] = useState(false);
 
   const handleCatDragStart = (e: DragStartEvent) => setActiveCatId(String(e.active.id));
   const handleCatDragEnd = async (e: DragEndEvent) => {
@@ -65,10 +67,13 @@ export const Sidebar: React.FC = () => {
     const newIndex = categories.findIndex((c) => c.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     const orderedIds = arrayMove(categories, oldIndex, newIndex).map((c) => c.id);
+    setReordering(true);
     try {
       await reorderCategories(currentWorkspaceId, orderedIds);
     } catch {
       Toast.error('排序未保存，请重试');
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -183,6 +188,7 @@ export const Sidebar: React.FC = () => {
                     key={cat.id}
                     cat={cat}
                     isActive={currentCategoryId === cat.id}
+                    disabled={reordering}
                     onSelect={() => useWorkspace.getState().selectCategory(cat.id)}
                     onDelete={(e) => {
                       e.stopPropagation();
@@ -318,6 +324,8 @@ interface SortableCategoryProps {
   isActive: boolean;
   onSelect: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  /** 连发锁:drop 写入期间禁用该 item 拖拽 */
+  disabled?: boolean;
 }
 
 /**
@@ -329,8 +337,8 @@ interface SortableCategoryProps {
  * - 拖拽中选中竖条压暗 opacity .35(drop 线主导绿,守每区一个绿焦点)。
  * - IconDelete data-no-dnd 防拖拽冒泡。
  */
-const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSelect, onDelete }) => {
-  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id });
+const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSelect, onDelete, disabled }) => {
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id, disabled });
   return (
     <div
       ref={setNodeRef}

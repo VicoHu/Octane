@@ -58,6 +58,8 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activePinId, setActivePinId] = useState<string | null>(null);
   const activePin = activePinId ? pinnedTabs.find((p) => p.id === activePinId) ?? null : null;
+  // 连发锁:drop 写入期间锁定 chip 容器(防 store 乐观重排与回滚竞态)
+  const [reordering, setReordering] = useState(false);
 
   const handleDragStart = (e: DragStartEvent) => setActivePinId(String(e.active.id));
   const handleDragEnd = async (e: DragEndEvent) => {
@@ -68,10 +70,13 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
     const newIndex = pinnedTabs.findIndex((p) => p.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     const orderedIds = arrayMove(pinnedTabs, oldIndex, newIndex).map((p) => p.id);
+    setReordering(true);
     try {
       await reorderPinnedTabs(workspaceId, orderedIds);
     } catch {
       Toast.error('排序未保存，请重试');
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -126,7 +131,7 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
               strategy={rectSortingStrategy}
             >
               {pinnedTabs.map((pin) => (
-                <SortablePinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
+                <SortablePinChip key={pin.id} pin={pin} disabled={reordering} onDelete={() => handleDelete(pin.id)} />
               ))}
             </SortableContext>
             <SortableOverlay tone="dark">
@@ -220,8 +225,8 @@ function PinChip({
 }
 
 /** SortablePinChip —— chip 拖拽 wrapper(T7)。D6:listeners 收敛到 grip,chip onClick(window.open)保留 */
-function SortablePinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
-  const { listeners, setNodeRef, transform, transition } = useSortable({ id: pin.id });
+function SortablePinChip({ pin, onDelete, disabled }: { pin: PinnedTab; onDelete: () => void; disabled?: boolean }) {
+  const { listeners, setNodeRef, transform, transition } = useSortable({ id: pin.id, disabled });
   return (
     <div
       ref={setNodeRef}

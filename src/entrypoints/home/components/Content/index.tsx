@@ -112,6 +112,9 @@ export const Content: React.FC = () => {
     }
   }, []);
 
+  // 连发锁:drop 写入期间锁定该容器(防 store 乐观重排与回滚在并发 drop 下相互覆盖)
+  const [reordering, setReordering] = useState(false);
+
   const handleDragStart = (e: DragStartEvent) => {
     setActiveBookmarkId(String(e.active.id));
     // 首次拖拽关闭 coachmark(用户已发现手柄)
@@ -127,11 +130,14 @@ export const Content: React.FC = () => {
     if (oldIndex < 0 || newIndex < 0) return;
     const orderedIds = arrayMove(filteredBookmarks, oldIndex, newIndex).map((b) => b.id);
     // store 乐观重排 + 失败回滚已处理(波2);UI 层 catch → Toast,卡片自然回弹
+    setReordering(true);
     try {
       await reorderBookmarks(currentCategoryId, orderedIds);
       // drop 成功不弹 Toast,顺序即反馈(brief 状态矩阵)
     } catch {
       Toast.error('排序未保存，请重试');
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -371,7 +377,7 @@ export const Content: React.FC = () => {
                     <SortableBookmarkCard
                       key={bookmark.id}
                       bookmark={bookmark}
-                      disabled={!!query}
+                      disabled={!!query || reordering}
                       coachmark={!query && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
                       hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
                       onClick={handleCardClick}
