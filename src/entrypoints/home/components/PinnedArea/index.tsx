@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Modal, Input, Toast } from '@douyinfe/semi-ui';
 import { IconPlus, IconClose } from '@douyinfe/semi-icons';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
@@ -7,6 +7,8 @@ import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import { PINNED_TAB_CAP } from '@/services/PinnedTabService';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
+import { computeDropIndicator } from '../dnd/computeDropIndicator';
+import dndStyles from '../dnd/dnd.module.css';
 import {
   DndContext,
   PointerSensor,
@@ -14,6 +16,7 @@ import {
   useSensors,
   closestCenter,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -60,11 +63,50 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
   const activePin = activePinId ? pinnedTabs.find((p) => p.id === activePinId) ?? null : null;
   // 连发锁:drop 写入期间锁定 chip 容器(防 store 乐观重排与回滚竞态)
   const [reordering, setReordering] = useState(false);
+  // D7 插入线:chipRow 容器 ref 定位,axis/position/top/left 相对容器
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    axis: 'horizontal' | 'vertical';
+    position: 'before' | 'after';
+    top: number;
+    left: number;
+  } | null>(null);
+  // M5 非法落区:over=null(拖出 chipRow)→ overlay 降透明 .5 + not-allowed
+  const [invalid, setInvalid] = useState(false);
 
   const handleDragStart = (e: DragStartEvent) => setActivePinId(String(e.active.id));
+  const handleDragOver = (e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) {
+      // 拖出容器(无 collision 命中)→ 非法落区,清插入线
+      setDropIndicator(null);
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    if (active.id === over.id) {
+      setDropIndicator(null);
+      return;
+    }
+    const activeRect = active.rect.current.translated;
+    const overRect = over.rect;
+    if (!activeRect || !overRect) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const { axis, position } = computeDropIndicator({ activeRect, overRect, layout: '2d' });
+    const cRect = containerEl.getBoundingClientRect();
+    setDropIndicator({
+      axis,
+      position,
+      top: overRect.top - cRect.top + (axis === 'horizontal' && position === 'after' ? overRect.height : 0),
+      left: overRect.left - cRect.left + (axis === 'vertical' && position === 'after' ? overRect.width : 0),
+    });
+  };
   const handleDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActivePinId(null);
+    setDropIndicator(null);
+    setInvalid(false);
     if (!over || active.id === over.id) return;
     const oldIndex = pinnedTabs.findIndex((p) => p.id === active.id);
     const newIndex = pinnedTabs.findIndex((p) => p.id === over.id);
@@ -117,14 +159,15 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
       {pinnedTabs.length === 0 && (
         <div className={styles.emptyHint}>点 + 添加常驻标签</div>
       )}
-      <div className={styles.chipRow}>
+      <div className={styles.chipRow} ref={containerRef}>
         {pinnedTabs.length > 1 ? (
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
-            onDragCancel={() => setActivePinId(null)}
+            onDragCancel={() => { setActivePinId(null); setDropIndicator(null); setInvalid(false); }}
           >
             <SortableContext
               items={pinnedTabs.map((p) => p.id)}
@@ -134,7 +177,14 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
                 <SortablePinChip key={pin.id} pin={pin} disabled={reordering} onDelete={() => handleDelete(pin.id)} />
               ))}
             </SortableContext>
-            <SortableOverlay tone="dark">
+            {dropIndicator && (
+              <div
+                className={`${dndStyles.dropLine} ${dropIndicator.axis === 'horizontal' ? dndStyles.dropLineHorizontal : dndStyles.dropLineVertical}`}
+                style={dropIndicator.axis === 'horizontal' ? { top: dropIndicator.top - 1.5 } : { left: dropIndicator.left - 1.5 }}
+                aria-hidden="true"
+              />
+            )}
+            <SortableOverlay tone="dark" invalid={invalid}>
               {activePin && <PinChip pin={activePin} onDelete={() => {}} />}
             </SortableOverlay>
           </DndContext>
@@ -224,14 +274,15 @@ function PinChip({
   );
 }
 
-/** SortablePinChip —— chip 拖拽 wrapper(T7)。D6:listeners 收敛到 grip,chip onClick(window.open)保留 */
+/** SortablePinChip —— chip 拖拽 wrapper(T7)。D6:listeners 收敛到 grip,chip onClick(window.open)保留。
+ *  isDragging 时原位 visibility:hidden 保留盒子(measured rect 占位),DragOverlay 副本浮于指针。 */
 function SortablePinChip({ pin, onDelete, disabled }: { pin: PinnedTab; onDelete: () => void; disabled?: boolean }) {
-  const { listeners, setNodeRef, transform, transition } = useSortable({ id: pin.id, disabled });
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: pin.id, disabled });
   return (
     <div
       ref={setNodeRef}
       className={styles.sortableChip}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Transform.toString(transform), transition, visibility: isDragging ? 'hidden' : undefined }}
     >
       <PinChip pin={pin} onDelete={onDelete} grip={<GripButton listeners={listeners} />} />
     </div>

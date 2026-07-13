@@ -51,7 +51,7 @@
 }
 /* 浅色面:炭灰描边 */
 .overlayLight {
-  border: 1.5px solid #2d3436;
+  border: 1.5px solid var(--neutral);
 }
 /* 深色面:浅描边 alpha≥.5(炭灰在炭灰底不可见) */
 .overlayDark {
@@ -65,8 +65,8 @@
 
 /* ===== placeholder:被拖节点原位占位(dnd-kit measured rect,禁固定 min-height 防列位跳跃)===== */
 .placeholder {
-  border: 1.5px dashed rgba(45, 52, 54, 0.4);
-  background: rgba(45, 52, 54, 0.04);
+  border: 1.5px dashed rgba(var(--neutral-rgb), 0.4);
+  background: rgba(var(--neutral-rgb), 0.04);
   border-radius: var(--radius-md);
   box-sizing: border-box;
 }
@@ -79,7 +79,7 @@
 .dropLine {
   position: absolute;
   background: var(--primary);
-  box-shadow: 0 0 0 4px rgba(0, 184, 148, 0.1);
+  box-shadow: 0 0 0 4px var(--primary-light);
   border-radius: 2px;
   pointer-events: none;
   z-index: 1004;

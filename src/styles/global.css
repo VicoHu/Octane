@@ -22,6 +22,8 @@
   --danger: #ef4444;
 
   /* === 中性色 === */
+  --neutral: #2d3436;          /* 炭灰锚定色(DESIGN.md neutral/primary-on/sidebar-surface 都是 #2D3436) */
+  --neutral-rgb: 45, 52, 54;   /* 炭灰 alpha 变体基底:rgba(var(--neutral-rgb), X) */
   --muted: #64748b;
   --text-primary: #0f172a;
   --text-secondary: #475569;

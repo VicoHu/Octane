@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Select, Button, Input, Modal, List, Toast } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import {
@@ -8,6 +8,7 @@ import {
   useSensors,
   closestCenter,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -24,6 +25,8 @@ import { SettingsModal } from '../SettingsModal';
 import { PinnedArea } from '../PinnedArea';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
+import { computeDropIndicator } from '../dnd/computeDropIndicator';
+import dndStyles from '../dnd/dnd.module.css';
 import styles from './index.module.css';
 
 export const Sidebar: React.FC = () => {
@@ -55,13 +58,52 @@ export const Sidebar: React.FC = () => {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
   const activeCat = activeCatId ? categories.find((c) => c.id === activeCatId) ?? null : null;
-  // 连发锁:drop 写入期间锁定分类容器(防 store 乐观重排与回滚竞态)
+  // 连发锁:drop 写入期间锁定分类容器(防 store 乐观回滚与回滚竞态)
   const [reordering, setReordering] = useState(false);
+  // D7 插入线:categoryList 容器 ref 定位(1D 恒横向)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    axis: 'horizontal' | 'vertical';
+    position: 'before' | 'after';
+    top: number;
+    left: number;
+  } | null>(null);
+  // M5 非法落区:over=null(拖出 categoryList)→ overlay 降透明 .5
+  const [invalid, setInvalid] = useState(false);
 
   const handleCatDragStart = (e: DragStartEvent) => setActiveCatId(String(e.active.id));
+  const handleCatDragOver = (e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) {
+      setDropIndicator(null);
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    if (active.id === over.id) {
+      setDropIndicator(null);
+      return;
+    }
+    const activeRect = active.rect.current.translated;
+    const overRect = over.rect;
+    if (!activeRect || !overRect) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const { position } = computeDropIndicator({ activeRect, overRect, layout: '1d' });
+    const cRect = containerEl.getBoundingClientRect();
+    // 1D:axis 恒 horizontal,left:0(横线由 CSS left:0 right:0 撑满容器)
+    setDropIndicator({
+      axis: 'horizontal',
+      position,
+      top: overRect.top - cRect.top + (position === 'after' ? overRect.height : 0),
+      left: 0,
+    });
+  };
   const handleCatDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveCatId(null);
+    setDropIndicator(null);
+    setInvalid(false);
     if (!over || active.id === over.id || !currentWorkspaceId) return;
     const oldIndex = categories.findIndex((c) => c.id === active.id);
     const newIndex = categories.findIndex((c) => c.id === over.id);
@@ -167,7 +209,7 @@ export const Sidebar: React.FC = () => {
 
       {/* 分类 */}
       <div className={styles.sectionLabel}>分类</div>
-      <div className={styles.categoryList}>
+      <div className={styles.categoryList} ref={containerRef}>
         {categories.length === 0 ? (
           <div className={styles.emptyHint}>暂无分类</div>
         ) : categories.length > 1 ? (
@@ -175,8 +217,9 @@ export const Sidebar: React.FC = () => {
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleCatDragStart}
+            onDragOver={handleCatDragOver}
             onDragEnd={handleCatDragEnd}
-            onDragCancel={() => setActiveCatId(null)}
+            onDragCancel={() => { setActiveCatId(null); setDropIndicator(null); setInvalid(false); }}
           >
             <SortableContext
               items={categories.map((c) => c.id)}
@@ -199,7 +242,14 @@ export const Sidebar: React.FC = () => {
                 ))}
               </List>
             </SortableContext>
-            <SortableOverlay tone="dark">
+            {dropIndicator && (
+              <div
+                className={`${dndStyles.dropLine} ${dndStyles.dropLineHorizontal}`}
+                style={{ top: dropIndicator.top - 1.5 }}
+                aria-hidden="true"
+              />
+            )}
+            <SortableOverlay tone="dark" invalid={invalid}>
               {activeCat && (
                 <div className={styles.catGhost}>
                   {activeCat.icon} {activeCat.name}
@@ -334,7 +384,7 @@ interface SortableCategoryProps {
  * - D6:listeners 收敛到 grip GripButton(extra 区),List.Item onClick(selectCategory)保留。
  * - 1D verticalListSortingStrategy:wrapper 承载 setNodeRef + translateY 让位。
  * - 深色面:overlay 浅描边(tone="dark" 在 Sidebar 层 SortableOverlay);grip 跟随 sidebar-text-muted。
- * - 拖拽中选中竖条压暗 opacity .35(drop 线主导绿,守每区一个绿焦点)。
+ * - isDragging 原位 visibility:hidden 保留 List.Item 高度(measured rect 占位),DragOverlay 副本浮于指针。
  * - IconDelete data-no-dnd 防拖拽冒泡。
  */
 const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSelect, onDelete, disabled }) => {
@@ -343,12 +393,11 @@ const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSe
     <div
       ref={setNodeRef}
       className={styles.sortableCat}
-      style={
-        transform
-          ? { transform: `translate3d(0, ${transform.y}px, 0)`, transition }
-          : undefined
-      }
-      data-dragging={isDragging || undefined}
+      style={{
+        transform: transform ? `translate3d(0, ${transform.y}px, 0)` : undefined,
+        transition,
+        visibility: isDragging ? 'hidden' : undefined,
+      }}
     >
       <List.Item
         className={`${styles.cat} ${isActive ? styles.catActive : ''}`}

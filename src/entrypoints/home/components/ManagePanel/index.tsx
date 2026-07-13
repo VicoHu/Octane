@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
 import { useWorkspace } from '@/store/useWorkspace';
 import { IconPicker } from '@/components/IconPicker';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
+import { computeDropIndicator } from '../dnd/computeDropIndicator';
 import dndStyles from '../dnd/dnd.module.css';
 import {
   DndContext,
@@ -12,6 +13,7 @@ import {
   useSensors,
   closestCenter,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -88,14 +90,15 @@ interface SortableWorkspaceProps {
  * - D6:listeners 收敛到 grip GripButton(常驻 gripAlwaysVisible,整理语境),EntityEditRow onClick(enterEdit)保留。
  * - 1D verticalListSortingStrategy:wrapper 承载 setNodeRef + translateY 让位。
  * - 浅色面(Modal 白底)overlay tone=light 炭灰描边;DragOverlay portal body z-index 1005 > Modal 1000。
+ * - isDragging 原位 visibility:hidden 保留行高(measured rect 占位),DragOverlay 副本浮于指针。
  */
 const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, onSave, disabled }) => {
-  const { listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   return (
     <div
       ref={setNodeRef}
       className={styles.sortableRow}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Transform.toString(transform), transition, visibility: isDragging ? 'hidden' : undefined }}
     >
       <span className={styles.gripSlot}>
         <GripButton listeners={listeners} className={dndStyles.gripAlwaysVisible} />
@@ -133,11 +136,49 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
   const activeWs = activeWsId ? workspaces.find((w) => w.id === activeWsId) ?? null : null;
   // 连发锁:drop 写入期间锁定 workspace 容器(防 store 乐观重排与回滚竞态)
   const [reordering, setReordering] = useState(false);
+  // D7 插入线:wsList 容器 ref 定位(1D 恒横向)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    axis: 'horizontal' | 'vertical';
+    position: 'before' | 'after';
+    top: number;
+    left: number;
+  } | null>(null);
+  // M5 非法落区:over=null(拖出 wsList)→ overlay 降透明 .5
+  const [invalid, setInvalid] = useState(false);
 
   const handleDragStart = (e: DragStartEvent) => setActiveWsId(String(e.active.id));
+  const handleDragOver = (e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) {
+      setDropIndicator(null);
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    if (active.id === over.id) {
+      setDropIndicator(null);
+      return;
+    }
+    const activeRect = active.rect.current.translated;
+    const overRect = over.rect;
+    if (!activeRect || !overRect) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const { position } = computeDropIndicator({ activeRect, overRect, layout: '1d' });
+    const cRect = containerEl.getBoundingClientRect();
+    setDropIndicator({
+      axis: 'horizontal',
+      position,
+      top: overRect.top - cRect.top + (position === 'after' ? overRect.height : 0),
+      left: 0,
+    });
+  };
   const handleDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveWsId(null);
+    setDropIndicator(null);
+    setInvalid(false);
     if (!over || active.id === over.id) return;
     const oldIndex = workspaces.findIndex((w) => w.id === active.id);
     const newIndex = workspaces.findIndex((w) => w.id === over.id);
@@ -169,25 +210,35 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => setActiveWsId(null)}
+          onDragCancel={() => { setActiveWsId(null); setDropIndicator(null); setInvalid(false); }}
         >
-          <SortableContext
-            items={workspaces.map((w) => w.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {workspaces.map((w) => (
-              <SortableWorkspace
-                key={w.id}
-                id={w.id}
-                name={w.name}
-                icon={w.icon}
-                onSave={updateWorkspace}
-                disabled={reordering}
+          <div ref={containerRef} className={styles.wsList}>
+            <SortableContext
+              items={workspaces.map((w) => w.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {workspaces.map((w) => (
+                <SortableWorkspace
+                  key={w.id}
+                  id={w.id}
+                  name={w.name}
+                  icon={w.icon}
+                  onSave={updateWorkspace}
+                  disabled={reordering}
+                />
+              ))}
+            </SortableContext>
+            {dropIndicator && (
+              <div
+                className={`${dndStyles.dropLine} ${dndStyles.dropLineHorizontal}`}
+                style={{ top: dropIndicator.top - 1.5 }}
+                aria-hidden="true"
               />
-            ))}
-          </SortableContext>
-          <SortableOverlay tone="light">
+            )}
+          </div>
+          <SortableOverlay tone="light" invalid={invalid}>
             {activeWs && (
               <div className={styles.ghostRow}>
                 <span className={styles.itemIcon}>{activeWs.icon}</span>

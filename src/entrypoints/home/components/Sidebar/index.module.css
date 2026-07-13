@@ -56,6 +56,7 @@
 }
 
 .categoryList {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -159,10 +160,6 @@
   .gripSlot {
     opacity: 1;
   }
-}
-/* 拖拽中:选中竖条压暗 opacity .35(drop 线主导绿,守每区一个绿焦点) */
-.sortableCat[data-dragging="true"] .catActive::before {
-  opacity: 0.35;
 }
 /* DragOverlay 副本(分类项 ghost,深色面浅描边由 SortableOverlay tone=dark 提供) */
 .catGhost {

@@ -48,6 +48,10 @@
 }
 
 /* === T8 workspace 拖拽 === */
+/* workspace 列表容器:插入线 absolute 定位锚 */
+.wsList {
+  position: relative;
+}
 .sortableRow {
   display: flex;
   align-items: center;

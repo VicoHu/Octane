@@ -12,6 +12,8 @@ import * as CategoryService from '@/services/CategoryService';
 import { BookmarkCard } from '../BookmarkCard';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
+import { computeDropIndicator } from '../dnd/computeDropIndicator';
+import dndStyles from '../dnd/dnd.module.css';
 import {
   DndContext,
   PointerSensor,
@@ -19,6 +21,7 @@ import {
   useSensors,
   closestCenter,
   type DragStartEvent,
+  type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -114,15 +117,53 @@ export const Content: React.FC = () => {
 
   // 连发锁:drop 写入期间锁定该容器(防 store 乐观重排与回滚在并发 drop 下相互覆盖)
   const [reordering, setReordering] = useState(false);
+  // D7 插入线:grid 容器 ref 定位(2D 轴感知)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    axis: 'horizontal' | 'vertical';
+    position: 'before' | 'after';
+    top: number;
+    left: number;
+  } | null>(null);
+  // M5 非法落区:over=null(拖出 grid)→ overlay 降透明 .5
+  const [invalid, setInvalid] = useState(false);
 
   const handleDragStart = (e: DragStartEvent) => {
     setActiveBookmarkId(String(e.active.id));
     // 首次拖拽关闭 coachmark(用户已发现手柄)
     if (!coachSeen) markCoachSeen();
   };
+  const handleDragOver = (e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) {
+      setDropIndicator(null);
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    if (active.id === over.id) {
+      setDropIndicator(null);
+      return;
+    }
+    const activeRect = active.rect.current.translated;
+    const overRect = over.rect;
+    if (!activeRect || !overRect) return;
+    const containerEl = containerRef.current;
+    if (!containerEl) return;
+    const { axis, position } = computeDropIndicator({ activeRect, overRect, layout: '2d' });
+    const cRect = containerEl.getBoundingClientRect();
+    setDropIndicator({
+      axis,
+      position,
+      top: overRect.top - cRect.top + (axis === 'horizontal' && position === 'after' ? overRect.height : 0),
+      left: overRect.left - cRect.left + (axis === 'vertical' && position === 'after' ? overRect.width : 0),
+    });
+  };
   const handleDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveBookmarkId(null);
+    setDropIndicator(null);
+    setInvalid(false);
     // 同位 / 无落区 / 无分类 → 不动(回弹由 store 乐观回滚 + useSortable transition)
     if (!over || active.id === over.id || !currentCategoryId) return;
     const oldIndex = filteredBookmarks.findIndex((b) => b.id === active.id);
@@ -365,14 +406,15 @@ export const Content: React.FC = () => {
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
               onDragEnd={handleDragEnd}
-              onDragCancel={() => setActiveBookmarkId(null)}
+              onDragCancel={() => { setActiveBookmarkId(null); setDropIndicator(null); setInvalid(false); }}
             >
               <SortableContext
                 items={filteredBookmarks.map((b) => b.id)}
                 strategy={rectSortingStrategy}
               >
-                <div className={styles.grid}>
+                <div className={styles.grid} ref={containerRef}>
                   {filteredBookmarks.map((bookmark, index) => (
                     <SortableBookmarkCard
                       key={bookmark.id}
@@ -386,9 +428,16 @@ export const Content: React.FC = () => {
                       onDelete={handleDeleteBookmark}
                     />
                   ))}
+                  {dropIndicator && (
+                    <div
+                      className={`${dndStyles.dropLine} ${dropIndicator.axis === 'horizontal' ? dndStyles.dropLineHorizontal : dndStyles.dropLineVertical}`}
+                      style={dropIndicator.axis === 'horizontal' ? { top: dropIndicator.top - 1.5 } : { left: dropIndicator.left - 1.5 }}
+                      aria-hidden="true"
+                    />
+                  )}
                 </div>
               </SortableContext>
-              <SortableOverlay tone="light">
+              <SortableOverlay tone="light" invalid={invalid}>
                 {activeBookmark && (
                   <BookmarkCard
                     bookmark={activeBookmark}
