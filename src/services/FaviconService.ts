@@ -1,4 +1,4 @@
-import { deleteRecord, getByKey, getDB, putRecord } from '@/shared/db/database';
+import { broadcastChange, deleteRecord, getByKey, getDB } from '@/shared/db/database';
 import type {
   FaviconRecord,
   ThirdPartyFaviconSource,
@@ -254,6 +254,16 @@ export interface FetchThirdPartyOptions {
 }
 
 const inFlight = new Map<string, Promise<ThirdPartyFaviconResult | null>>();
+const latestGeneration = new Map<string, number>();
+let nextGeneration = 0;
+
+function inFlightKey(hostname: string, force: boolean): string {
+  return `${hostname}:${force ? 'force' : 'normal'}`;
+}
+
+function isCurrentGeneration(hostname: string, generation: number): boolean {
+  return latestGeneration.get(hostname) === generation;
+}
 
 function resultFromRecord(record: FaviconRecord): ThirdPartyFaviconResult | null {
   if (!record.blob || !record.source) return null;
@@ -266,19 +276,49 @@ function resultFromRecord(record: FaviconRecord): ThirdPartyFaviconResult | null
   };
 }
 
-async function writeFailureCooldown(hostname: string, now: number): Promise<void> {
-  const current = await getByKey<FaviconRecord>('favicons', hostname);
-  await putRecord('favicons', {
+async function writeFailureCooldown(
+  hostname: string,
+  now: number,
+  generation: number,
+): Promise<void> {
+  const db = await getDB();
+  if (!isCurrentGeneration(hostname, generation)) return;
+
+  // 同一个 readwrite transaction 内读取并更新，避免 onError 的 delete 插入 get/put 之间，
+  // 将已经删除的坏 Blob 从旧快照中复活。
+  const tx = db.transaction('favicons', 'readwrite');
+  const store = tx.objectStore('favicons');
+  const current = await store.get(hostname) as FaviconRecord | undefined;
+  await store.put({
     ...current,
     hostname,
     thirdPartyRetryAt: now + THIRD_PARTY_RETRY_MS,
   });
+  await tx.done;
+  broadcastChange('favicons', 'put');
+}
+
+async function writeSuccessRecord(
+  record: FaviconRecord,
+  generation: number,
+): Promise<boolean> {
+  const db = await getDB();
+  if (!isCurrentGeneration(record.hostname, generation)) return false;
+
+  // generation 检查后立即创建同 store 写事务；后启动的请求写事务会排在其后，
+  // 因而最终缓存始终由较新的请求决定。
+  const tx = db.transaction('favicons', 'readwrite');
+  await tx.objectStore('favicons').put(record);
+  await tx.done;
+  broadcastChange('favicons', 'put');
+  return true;
 }
 
 async function performThirdPartyFetch(
   url: string,
   hostname: string,
   options: FetchThirdPartyOptions,
+  generation: number,
 ): Promise<ThirdPartyFaviconResult | null> {
   const now = options.now ?? Date.now();
   const normalize = options.normalize ?? normalizeFaviconBlob;
@@ -299,7 +339,7 @@ async function performThirdPartyFetch(
   const candidateEntry = settled[0];
   const fallbackEntry = settled[1];
   if (candidateEntry?.status !== 'fulfilled' || fallbackEntry?.status !== 'fulfilled') {
-    await writeFailureCooldown(hostname, now);
+    await writeFailureCooldown(hostname, now, generation);
     return null;
   }
 
@@ -307,13 +347,13 @@ async function performThirdPartyFetch(
   // Icon Horse 免费接口未命中时仍返回 HTTP 200 的首字母占位图。
   // 用同首字母的 .invalid 域名取得该占位图指纹；完全相同则拒绝升级。
   if (await blobsEqual(candidateBlob, fallbackBlob)) {
-    await writeFailureCooldown(hostname, now);
+    await writeFailureCooldown(hostname, now, generation);
     return null;
   }
 
   const best = await normalize(candidateBlob);
   if (!best) {
-    await writeFailureCooldown(hostname, now);
+    await writeFailureCooldown(hostname, now, generation);
     return null;
   }
 
@@ -327,7 +367,7 @@ async function performThirdPartyFetch(
     fetchedAt: now,
     expiresAt: now + THIRD_PARTY_TTL_MS,
   };
-  await putRecord('favicons', record);
+  if (!await writeSuccessRecord(record, generation)) return null;
   return resultFromRecord(record);
 }
 
@@ -339,13 +379,26 @@ export function fetchBestThirdPartyFavicon(
   if (!target || target.private) return Promise.resolve(null);
   const { hostname } = target;
 
-  const inFlightKey = `${hostname}:${options.force ? 'force' : 'normal'}`;
-  const existing = inFlight.get(inFlightKey);
+  const forceKey = inFlightKey(hostname, true);
+  if (!options.force) {
+    const forced = inFlight.get(forceKey);
+    if (forced) return forced;
+  }
+
+  const taskKey = inFlightKey(hostname, !!options.force);
+  const existing = inFlight.get(taskKey);
   if (existing) return existing;
 
-  const task = performThirdPartyFetch(url, hostname, options)
-    .finally(() => inFlight.delete(inFlightKey));
-  inFlight.set(inFlightKey, task);
+  const generation = ++nextGeneration;
+  latestGeneration.set(hostname, generation);
+  const task = performThirdPartyFetch(url, hostname, options, generation)
+    .finally(() => {
+      inFlight.delete(taskKey);
+      if (!inFlight.has(inFlightKey(hostname, false)) && !inFlight.has(forceKey)) {
+        latestGeneration.delete(hostname);
+      }
+    });
+  inFlight.set(taskKey, task);
   return task;
 }
 

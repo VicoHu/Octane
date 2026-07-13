@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { useFavicon } from '@/hooks/useFavicon';
-import { refreshFavicon, pickHostname } from '@/services/FaviconService';
+import { invalidateFavicon, refreshFavicon, pickHostname } from '@/services/FaviconService';
 import styles from './index.module.css';
 
 interface BookmarkFaviconPreviewProps {
@@ -22,10 +22,25 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
   const faviconSrc = useFavicon(url);
   const [refreshing, setRefreshing] = useState(false);
   const [overrideSrc, setOverrideSrc] = useState<string | null>(null);
-  const urlValid = !!pickHostname(url);
+  const hostname = pickHostname(url);
+  const urlValid = !!hostname;
+  const mountedRef = useRef(false);
+  const currentUrlRef = useRef(url);
+  const refreshRequestRef = useRef(0);
 
-  // url 变化：清空 override（避免切 url 后仍显示旧 override）
   useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      refreshRequestRef.current += 1;
+    };
+  }, []);
+
+  // url 变化：使旧请求失效，并清空 override（避免切 url 后仍显示旧 override）
+  useLayoutEffect(() => {
+    currentUrlRef.current = url;
+    refreshRequestRef.current += 1;
+    setRefreshing(false);
     setOverrideSrc((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return null;
@@ -41,9 +56,16 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
 
   const handleRefresh = async () => {
     if (!urlValid || refreshing) return;
+    const requestUrl = url;
+    const requestId = ++refreshRequestRef.current;
+    const requestIsCurrent = () => mountedRef.current
+      && currentUrlRef.current === requestUrl
+      && refreshRequestRef.current === requestId;
+
     setRefreshing(true);
     try {
-      const blob = await refreshFavicon(url);
+      const blob = await refreshFavicon(requestUrl);
+      if (!requestIsCurrent()) return;
       if (!blob) {
         Toast.error('刷新失败，稍后重试');
         return;
@@ -54,9 +76,9 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
         return objUrl;
       });
     } catch {
-      Toast.error('刷新失败，稍后重试');
+      if (requestIsCurrent()) Toast.error('刷新失败，稍后重试');
     } finally {
-      setRefreshing(false);
+      if (requestIsCurrent()) setRefreshing(false);
     }
   };
 
@@ -65,6 +87,7 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
     if (overrideSrc) {
       URL.revokeObjectURL(overrideSrc);
       setOverrideSrc(null);
+      if (hostname) void invalidateFavicon(hostname).catch(() => undefined);
       return;
     }
     faviconSrc?.onError();

@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import * as FaviconService from '@/services/FaviconService';
@@ -46,6 +46,42 @@ describe('BookmarkFaviconPreview', () => {
     expect(img.src).toBe('blob:new-override');
   });
 
+  it('刷新 A 未完成时 URL 切到 B，迟到结果不得覆盖 B 的图标', async () => {
+    let resolveRefresh!: (blob: Blob | null) => void;
+    vi.spyOn(FaviconService, 'refreshFavicon').mockReturnValue(
+      new Promise((resolve) => { resolveRefresh = resolve; }),
+    );
+    vi.mocked(useFavicon).mockImplementation((currentUrl) => ({
+      kind: 'chrome',
+      src: `chrome:${currentUrl}`,
+      onError: vi.fn(),
+    }));
+    const createURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:late-a');
+    const view = render(<BookmarkFaviconPreview url="https://a.example" />);
+
+    await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
+    view.rerender(<BookmarkFaviconPreview url="https://b.example" />);
+    await act(async () => resolveRefresh(new Blob(['a-icon'])));
+
+    await waitFor(() => expect(screen.getByAltText('').getAttribute('src')).toBe('chrome:https://b.example'));
+    expect(createURLSpy).not.toHaveBeenCalled();
+  });
+
+  it('组件卸载后刷新才返回，不创建无法回收的 Object URL', async () => {
+    let resolveRefresh!: (blob: Blob | null) => void;
+    vi.spyOn(FaviconService, 'refreshFavicon').mockReturnValue(
+      new Promise((resolve) => { resolveRefresh = resolve; }),
+    );
+    const createURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:late-unmount');
+    const view = render(<BookmarkFaviconPreview url="https://a.example" />);
+
+    await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
+    view.unmount();
+    await act(async () => resolveRefresh(new Blob(['a-icon'])));
+
+    expect(createURLSpy).not.toHaveBeenCalled();
+  });
+
   it('刷新失败 → Toast.error 提示，预览保持原样', async () => {
     vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:keep', onError: vi.fn() });
     vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(null);
@@ -56,11 +92,23 @@ describe('BookmarkFaviconPreview', () => {
   });
 
 
+  it('手动刷新图标加载失败时删除已写入的第三方缓存', async () => {
+    vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(new Blob(['broken']));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:broken-override');
+    const invalidateSpy = vi.spyOn(FaviconService, 'invalidateFavicon').mockResolvedValue();
+    render(<BookmarkFaviconPreview url="https://github.com/path" />);
+
+    await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
+    fireEvent.error(screen.getByAltText(''));
+
+    expect(invalidateSpy).toHaveBeenCalledWith('github.com');
+  });
+
   it('图片加载失败调用 hook onError', () => {
     const onError = vi.fn();
     vi.mocked(useFavicon).mockReturnValue({ kind: 'chrome', src: 'chrome-url', onError });
     render(<BookmarkFaviconPreview url="https://github.com" />);
-    fireEvent.error(document.querySelector('img')!);
+    fireEvent.error(screen.getByAltText(''));
     expect(onError).toHaveBeenCalledTimes(1);
   });
 

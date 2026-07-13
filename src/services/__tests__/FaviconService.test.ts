@@ -343,7 +343,7 @@ describe('第三方并行升级', () => {
     expect(cached?.thirdPartyRetryAt).toBe(100 + THIRD_PARTY_RETRY_MS);
   });
 
-  it('刷新期间缓存被 onError 删除，失败写冷却时不得复活旧 Blob', async () => {
+  it('onError 删除与失败冷却并发时不得复活旧 Blob', async () => {
     const oldBlob = new Blob(['broken'], { type: 'image/png' });
     await putRecord('favicons', {
       hostname: 'example.com', blob: oldBlob, source: 'icon-horse', mimeType: 'image/png',
@@ -359,13 +359,39 @@ describe('第三方并行升级', () => {
     });
     await vi.waitFor(() => expect(rejectors).toHaveLength(2));
 
-    await invalidateFavicon('example.com');
+    const invalidation = invalidateFavicon('example.com');
     rejectors.forEach((reject) => reject(new TypeError('CORS')));
-    await pending;
+    await Promise.all([invalidation, pending]);
 
     const cached = await getByKey<FaviconRecord>('favicons', 'example.com');
     expect(cached?.blob).toBeUndefined();
     expect(cached?.thirdPartyRetryAt).toBe(100 + THIRD_PARTY_RETRY_MS);
+  });
+
+  it('较晚启动的 force 刷新优先，较慢的 normal 结果不得覆盖缓存', async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => resolvers.push(resolve))));
+    const normalize = normalizer({
+      'normal-icon': { size: 64 },
+      'force-icon': { size: 64 },
+      'letter-r': { size: 256 },
+    });
+
+    const normal = fetchBestThirdPartyFavicon('https://race.example', { now: 100, normalize });
+    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    const forced = fetchBestThirdPartyFavicon('https://race.example', { force: true, now: 200, normalize });
+    await vi.waitFor(() => expect(resolvers).toHaveLength(4));
+
+    resolvers[2]!(imageResponse('force-icon'));
+    resolvers[3]!(imageResponse('letter-r'));
+    await forced;
+    resolvers[0]!(imageResponse('normal-icon'));
+    resolvers[1]!(imageResponse('letter-r'));
+    expect(await normal).toBeNull();
+
+    const cached = await getByKey<FaviconRecord>('favicons', 'race.example');
+    expect(await cached?.blob?.text()).toBe('force-icon-normalized');
+    expect(cached?.fetchedAt).toBe(200);
   });
 
   it('普通 fresh-cache 查询与 force 刷新并发时，force 仍发起网络请求', async () => {
