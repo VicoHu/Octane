@@ -1,0 +1,13 @@
+[mcp_servers.codegraph]
+command = "codegraph"
+args = [
+    "serve",
+    "--mcp",
+]
+
+[mcp_servers.semi-mcp]
+command = "npx"
+args = [
+    "-y",
+    "@douyinfe/semi-mcp",
+]

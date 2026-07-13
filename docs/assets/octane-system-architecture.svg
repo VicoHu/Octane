@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1240" viewBox="0 0 1800 1240" role="img" aria-labelledby="title desc">
+  <title id="title">Octane 系统架构图</title>
+  <desc id="desc">Octane 浏览器扩展的多入口、状态管理、业务服务、基础设施和安全数据流架构。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08111f"/>
+      <stop offset="0.55" stop-color="#0b1627"/>
+      <stop offset="1" stop-color="#111a2e"/>
+    </linearGradient>
+    <linearGradient id="header" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#45d6c8"/>
+      <stop offset="1" stop-color="#7c8cff"/>
+    </linearGradient>
+    <linearGradient id="entry" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#173d55"/>
+      <stop offset="1" stop-color="#132946"/>
+    </linearGradient>
+    <linearGradient id="state" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#24335f"/>
+      <stop offset="1" stop-color="#29284f"/>
+    </linearGradient>
+    <linearGradient id="service" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d2b59"/>
+      <stop offset="1" stop-color="#35254b"/>
+    </linearGradient>
+    <linearGradient id="infra" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3c302d"/>
+      <stop offset="1" stop-color="#2d252d"/>
+    </linearGradient>
+    <linearGradient id="security" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#183e3e"/>
+      <stop offset="1" stop-color="#142f37"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.24"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#91a4bc"/>
+    </marker>
+    <marker id="arrowAccent" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#48d7c9"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .title { fill: #f6f8fc; font-size: 44px; font-weight: 700; letter-spacing: 1px; }
+      .subtitle { fill: #9fb0c6; font-size: 20px; font-weight: 400; }
+      .layerTitle { fill: #dfe8f3; font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+      .cardTitle { fill: #f5f8fc; font-size: 19px; font-weight: 700; }
+      .cardText { fill: #b6c5d8; font-size: 15px; font-weight: 400; }
+      .tiny { fill: #8193a9; font-size: 13px; }
+      .tag { fill: #a7bbd0; font-size: 13px; font-weight: 600; }
+      .mono { font-family: "SF Mono", "JetBrains Mono", Consolas, monospace; fill: #8be4d8; font-size: 14px; }
+      .line { stroke: #91a4bc; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .accentLine { stroke: #48d7c9; stroke-width: 2.5; fill: none; marker-end: url(#arrowAccent); }
+      .dashed { stroke-dasharray: 8 8; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1240" fill="url(#bg)"/>
+  <circle cx="1550" cy="80" r="260" fill="#385be7" opacity="0.06"/>
+  <circle cx="180" cy="1090" r="300" fill="#13b7aa" opacity="0.05"/>
+
+  <!-- Header -->
+  <g transform="translate(90,70)">
+    <rect width="74" height="74" rx="20" fill="url(#header)" filter="url(#soft)"/>
+    <path d="M22 35h30v11H22z M30 24h14v34H30z M47 29h10v28H47z" fill="#071722" opacity="0.92"/>
+    <text x="100" y="34" class="title">Octane 系统架构</text>
+    <text x="102" y="68" class="subtitle">书签 + 上下文 + 安全 · 浏览器里的加密上下文书签夹</text>
+  </g>
+
+  <!-- Main architecture frame -->
+  <rect x="70" y="190" width="1265" height="920" rx="30" fill="#0d1a2b" stroke="#273a54" stroke-width="2" filter="url(#shadow)"/>
+  <text x="112" y="238" class="layerTitle">核心应用架构</text>
+  <text x="112" y="265" class="tiny">数据流向：UI → Store → Service → IndexedDB；加密细节由业务层隔离</text>
+
+  <!-- Layer bands -->
+  <rect x="100" y="292" width="1205" height="170" rx="22" fill="#10283d" stroke="#26516a" stroke-width="1.5"/>
+  <rect x="100" y="486" width="1205" height="150" rx="22" fill="#171e3e" stroke="#3d4d89" stroke-width="1.5"/>
+  <rect x="100" y="660" width="1205" height="184" rx="22" fill="#251d3a" stroke="#694780" stroke-width="1.5"/>
+  <rect x="100" y="868" width="1205" height="202" rx="22" fill="#292324" stroke="#725044" stroke-width="1.5"/>
+
+  <text x="128" y="326" class="layerTitle">入口层 · Browser Extension Surfaces</text>
+  <text x="128" y="520" class="layerTitle">状态层 · Zustand Stores</text>
+  <text x="128" y="694" class="layerTitle">服务层 · Domain Services</text>
+  <text x="128" y="902" class="layerTitle">基础设施层 · Shared Infrastructure</text>
+
+  <!-- Entry cards -->
+  <g filter="url(#soft)">
+    <rect x="134" y="350" width="245" height="78" rx="15" fill="url(#entry)" stroke="#3c7691"/>
+    <rect x="405" y="350" width="245" height="78" rx="15" fill="url(#entry)" stroke="#3c7691"/>
+    <rect x="676" y="350" width="245" height="78" rx="15" fill="url(#entry)" stroke="#3c7691"/>
+    <rect x="947" y="350" width="322" height="78" rx="15" fill="url(#entry)" stroke="#3c7691"/>
+  </g>
+  <text x="160" y="382" class="cardTitle">New Tab 首页</text>
+  <text x="160" y="407" class="cardText">书签 / 标签页 / 上下文 / 设置</text>
+  <text x="431" y="382" class="cardTitle">Toolbar Popup</text>
+  <text x="431" y="407" class="cardText">快速保存当前网页与配置</text>
+  <text x="702" y="382" class="cardTitle">Side Panel</text>
+  <text x="702" y="407" class="cardText">按 hostname 联动当前页面</text>
+  <text x="973" y="382" class="cardTitle">Browser APIs · MV3 / MV2</text>
+  <text x="973" y="407" class="cardText">tabs · commands · storage · runtime</text>
+
+  <!-- Store cards -->
+  <g filter="url(#soft)">
+    <rect x="134" y="548" width="265" height="59" rx="14" fill="url(#state)" stroke="#5269b0"/>
+    <rect x="423" y="548" width="265" height="59" rx="14" fill="url(#state)" stroke="#5269b0"/>
+    <rect x="712" y="548" width="265" height="59" rx="14" fill="url(#state)" stroke="#5269b0"/>
+    <rect x="1001" y="548" width="268" height="59" rx="14" fill="url(#state)" stroke="#5269b0"/>
+  </g>
+  <text x="160" y="584" class="cardTitle">useWorkspace</text>
+  <text x="449" y="584" class="cardTitle">useBookmarks</text>
+  <text x="738" y="584" class="cardTitle">useCrypto</text>
+  <text x="1027" y="584" class="cardTitle">useEncryptedContexts</text>
+
+  <!-- Service cards -->
+  <g filter="url(#soft)">
+    <rect x="134" y="722" width="236" height="88" rx="15" fill="url(#service)" stroke="#8c5ca0"/>
+    <rect x="390" y="722" width="236" height="88" rx="15" fill="url(#service)" stroke="#8c5ca0"/>
+    <rect x="646" y="722" width="236" height="88" rx="15" fill="url(#service)" stroke="#8c5ca0"/>
+    <rect x="902" y="722" width="367" height="88" rx="15" fill="url(#security)" stroke="#3e958e"/>
+  </g>
+  <text x="158" y="755" class="cardTitle">WorkspaceService</text>
+  <text x="158" y="781" class="cardText">工作区隔离与切换</text>
+  <text x="414" y="755" class="cardTitle">CategoryService</text>
+  <text x="414" y="781" class="cardText">分类 CRUD 与归属</text>
+  <text x="670" y="755" class="cardTitle">BookmarkService</text>
+  <text x="670" y="781" class="cardText">书签 CRUD、搜索、Favicon</text>
+  <text x="926" y="755" class="cardTitle">ContextService → CryptoService</text>
+  <text x="926" y="781" class="cardText">明文接口 · AES-GCM-256 · PBKDF2</text>
+
+  <!-- Infrastructure cards -->
+  <g filter="url(#soft)">
+    <rect x="134" y="932" width="245" height="107" rx="15" fill="url(#infra)" stroke="#8a6252"/>
+    <rect x="405" y="932" width="245" height="107" rx="15" fill="url(#infra)" stroke="#8a6252"/>
+    <rect x="676" y="932" width="245" height="107" rx="15" fill="url(#infra)" stroke="#8a6252"/>
+    <rect x="947" y="932" width="322" height="107" rx="15" fill="url(#infra)" stroke="#8a6252"/>
+  </g>
+  <text x="158" y="967" class="cardTitle">IndexedDB · idb</text>
+  <text x="158" y="992" class="cardText">工作区 / 分类 / 书签</text>
+  <text x="158" y="1015" class="cardText">上下文密文与元数据</text>
+  <text x="429" y="967" class="cardTitle">Markdown Pipeline</text>
+  <text x="429" y="992" class="cardText">marked → DOMPurify</text>
+  <text x="429" y="1015" class="cardText">安全渲染与 XSS 防护</text>
+  <text x="700" y="967" class="cardTitle">Tab / URL Utilities</text>
+  <text x="700" y="992" class="cardText">hostname 匹配、聚焦、</text>
+  <text x="700" y="1015" class="cardText">保存当前 tab、pinned home</text>
+  <text x="971" y="967" class="cardTitle">Backup &amp; Quota Monitor</text>
+  <text x="971" y="992" class="cardText">本地 JSON · S3 / OSS / COS</text>
+  <text x="971" y="1015" class="cardText">坚果云 WebDAV · 配额监控</text>
+
+  <!-- Main flow arrows -->
+  <path d="M257 428 L257 548" class="line"/>
+  <path d="M528 428 L528 548" class="line"/>
+  <path d="M799 428 L799 548" class="line"/>
+  <path d="M1108 428 L1108 548" class="line"/>
+  <path d="M267 607 L267 722" class="line"/>
+  <path d="M556 607 L508 722" class="line"/>
+  <path d="M845 607 L764 722" class="line"/>
+  <path d="M1135 607 L1085 722" class="accentLine"/>
+  <path d="M252 810 L252 932" class="line"/>
+  <path d="M508 810 L508 932" class="line"/>
+  <path d="M764 810 L798 932" class="line"/>
+  <path d="M1085 810 L1108 932" class="accentLine"/>
+
+  <!-- External systems panel -->
+  <rect x="1380" y="190" width="350" height="920" rx="30" fill="#0d1a2b" stroke="#273a54" stroke-width="2" filter="url(#shadow)"/>
+  <text x="1420" y="238" class="layerTitle">外部系统与安全边界</text>
+  <text x="1420" y="265" class="tiny">浏览器 API 与云备份通过适配层接入</text>
+
+  <rect x="1420" y="306" width="270" height="126" rx="18" fill="#142c43" stroke="#39748c" stroke-width="1.5"/>
+  <text x="1450" y="344" class="cardTitle">Browser Runtime</text>
+  <text x="1450" y="371" class="cardText">Chrome / Edge / Firefox</text>
+  <text x="1450" y="397" class="cardText">session storage · events</text>
+
+  <rect x="1420" y="480" width="270" height="154" rx="18" fill="#123737" stroke="#3c978d" stroke-width="1.5"/>
+  <text x="1450" y="518" class="cardTitle">Session Key Vault</text>
+  <text x="1450" y="545" class="cardText">chrome.storage.session</text>
+  <text x="1450" y="573" class="mono">AES-GCM-256</text>
+  <text x="1450" y="599" class="mono">PBKDF2 · 600,000 iter.</text>
+
+  <rect x="1420" y="682" width="270" height="154" rx="18" fill="#2c2440" stroke="#8261a6" stroke-width="1.5"/>
+  <text x="1450" y="720" class="cardTitle">Cloud Backup Targets</text>
+  <text x="1450" y="749" class="cardText">S3 / 阿里云 OSS / 腾讯云 COS</text>
+  <text x="1450" y="776" class="cardText">坚果云 WebDAV</text>
+  <text x="1450" y="803" class="cardText">策略模式可扩展</text>
+
+  <rect x="1420" y="884" width="270" height="154" rx="18" fill="#2b2927" stroke="#8a7250" stroke-width="1.5"/>
+  <text x="1450" y="922" class="cardTitle">Privacy Boundary</text>
+  <text x="1450" y="950" class="cardText">业务层只接触明文接口</text>
+  <text x="1450" y="977" class="cardText">数据库保存上下文密文</text>
+  <text x="1450" y="1004" class="cardText">浏览器关闭后会话密钥清除</text>
+
+  <!-- Cross-boundary arrows -->
+  <path d="M1269 390 C1320 390 1350 369 1420 369" class="line dashed"/>
+  <path d="M1269 770 C1340 770 1350 557 1420 557" class="accentLine dashed"/>
+  <path d="M1269 982 C1350 982 1350 758 1420 758" class="line dashed"/>
+
+  <!-- Footer legend -->
+  <line x1="110" y1="1165" x2="160" y2="1165" class="line"/>
+  <text x="174" y="1171" class="tag">常规数据流</text>
+  <line x1="330" y1="1165" x2="380" y2="1165" class="accentLine"/>
+  <text x="394" y="1171" class="tag">加密 / 安全相关数据流</text>
+  <text x="1030" y="1171" class="tiny">Octane · React + TypeScript + WXT + Zustand + IndexedDB</text>
+</svg>

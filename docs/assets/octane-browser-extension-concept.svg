@@ -1,0 +1,237 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">Octane 浏览器扩展未来科技概念图</title>
+  <desc id="desc">Keynote 风格的 Octane 浏览器扩展概念主视觉，展示浏览器窗口、加密上下文和智能侧边栏。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070b14"/>
+      <stop offset="0.45" stop-color="#0a1020"/>
+      <stop offset="1" stop-color="#11142b"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#65e8dc" stop-opacity="0.85"/>
+      <stop offset="0.34" stop-color="#5973ff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#162041" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#68f2df"/>
+      <stop offset="0.5" stop-color="#7aa5ff"/>
+      <stop offset="1" stop-color="#b06bff"/>
+    </linearGradient>
+    <linearGradient id="neonSoft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4de1d0"/>
+      <stop offset="1" stop-color="#7e7cff"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#19253d" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#0c1325" stop-opacity="0.82"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d2f4f"/>
+      <stop offset="1" stop-color="#171d3a"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="24" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glowSmall" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="30" stdDeviation="28" flood-color="#000" flood-opacity="0.48"/>
+    </filter>
+    <filter id="shadowLight" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#000" flood-opacity="0.38"/>
+    </filter>
+    <pattern id="grid" width="46" height="46" patternUnits="userSpaceOnUse">
+      <path d="M46 0H0V46" fill="none" stroke="#9bb7e8" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <clipPath id="browserClip"><rect x="510" y="178" width="1125" height="690" rx="26"/></clipPath>
+    <clipPath id="screenClip"><rect x="510" y="236" width="1125" height="632"/></clipPath>
+    <style>
+      text { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .eyebrow { fill: #7ce8dc; font-size: 16px; font-weight: 700; letter-spacing: 4px; }
+      .hero { fill: #f7f9ff; font-size: 76px; font-weight: 700; letter-spacing: -2px; }
+      .hero2 { fill: url(#neon); font-size: 76px; font-weight: 700; letter-spacing: -2px; }
+      .body { fill: #a8b7d2; font-size: 21px; line-height: 1.5; }
+      .windowTitle { fill: #f6f8ff; font-size: 22px; font-weight: 700; }
+      .windowText { fill: #a9b7d0; font-size: 15px; }
+      .uiTitle { fill: #f4f7ff; font-size: 17px; font-weight: 700; }
+      .uiText { fill: #a6b5d0; font-size: 13px; }
+      .small { fill: #8b9bb5; font-size: 12px; }
+      .tiny { fill: #6f83a2; font-size: 11px; }
+      .mono { fill: #7de7da; font-family: "SF Mono", "JetBrains Mono", Consolas, monospace; font-size: 12px; }
+      .label { fill: #91a5c3; font-size: 12px; letter-spacing: 1px; font-weight: 600; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1920" height="1080" fill="url(#grid)" opacity="0.52"/>
+  <ellipse cx="1210" cy="508" rx="575" ry="440" fill="url(#aura)" opacity="0.48"/>
+  <ellipse cx="1645" cy="184" rx="300" ry="250" fill="#845dff" opacity="0.06" filter="url(#glow)"/>
+  <path d="M1415 -20C1570 104 1668 258 1816 360" fill="none" stroke="#6a8eff" stroke-opacity="0.18" stroke-width="2"/>
+  <path d="M1475 -32C1632 101 1730 232 1885 312" fill="none" stroke="#57dcd1" stroke-opacity="0.12" stroke-width="1"/>
+
+  <!-- Left keynote text -->
+  <g transform="translate(118,176)">
+    <text class="eyebrow">OCTANE / BROWSER EXTENSION</text>
+    <text y="102" class="hero">让每个书签</text>
+    <text y="190" class="hero2">带上上下文。</text>
+    <rect y="229" width="82" height="4" rx="2" fill="url(#neon)"/>
+    <text y="286" class="body">保存的不只是一个网址，</text>
+    <text y="320" class="body">而是一整套可搜索、可联动、可加密的知识入口。</text>
+    <g transform="translate(0,388)">
+      <circle cx="10" cy="10" r="10" fill="#69eadc"/>
+      <path d="M5 10l4 4 7-8" fill="none" stroke="#07141c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="32" y="16" class="windowText">书签与当前网页智能联动</text>
+      <circle cx="10" cy="54" r="10" fill="#788aff"/>
+      <path d="M6 54h8M10 50v8" fill="none" stroke="#0a1020" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="32" y="60" class="windowText">上下文内容端到端加密</text>
+      <circle cx="10" cy="98" r="10" fill="#bb78ff"/>
+      <path d="M6 98h8" fill="none" stroke="#160d24" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="32" y="104" class="windowText">工作、个人、项目多空间管理</text>
+    </g>
+    <text y="590" class="label">BOOKMARKS ARE THE ENTRY POINT · CONTEXT IS THE VALUE</text>
+  </g>
+
+  <!-- Decorative floating nodes -->
+  <g filter="url(#glowSmall)">
+    <circle cx="432" cy="190" r="5" fill="#6fead9"/>
+    <circle cx="1752" cy="420" r="4" fill="#8ca3ff"/>
+    <circle cx="1585" cy="930" r="5" fill="#c77cff"/>
+    <circle cx="436" cy="830" r="3" fill="#6fead9"/>
+  </g>
+  <path d="M410 212 C455 254 467 308 468 364" fill="none" stroke="#6fead9" stroke-opacity="0.32" stroke-width="1.5" stroke-dasharray="4 9"/>
+  <path d="M1693 423 C1746 459 1770 506 1778 566" fill="none" stroke="#8ca3ff" stroke-opacity="0.28" stroke-width="1.5" stroke-dasharray="4 9"/>
+
+  <!-- Browser main window -->
+  <g filter="url(#shadow)">
+    <rect x="510" y="178" width="1125" height="690" rx="26" fill="#111a2d" stroke="#526886" stroke-width="1.5"/>
+    <rect x="510" y="178" width="1125" height="58" rx="26" fill="#1a2940"/>
+    <rect x="510" y="210" width="1125" height="26" fill="#1a2940"/>
+    <circle cx="544" cy="207" r="6" fill="#ff6d87"/>
+    <circle cx="567" cy="207" r="6" fill="#ffd36b"/>
+    <circle cx="590" cy="207" r="6" fill="#6de7c9"/>
+    <rect x="650" y="193" width="520" height="29" rx="14.5" fill="#0d1628" stroke="#293b58"/>
+    <circle cx="671" cy="207" r="5" fill="none" stroke="#6dded1" stroke-width="1.4"/>
+    <path d="M675 211l4 4" stroke="#6dded1" stroke-width="1.4" stroke-linecap="round"/>
+    <text x="691" y="212" class="tiny">octane://workspace/engineering</text>
+    <text x="1445" y="212" class="small">▱  6 tabs   ·   ◇  Octane</text>
+  </g>
+
+  <!-- Browser content -->
+  <g clip-path="url(#screenClip)">
+    <rect x="510" y="236" width="1125" height="632" fill="#0a1222"/>
+    <rect x="510" y="236" width="210" height="632" fill="#0e1a2d"/>
+    <rect x="720" y="236" width="915" height="632" fill="#0b1425"/>
+
+    <!-- Sidebar -->
+    <text x="542" y="280" class="windowTitle">Octane</text>
+    <text x="542" y="307" class="tiny">PRIVATE KNOWLEDGE SPACE</text>
+    <rect x="536" y="338" width="158" height="42" rx="12" fill="#1c3850" stroke="#397c86"/>
+    <circle cx="558" cy="359" r="8" fill="none" stroke="#71e2d6" stroke-width="2"/>
+    <path d="M558 353v12M552 359h12" stroke="#71e2d6" stroke-width="2" stroke-linecap="round"/>
+    <text x="578" y="364" class="uiText" fill="#d5f8f2">New bookmark</text>
+    <text x="542" y="423" class="label">WORKSPACES</text>
+    <circle cx="551" cy="459" r="7" fill="#69eadc"/>
+    <text x="568" y="464" class="uiText">Engineering</text>
+    <circle cx="551" cy="495" r="7" fill="#7d8fff"/>
+    <text x="568" y="500" class="uiText">Personal</text>
+    <circle cx="551" cy="531" r="7" fill="#bd7aff"/>
+    <text x="568" y="536" class="uiText">Research</text>
+    <text x="542" y="588" class="label">COLLECTIONS</text>
+    <text x="552" y="626" class="uiText">⌁  Design systems</text>
+    <text x="552" y="660" class="uiText">⌁  AI tools</text>
+    <text x="552" y="694" class="uiText">⌁  Cloud infra</text>
+    <text x="542" y="815" class="tiny">⌘ K   Search everything</text>
+
+    <!-- Main home -->
+    <text x="764" y="303" class="tiny">ENGINEERING / TODAY</text>
+    <text x="764" y="351" class="windowTitle" font-size="28">Your context, in flow.</text>
+    <text x="764" y="381" class="windowText">Bookmarks, open tabs and encrypted notes — one calm surface.</text>
+    <rect x="764" y="412" width="500" height="44" rx="15" fill="#111f36" stroke="#2b4967"/>
+    <circle cx="788" cy="434" r="8" fill="none" stroke="#7b9bc2" stroke-width="1.8"/>
+    <path d="M794 440l6 6" stroke="#7b9bc2" stroke-width="1.8" stroke-linecap="round"/>
+    <text x="813" y="440" class="uiText">Search bookmarks, URLs, notes…</text>
+
+    <!-- Bookmark cards -->
+    <rect x="764" y="492" width="250" height="152" rx="17" fill="url(#glass)" stroke="#2e5470"/>
+    <rect x="1035" y="492" width="250" height="152" rx="17" fill="url(#glass)" stroke="#3e4d88"/>
+    <rect x="1306" y="492" width="250" height="152" rx="17" fill="url(#glass)" stroke="#554584"/>
+    <rect x="786" y="514" width="32" height="32" rx="9" fill="#1a4c58"/>
+    <path d="M795 523h14v12h-14z M799 519h6v4h-6z" fill="#73e9d9"/>
+    <text x="832" y="531" class="uiTitle">Design system</text>
+    <text x="786" y="570" class="uiText">Semi Design</text>
+    <text x="786" y="594" class="small">3 contexts · updated 2h ago</text>
+    <rect x="786" y="613" width="80" height="4" rx="2" fill="#64e5d7" opacity="0.8"/>
+    <rect x="1057" y="514" width="32" height="32" rx="9" fill="#252c67"/>
+    <path d="M1065 530h16M1065 524h16M1065 536h10" stroke="#8c9dff" stroke-width="2" stroke-linecap="round"/>
+    <text x="1103" y="531" class="uiTitle">API reference</text>
+    <text x="1057" y="570" class="uiText">OpenAI Platform</text>
+    <text x="1057" y="594" class="small">encrypted context</text>
+    <rect x="1057" y="613" width="54" height="4" rx="2" fill="#8897ff" opacity="0.8"/>
+    <rect x="1328" y="514" width="32" height="32" rx="9" fill="#492c69"/>
+    <path d="M1337 525l7-6 7 6v10l-7 5-7-5z" fill="none" stroke="#c17bff" stroke-width="1.8"/>
+    <text x="1374" y="531" class="uiTitle">Deploy notes</text>
+    <text x="1328" y="570" class="uiText">Production checklist</text>
+    <text x="1328" y="594" class="small">locked workspace</text>
+    <rect x="1328" y="613" width="92" height="4" rx="2" fill="#bd7bff" opacity="0.8"/>
+
+    <text x="764" y="704" class="label">OPEN TABS</text>
+    <rect x="764" y="725" width="792" height="65" rx="14" fill="#111d31" stroke="#263e5c"/>
+    <circle cx="790" cy="757" r="10" fill="#163b4a"/>
+    <path d="M785 757h10M790 752v10" stroke="#6de7d9" stroke-width="1.6"/>
+    <text x="814" y="752" class="uiTitle">Current tab context matched</text>
+    <text x="814" y="774" class="small">github.com / octane · 4 related notes ready in Side Panel</text>
+    <rect x="1425" y="742" width="106" height="30" rx="10" fill="#1b3850" stroke="#397b83"/>
+    <text x="1446" y="761" class="small" fill="#82e9dc">Open panel  →</text>
+  </g>
+
+  <!-- Side panel overlay -->
+  <g filter="url(#shadowLight)">
+    <rect x="1325" y="298" width="390" height="560" rx="22" fill="#101b31" stroke="#7d8fff" stroke-opacity="0.72" stroke-width="1.5"/>
+    <rect x="1325" y="298" width="390" height="70" rx="22" fill="#182746"/>
+    <rect x="1325" y="342" width="390" height="26" fill="#182746"/>
+    <circle cx="1355" cy="333" r="16" fill="url(#neon)"/>
+    <path d="M1348 333h14M1355 326v14" stroke="#07131d" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="1384" y="330" class="uiTitle">Current page context</text>
+    <text x="1384" y="351" class="small">github.com / octane</text>
+    <circle cx="1668" cy="333" r="4" fill="#6ee8d9"/>
+    <text x="1480" y="399" class="tiny">4 MATCHED BOOKMARKS</text>
+    <rect x="1352" y="422" width="336" height="88" rx="14" fill="url(#panel)" stroke="#385f7d"/>
+    <circle cx="1378" cy="452" r="15" fill="#173e4b"/>
+    <path d="M1371 452h14M1378 445v14" stroke="#6ce8d9" stroke-width="1.8"/>
+    <text x="1404" y="454" class="uiTitle">Octane repository</text>
+    <text x="1404" y="477" class="small">2 notes · 1 credential · encrypted</text>
+    <rect x="1352" y="528" width="336" height="88" rx="14" fill="url(#panel)" stroke="#424b88"/>
+    <circle cx="1378" cy="558" r="15" fill="#252c65"/>
+    <path d="M1371 558h14M1378 551v14" stroke="#8f9dff" stroke-width="1.8"/>
+    <text x="1404" y="560" class="uiTitle">Development checklist</text>
+    <text x="1404" y="583" class="small">5 notes · updated today</text>
+    <rect x="1352" y="634" width="336" height="88" rx="14" fill="url(#panel)" stroke="#5c4787"/>
+    <circle cx="1378" cy="664" r="15" fill="#482a67"/>
+    <path d="M1371 664h14M1378 657v14" stroke="#c07aff" stroke-width="1.8"/>
+    <text x="1404" y="666" class="uiTitle">Release playbook</text>
+    <text x="1404" y="689" class="small">1 note · locked workspace</text>
+    <rect x="1352" y="756" width="155" height="34" rx="11" fill="#214b4d" stroke="#4caaa0"/>
+    <text x="1380" y="778" class="small" fill="#92f0e2">Unlock context</text>
+    <text x="1534" y="778" class="small">⌘ K</text>
+  </g>
+
+  <!-- Floating security badge -->
+  <g transform="translate(1170,902)" filter="url(#shadowLight)">
+    <rect width="250" height="86" rx="18" fill="#102c34" stroke="#50cfc2" stroke-opacity="0.68"/>
+    <path d="M31 28l17-8 17 8v14c0 14-9 23-17 27-8-4-17-13-17-27z" fill="none" stroke="#72e8dc" stroke-width="2"/>
+    <path d="M40 42l6 6 10-12" fill="none" stroke="#72e8dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="82" y="39" class="uiTitle">Encrypted by default</text>
+    <text x="82" y="61" class="mono">AES-GCM-256 / SESSION KEY</text>
+  </g>
+
+  <!-- Keynote footer -->
+  <text x="118" y="1012" class="tiny">OCTANE</text>
+  <text x="1730" y="1012" class="tiny" text-anchor="end">PRIVATE KNOWLEDGE, IN FLOW.</text>
+  <line x1="118" y1="1034" x2="1802" y2="1034" stroke="#7e91ad" stroke-opacity="0.17"/>
+  <text x="118" y="1060" class="tiny">Browser extension concept / keynote visual</text>
+  <text x="1802" y="1060" class="tiny" text-anchor="end">01</text>
+</svg>
