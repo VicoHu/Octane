@@ -93,6 +93,9 @@ components:
   modal:
     backgroundColor: "{colors.card-bg}"
     rounded: "{rounded.lg}"
+  # 拖拽浮层阴影(T10):扁平优先基座上,Semi 浮层统一 elevated;navy alpha 而非 black,呼应绿族冷调
+  shadow-soft: "0 4px 12px rgba(15,23,42,.08)"
+  shadow-elevated: "0 8px 24px rgba(15,23,42,.12)"
 ---
 
 # Design System — Octane
