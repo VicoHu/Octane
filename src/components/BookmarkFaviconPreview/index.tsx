@@ -61,12 +61,20 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
   };
 
   const imgSrc = overrideSrc ?? faviconSrc?.src;
+  const handleImageError = () => {
+    if (overrideSrc) {
+      URL.revokeObjectURL(overrideSrc);
+      setOverrideSrc(null);
+      return;
+    }
+    faviconSrc?.onError();
+  };
 
   return (
     <div className={styles.wrap}>
       <div className={styles.favicon}>
         {imgSrc ? (
-          <img src={imgSrc} alt="" className={styles.img} />
+          <img src={imgSrc} alt="" className={styles.img} onError={handleImageError} />
         ) : (
           <div className={styles.fallback}>?</div>
         )}

@@ -123,7 +123,7 @@ function PinChip({ pin, onDelete }: { pin: PinnedTab; onDelete: () => void }) {
       >
         <div className={styles.favicon}>
           {src ? (
-            <img src={src} alt="" className={styles.faviconImg} />
+            <img src={src} alt="" className={styles.faviconImg} onError={faviconSrc.onError} />
           ) : (
             <span className={styles.fallback}>{initial}</span>
           )}

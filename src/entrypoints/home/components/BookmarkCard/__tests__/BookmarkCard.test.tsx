@@ -40,11 +40,13 @@ const renderCard = (
     onDelete?: () => void;
   } = {},
   hasOpenTab?: boolean,
+  runtimeFavIconUrl?: string,
 ) =>
   render(
     <BookmarkCard
       bookmark={{ ...bookmark, ...overrides }}
       hasOpenTab={hasOpenTab}
+      runtimeFavIconUrl={runtimeFavIconUrl}
       onClick={handlers.onClick ?? vi.fn()}
       onViewContexts={handlers.onViewContexts ?? vi.fn()}
       onEditBookmark={handlers.onEditBookmark ?? vi.fn()}
@@ -143,7 +145,7 @@ describe('BookmarkCard', () => {
   });
 
   it('favicon 渲染走 useFavicon（不再读 bookmark.faviconUrl）', () => {
-    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:abc' });
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:abc', onError: vi.fn() });
     renderCard({ url: 'https://github.com', faviconUrl: 'https://old.example/icon.png' });
     const img = screen.getByRole('listitem').querySelector('img');
     expect(img).toHaveAttribute('src', 'blob:abc');
@@ -157,27 +159,20 @@ describe('BookmarkCard', () => {
     expect(screen.getByText('G')).toBeInTheDocument();
   });
 
-  it('favicon 失败后 src 变化重置 error 态（后台抓取成功的 blob 不被首字母遮盖）', () => {
-    // 初始 remote 占位（浏览器未缓存该站 → onError）
-    vi.mocked(useFavicon).mockReturnValue({ kind: 'remote', src: 'remote-1' });
-    const props = {
-      bookmark: { ...bookmark, name: 'GitHub', url: 'https://github.com' },
-      onClick: vi.fn(),
-      onViewContexts: vi.fn(),
-      onEditBookmark: vi.fn(),
-      onDelete: vi.fn(),
-    };
-    const { rerender } = render(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
-    const img = screen.getByRole('listitem').querySelector('img')!;
-    expect(img).toHaveAttribute('src', 'remote-1');
-    // remote 加载失败 → 触发首字母回退
-    fireEvent.error(img);
-    expect(screen.getByText('G')).toBeInTheDocument();
-    // 后台抓取成功 → useFavicon src 切到 blob：faviconError 必须重置，否则 blob 被首字母遮盖
-    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob-new' });
-    rerender(<BookmarkCard {...(props as React.ComponentProps<typeof BookmarkCard>)} />);
-    const newImg = screen.getByRole('listitem').querySelector('img');
-    expect(newImg).toHaveAttribute('src', 'blob-new');
-    expect(screen.queryByText('G')).toBeNull();
+  it('把 runtime favicon 传给 hook，并把图片错误交给 hook', () => {
+    const onError = vi.fn();
+    vi.mocked(useFavicon).mockReturnValue({
+      kind: 'tab',
+      src: 'https://github.com/runtime.svg',
+      onError,
+    });
+    renderCard({}, {}, true, 'https://github.com/runtime.svg');
+
+    expect(useFavicon).toHaveBeenCalledWith(
+      'https://github.com/page',
+      'https://github.com/runtime.svg',
+    );
+    fireEvent.error(screen.getByRole('listitem').querySelector('img')!);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 });

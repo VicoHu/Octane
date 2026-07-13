@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Toast } from '@douyinfe/semi-ui';
 
@@ -14,7 +14,7 @@ vi.mock('@/services/PinnedTabService', () => ({
   PINNED_TAB_CAP: 8,
 }));
 vi.mock('@/hooks/useFavicon', () => ({
-  useFavicon: vi.fn(() => ({ kind: 'blob', src: 'blob:test' })),
+  useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:test', onError: vi.fn() })),
 }));
 vi.mock('@douyinfe/semi-ui', async (orig) => {
   const real = await orig();
@@ -27,6 +27,7 @@ vi.mock('@douyinfe/semi-ui', async (orig) => {
 import { PinnedArea } from '../../PinnedArea';
 import * as PinnedTabService from '@/services/PinnedTabService';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
+import { useFavicon } from '@/hooks/useFavicon';
 import type { PinnedTab } from '@/shared/types';
 
 function makePin(id: string, name: string, url: string, order: number): PinnedTab {
@@ -39,6 +40,7 @@ function renderArea() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:test', onError: vi.fn() });
   usePinnedTabs.setState({ pinnedTabs: [], loading: false });
   // listByWorkspace 默认返回空，单测按需 override
   vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([]);
@@ -71,6 +73,24 @@ describe('PinnedArea', () => {
     await screen.findByRole('button', { name: /打开 GitHub/ });
     expect(screen.getByRole('button', { name: /打开 Notion/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /添加常驻标签/ })).toBeInTheDocument();
+  });
+
+
+  it('favicon 加载失败交给 hook，hook 返回 null 后显示首字母', async () => {
+    const onError = vi.fn();
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'tab', src: 'runtime-icon', onError });
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
+      makePin('p1', 'GitHub', 'https://github.com', 0),
+    ]);
+
+    const view = renderArea();
+    const chip = await screen.findByRole('button', { name: /打开 GitHub/ });
+    fireEvent.error(chip.querySelector('img')!);
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    vi.mocked(useFavicon).mockReturnValue(null);
+    view.rerender(<PinnedArea workspaceId="ws-1" />);
+    expect(screen.getByText('G')).toBeInTheDocument();
   });
 
   it('点击 chip → window.open(pin.url)', async () => {

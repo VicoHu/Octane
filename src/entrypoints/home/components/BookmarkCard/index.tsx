@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
 import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
@@ -15,20 +15,16 @@ interface BookmarkCardProps {
   bookmark: Bookmark;
   /** 该书签是否匹配到当前窗口已打开的 tab（左侧竖线标识） */
   hasOpenTab?: boolean;
+  /** 匹配打开 Tab 时浏览器已解析的 favicon。 */
+  runtimeFavIconUrl?: string;
   onClick: (bookmark: Bookmark) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, onClick, onViewContexts, onEditBookmark, onDelete }) => {
-  const faviconSrc = useFavicon(bookmark.url);
-  const [faviconError, setFaviconError] = useState(false);
-  // src 变化（remote 占位 → 后台抓取切 blob，或 url 切换）时重置 error 态。
-  // 否则早先 remote 占位加载失败置的 faviconError 会遮盖后续成功的 blob，永远显示首字母。
-  useEffect(() => {
-    setFaviconError(false);
-  }, [faviconSrc?.src]);
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, runtimeFavIconUrl, onClick, onViewContexts, onEditBookmark, onDelete }) => {
+  const faviconSrc = useFavicon(bookmark.url, runtimeFavIconUrl);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
   const displayUrl = (() => {
@@ -62,12 +58,12 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
     >
       {/* Favicon（useFavicon 加载失败时回退首字母）+ 右下角上下文徽章 */}
       <div className={styles.favicon}>
-        {faviconSrc && !faviconError ? (
+        {faviconSrc ? (
           <img
             src={faviconSrc.src}
             alt=""
             className={styles.faviconImg}
-            onError={() => setFaviconError(true)}
+            onError={faviconSrc.onError}
           />
         ) : (
           <div className={styles.fallback}>

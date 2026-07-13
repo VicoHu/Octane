@@ -300,16 +300,6 @@ export function fetchBestThirdPartyFavicon(
   return task;
 }
 
-/** 兼容旧 hook；Task 5 迁移完成后删除。 */
-export async function getCachedBlob(hostname: string): Promise<Blob | null> {
-  return (await getThirdPartyCache(hostname)).blob;
-}
-
-/** 兼容旧 hook；Task 5 迁移完成后删除。 */
-export async function fetchAndStoreFavicon(url: string): Promise<Blob | null> {
-  return (await fetchBestThirdPartyFavicon(url))?.blob ?? null;
-}
-
 export async function invalidateFavicon(hostname: string): Promise<void> {
   await deleteRecord('favicons', hostname);
 }

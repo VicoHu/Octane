@@ -1,66 +1,114 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  getCachedBlob,
-  fetchAndStoreFavicon,
   buildFaviconRenderUrl,
+  fetchBestThirdPartyFavicon,
+  getThirdPartyCache,
+  invalidateFavicon,
+  isPrivateFaviconTarget,
   pickHostname,
 } from '@/services/FaviconService';
+import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
 
-export type FaviconSrc =
-  | { kind: 'blob'; src: string } // createObjectURL 结果
-  | { kind: 'remote'; src: string } // _favicon 占位 URL
-  | null; // 无可用源 → 首字母回退
+export interface FaviconRenderSource {
+  kind: 'third-party' | 'tab' | 'chrome';
+  src: string;
+  onError: () => void;
+}
 
-/**
- * 书签 favicon 渲染源。
- *
- * 优先级：
- * 1. DB 命中 → createObjectURL(blob)，秒开 + 离线可用
- * 2. 未命中 → _favicon chrome-extension URL（同步可渲染占位），同时后台抓取入库
- * 3. 后台抓取成功 → 切 blob 态
- *
- * 卸载 / url 变化 → revoke 旧 blob URL，丢弃过期后台抓取结果（active flag）。
- * 非 http(s) / 空 url（pickHostname 返回 null）→ 返回 null（首字母回退）。
- */
-export function useFavicon(url: string): FaviconSrc {
-  const valid = !!pickHostname(url);
-  const [src, setSrc] = useState<FaviconSrc>(() =>
-    valid ? { kind: 'remote', src: buildFaviconRenderUrl(url) } : null,
-  );
+type ActiveKind = FaviconRenderSource['kind'] | 'none';
+
+function localKind(urlValid: boolean, runtimeFavIconUrl?: string): ActiveKind {
+  if (isSafeFavIcon(runtimeFavIconUrl)) return 'tab';
+  return urlValid ? 'chrome' : 'none';
+}
+
+export function useFavicon(
+  url: string,
+  runtimeFavIconUrl?: string,
+): FaviconRenderSource | null {
+  const hostname = pickHostname(url);
+  const urlValid = !!hostname;
+  const runtimeValid = isSafeFavIcon(runtimeFavIconUrl);
+  const fallbackKind = localKind(urlValid, runtimeFavIconUrl);
+  const [activeKind, setActiveKind] = useState<ActiveKind>(() => fallbackKind);
+  const [thirdPartyObjectUrl, setThirdPartyObjectUrl] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const generationRef = useRef(0);
+
+  const clearObjectUrl = useCallback(() => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+    setThirdPartyObjectUrl(null);
+  }, []);
+
+  const showThirdPartyBlob = useCallback((blob: Blob) => {
+    const next = URL.createObjectURL(blob);
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = next;
+    setThirdPartyObjectUrl(next);
+    setActiveKind('third-party');
+  }, []);
 
   useEffect(() => {
-    if (!valid) {
-      setSrc(null);
-      return;
-    }
-    // 立即给 remote 占位（避免等 DB 时空白）
-    setSrc({ kind: 'remote', src: buildFaviconRenderUrl(url) });
-
+    const generation = ++generationRef.current;
     let active = true;
-    let objectUrl: string | null = null;
 
-    (async () => {
-      const cached = await getCachedBlob(new URL(url).hostname);
-      if (!active) return;
-      if (cached) {
-        objectUrl = URL.createObjectURL(cached);
-        setSrc({ kind: 'blob', src: objectUrl });
-        return;
+    clearObjectUrl();
+    setActiveKind(fallbackKind);
+
+    if (!hostname || isPrivateFaviconTarget(url)) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void (async () => {
+      try {
+        const cache = await getThirdPartyCache(hostname);
+        if (!active || generationRef.current !== generation) return;
+        if (cache.blob) showThirdPartyBlob(cache.blob);
+        if (!cache.canRefresh) return;
+
+        const fetched = await fetchBestThirdPartyFavicon(url);
+        if (!active || generationRef.current !== generation || !fetched) return;
+        showThirdPartyBlob(fetched.blob);
+      } catch {
+        // IndexedDB / CORS / 网络失败均保持浏览器本地候选。
       }
-      // 未命中：后台抓取，成功后切 blob 态
-      const fetched = await fetchAndStoreFavicon(url);
-      if (!active || !fetched) return;
-      objectUrl = URL.createObjectURL(fetched);
-      setSrc({ kind: 'blob', src: objectUrl });
-    })().catch(() => {
-      // 抓取失败保持 remote 占位，静默（BookmarkCard onError 回退首字母）
-    });
+    })();
 
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [url]);
+  }, [clearObjectUrl, fallbackKind, hostname, showThirdPartyBlob, url]);
 
-  return src;
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+  }, []);
+
+  const onError = useCallback(() => {
+    if (activeKind === 'third-party') {
+      clearObjectUrl();
+      if (hostname) void invalidateFavicon(hostname);
+      setActiveKind(runtimeValid ? 'tab' : urlValid ? 'chrome' : 'none');
+      return;
+    }
+    if (activeKind === 'tab') {
+      setActiveKind(urlValid ? 'chrome' : 'none');
+      return;
+    }
+    if (activeKind === 'chrome') setActiveKind('none');
+  }, [activeKind, clearObjectUrl, hostname, runtimeValid, urlValid]);
+
+  if (activeKind === 'third-party' && thirdPartyObjectUrl) {
+    return { kind: 'third-party', src: thirdPartyObjectUrl, onError };
+  }
+  if (activeKind === 'tab' && runtimeValid) {
+    return { kind: 'tab', src: runtimeFavIconUrl!, onError };
+  }
+  if (activeKind === 'chrome' && urlValid) {
+    return { kind: 'chrome', src: buildFaviconRenderUrl(url), onError };
+  }
+  return null;
 }

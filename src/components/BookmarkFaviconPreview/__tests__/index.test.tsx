@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import * as FaviconService from '@/services/FaviconService';
@@ -13,7 +13,7 @@ vi.mock('@douyinfe/semi-ui', async () => {
 });
 
 vi.mock('@/hooks/useFavicon', () => ({
-  useFavicon: vi.fn(() => ({ kind: 'blob', src: 'blob:mock' })),
+  useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:mock', onError: vi.fn() })),
 }));
 import { useFavicon } from '@/hooks/useFavicon';
 
@@ -29,7 +29,7 @@ describe('BookmarkFaviconPreview', () => {
   });
 
   it('点击刷新 → 调 refreshFavicon，成功后刷新预览', async () => {
-    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:old' });
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:old', onError: vi.fn() });
     const newBlob = new Blob(['new-bytes']);
     const refreshSpy = vi
       .spyOn(FaviconService, 'refreshFavicon')
@@ -47,12 +47,21 @@ describe('BookmarkFaviconPreview', () => {
   });
 
   it('刷新失败 → Toast.error 提示，预览保持原样', async () => {
-    vi.mocked(useFavicon).mockReturnValue({ kind: 'blob', src: 'blob:keep' });
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:keep', onError: vi.fn() });
     vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(null);
     const { Toast } = await import('@douyinfe/semi-ui');
     render(<BookmarkFaviconPreview url="https://github.com" />);
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     expect(vi.mocked(Toast.error)).toHaveBeenCalled();
+  });
+
+
+  it('图片加载失败调用 hook onError', () => {
+    const onError = vi.fn();
+    vi.mocked(useFavicon).mockReturnValue({ kind: 'chrome', src: 'chrome-url', onError });
+    render(<BookmarkFaviconPreview url="https://github.com" />);
+    fireEvent.error(document.querySelector('img')!);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it('URL 非法 → 刷新按钮 disabled', () => {
