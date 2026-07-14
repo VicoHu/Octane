@@ -64,14 +64,14 @@ beforeEach(() => {
 describe('Content grid 拖拽(T4)', () => {
   it('>1 书签:渲染 sortable grip(每卡一个)', () => {
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     expect(gripButtons()).toHaveLength(2);
   });
 
   it('搜索态(query 非空且匹配>1):grip 禁用置灰', () => {
     searchState.query = 'Git';
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     const grips = gripButtons();
     expect(grips).toHaveLength(2);
     expect(grips.every((g) => (g as HTMLButtonElement).disabled)).toBe(true);
@@ -79,7 +79,7 @@ describe('Content grid 拖拽(T4)', () => {
 
   it('≤1 书签:不渲染 grip(纯 BookmarkCard,无 Sortable)', () => {
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     expect(gripButtons()).toHaveLength(0);
   });
 });
@@ -91,21 +91,21 @@ describe('Content 首启 coachmark(T9)', () => {
 
   it('首启(coachSeen 未存):首个 grip 显示「拖动手柄可排序」Popover', () => {
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     expect(screen.getByText('拖动手柄可排序')).toBeInTheDocument();
   });
 
   it('已知(localStorage flag 已存):不显示 coachmark', () => {
     localStorage.setItem('dragSortCoachSeen', 'true');
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
   });
 
   it('搜索态(query 非空):不显示 coachmark', () => {
     searchState.query = 'Git';
     bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content />);
+    render(<Content openTabs={[]} />);
     expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
   });
 });

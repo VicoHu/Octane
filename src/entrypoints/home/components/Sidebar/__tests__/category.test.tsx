@@ -144,19 +144,19 @@ describe('Sidebar 删除分类二次确认', () => {
 describe('Sidebar 分类拖拽(T6)', () => {
   it('>1 分类:每分类渲染 grip 手柄', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(gripButtons()).toHaveLength(2);
   });
 
   it('≤1 分类:不渲染 grip(纯 List.Item 无 Sortable)', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }], 'c1');
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(gripButtons()).toHaveLength(0);
   });
 
   it('IconDelete 带 data-no-dnd(防拖拽冒泡)', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     const del = container.querySelector('[aria-label="删除分类 工作"]');
     expect(del?.hasAttribute('data-no-dnd')).toBe(true);
   });

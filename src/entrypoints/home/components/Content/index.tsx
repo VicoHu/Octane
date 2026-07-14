@@ -5,7 +5,7 @@ import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
 import type { OpenTab } from '../../hooks/useOpenTabs';
-import { pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
+import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
 import * as CategoryService from '@/services/CategoryService';
 import { BookmarkCard } from '../BookmarkCard';
