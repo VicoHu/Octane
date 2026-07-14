@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.12] - 2026-07-14
+
+### Added
+
+- **拖拽排序（全 4 层）**：工作区 / 分类 / 书签 / 常驻标签均可拖拽重排，顺序持久化到 IndexedDB，刷新 / 重启扩展不丢。
+  - 数据层：`Bookmark` 加 `order` 字段（DB v4→v5 迁移按分类分组、组内 `createdAt ASC, id ASC` 回填）+ 4 个 reorder API（单事务 + 校验 + 广播）+ `createXxx` 统一 `maxOrder+1`（修删除留洞导致重复 order 的既有 bug）+ `moveBookmark` 跨分类重分配 order。
+  - 备份/分享带排序：`BACKUP_VERSION` 3→4，旧版备份解析回填 order；分享导入 `reorderForImport`（工作区追加接收方末尾，分类/书签/常驻按父容器各自从 0 起保组内相对序）。
+  - UI 4 层：dnd-kit（已是 semi-ui 传递依赖，无新依赖）；**grip 手柄为唯一拖拽触发器**（整卡点击跳转/切换/打开不破坏）；DragOverlay 按面明度描边（浅色面炭灰 / 深色面浅描边）+ portal body + z-index 1005；placeholder 虚线占位 + 让位 + DragOverlay 跟随指示落点；拖拽失败回弹动画 + Toast；搜索态 / 空 / 单元素禁用拖拽；首启 coachmark；`prefers-reduced-motion` 支持。
+
+### Changed
+
+- **类型层**：`Bookmark.order` + `BACKUP_VERSION=4`（`ACCEPTED=[1,2,3,4]`）。
+- **store**：4 个 `reorderXxx` action（乐观重排 + 失败回滚，`allBookmarks` 不动）+ `moveBookmark` 切换 service 重分配 order。
+- **设计 token**：补 `--shadow-soft` / `--shadow-elevated` / `--neutral` / `--neutral-rgb` 进 DESIGN.md schema。
+
+### 内部
+
+- 全链路顺序确定性闭合：拖动 → 刷新 → 重启扩展 → 备份恢复 → 分享导入，顺序始终确定。
+- eng review + design review（3.5→9/10，16 决策）+ final broad review 全 CLEAR；outside voice 抓 3 个 P1 bug（moveBookmark 加 order 后冲突、分享导入重复 order、createXxx append 留洞）。
+- 全量 96 files / 732 tests 通过 + typecheck 双绿；真机 QA 6 项全过。
+- 已知债（V1.1）：键盘拖拽 + announcement 中文化 + 触屏 grip 44px（见 TODOS.md），跨容器拖拽。
+
 ## [0.1.11.3] - 2026-07-10
 
 ### Added
