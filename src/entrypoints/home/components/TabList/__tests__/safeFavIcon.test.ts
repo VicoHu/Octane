@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSafeFavIcon } from '../safeFavIcon';
+import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
 
 /**
  * R7 favIconUrl scheme allowlist(防御纵深)。

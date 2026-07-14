@@ -22,7 +22,8 @@ describe('FaviconCacheSection', () => {
   it('渲染清空按钮与说明', () => {
     render(<FaviconCacheSection />);
     expect(screen.getByRole('button', { name: '清空 favicon 缓存' })).toBeInTheDocument();
-    expect(screen.getByText(/书签图标缓存在本地/)).toBeInTheDocument();
+    expect(screen.getByText(/仅清除第三方高清图标缓存/)).toBeInTheDocument();
+    expect(screen.getByText(/浏览器本地图标仍可立即显示/)).toBeInTheDocument();
   });
 
   it('点击按钮 → 确认 → clearAllFavicons 调用 + Toast.success', async () => {
@@ -35,7 +36,7 @@ describe('FaviconCacheSection', () => {
     await user.click(ok);
     expect(clearAllFavicons).toHaveBeenCalledTimes(1);
     const { Toast } = await import('@douyinfe/semi-ui');
-    expect(vi.mocked(Toast.success)).toHaveBeenCalledWith('已清空 favicon 缓存，下次访问书签将重新抓取');
+    expect(vi.mocked(Toast.success)).toHaveBeenCalledWith('已清空第三方 favicon 缓存，将在后台重新获取高清图标');
   });
 
   it('clearAllFavicons 失败 → Toast.error', async () => {

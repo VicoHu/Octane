@@ -26,10 +26,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { PinnedTab } from '@/shared/types';
+import type { OpenTab } from '../../hooks/useOpenTabs';
+import { pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import styles from './index.module.css';
 
 interface PinnedAreaProps {
   workspaceId: string;
+  openTabs: OpenTab[];
 }
 
 /**
@@ -41,7 +44,7 @@ interface PinnedAreaProps {
  * - 上限：PINNED_TAB_CAP=8，满则「+」disabled + Toast
  * - T7 拖拽:>1 chip 接 DndContext(2D rectSortingStrategy),grip 收敛(D6),深色面浅描边 overlay
  */
-export function PinnedArea({ workspaceId }: PinnedAreaProps) {
+export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
   const pinnedTabs = usePinnedTabs((s) => s.pinnedTabs);
   const loadPinnedTabs = usePinnedTabs((s) => s.loadPinnedTabs);
   const createPinnedTab = usePinnedTabs((s) => s.createPinnedTab);
@@ -153,9 +156,17 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
             </SortableOverlay>
           </DndContext>
         ) : (
-          pinnedTabs.map((pin) => (
-            <PinChip key={pin.id} pin={pin} onDelete={() => handleDelete(pin.id)} />
-          ))
+          pinnedTabs.map((pin) => {
+            const matchedTab = pickMostRecentMatchingTab(openTabs, pin.url);
+            return (
+              <PinChip
+                key={pin.id}
+                pin={pin}
+                runtimeFavIconUrl={matchedTab?.favIconUrl}
+                onDelete={() => handleDelete(pin.id)}
+              />
+            );
+          })
         )}
         <button
           type="button"
@@ -191,15 +202,17 @@ export function PinnedArea({ workspaceId }: PinnedAreaProps) {
 /** 单个常驻 chip:favicon 上 / 名称下,hover 出 × 删除 + grip(可选,sortable 注入) */
 function PinChip({
   pin,
+  runtimeFavIconUrl,
   onDelete,
   grip,
 }: {
   pin: PinnedTab;
+  runtimeFavIconUrl?: string;
   onDelete: () => void;
   /** 拖拽手柄 slot(可选;由 SortablePinChip 注入 GripButton,纯 PinChip 不传) */
   grip?: React.ReactNode;
 }) {
-  const faviconSrc = useFavicon(pin.url);
+  const faviconSrc = useFavicon(pin.url, runtimeFavIconUrl);
   const src = faviconSrc?.src;
   const initial = (pin.name.charAt(0) || '?').toUpperCase();
 
@@ -215,7 +228,7 @@ function PinChip({
       >
         <div className={styles.favicon}>
           {src ? (
-            <img src={src} alt="" className={styles.faviconImg} />
+            <img src={src} alt="" className={styles.faviconImg} onError={faviconSrc.onError} />
           ) : (
             <span className={styles.fallback}>{initial}</span>
           )}

@@ -95,6 +95,47 @@ async function seedV3Database(): Promise<void> {
   v3.close();
 }
 
+
+/** v4 schema：含 pinnedTabs 与旧格式 favicons，模拟升级前当前用户数据库。 */
+async function seedV4Database(): Promise<void> {
+  const v4 = await openDB(DB_NAME, 4, {
+    upgrade(db) {
+      const workspaces = db.createObjectStore('workspaces', { keyPath: 'id' });
+      void workspaces;
+      const categories = db.createObjectStore('categories', { keyPath: 'id' });
+      categories.createIndex('by-workspaceId', 'workspaceId');
+      const bookmarks = db.createObjectStore('bookmarks', { keyPath: 'id' });
+      bookmarks.createIndex('by-workspaceId', 'workspaceId');
+      bookmarks.createIndex('by-categoryId', 'categoryId');
+      const contexts = db.createObjectStore('contexts', { keyPath: 'id' });
+      contexts.createIndex('by-bookmarkId', 'bookmarkId');
+      db.createObjectStore('cryptoMetadata', { keyPath: 'id' });
+      db.createObjectStore('favicons', { keyPath: 'hostname' });
+      const pinnedTabs = db.createObjectStore('pinnedTabs', { keyPath: 'id' });
+      pinnedTabs.createIndex('by-workspaceId', 'workspaceId');
+    },
+  });
+
+  await v4.put('workspaces', { id: 'ws-v4', name: 'V4', icon: '🌟', createdAt: 1, order: 0 });
+  await v4.put('categories', { id: 'cat-v4', workspaceId: 'ws-v4', name: '默认', icon: '📁', order: 0, createdAt: 1 });
+  await v4.put('bookmarks', {
+    id: 'bm-v4', workspaceId: 'ws-v4', categoryId: 'cat-v4', name: '示例',
+    url: 'https://legacy.example.com', description: '', faviconUrl: '', contextCount: 0,
+    hasEncryptedContext: false, createdAt: 1, updatedAt: 1,
+  });
+  await v4.put('pinnedTabs', {
+    id: 'pin-v4', workspaceId: 'ws-v4', name: '常驻',
+    url: 'https://legacy.example.com', order: 0, createdAt: 1,
+  });
+  await v4.put('favicons', {
+    hostname: 'legacy.example.com',
+    blob: new Blob(['legacy'], { type: 'image/png' }),
+    mimeType: 'image/png',
+    fetchedAt: 1,
+  });
+  v4.close();
+}
+
 /** v1 schema：最旧库结构（含 notes store，无 contexts/favicons/pinnedTabs）。验证 v1→v4 跨版本路径。 */
 async function seedV1Database(): Promise<void> {
   const v1 = await openDB(DB_NAME, 1, {
@@ -137,7 +178,7 @@ afterEach(async () => {
   });
 });
 
-describe('DB migration v3→v4（PinnedTab store）', () => {
+describe('DB migration → v5（可信 favicon 缓存）', () => {
   it('runUpgrade 幂等：对同一 db 重复调用不抛错、store 集合不变', async () => {
     // 用真实 getDB 建好 v4 schema
     const db = await getDB();
@@ -152,19 +193,19 @@ describe('DB migration v3→v4（PinnedTab store）', () => {
     expect(DB_VERSION).toBe(5);
   });
 
-  it('v3 库升级到 v4 后，既有 6 表数据零丢失，且新增 pinnedTabs store', async () => {
+  it('v3 库升级到 v5 后，业务数据保留、旧 favicon 清空，且新增 pinnedTabs store', async () => {
     await seedV3Database();
 
-    // 用真实 getDB() 触发 v3→v4 升级（DB_VERSION=4）
+    // 用真实 getDB() 触发 v3→v5 升级（DB_VERSION=5）
     const db = await getDB();
 
-    // 既有 6 表数据全部保留
+    // 业务数据全部保留
     expect(await db.get('workspaces', 'ws-mig')).toMatchObject({ id: 'ws-mig', name: '迁移工作区' });
     expect(await db.get('categories', 'cat-mig')).toMatchObject({ id: 'cat-mig', workspaceId: 'ws-mig' });
     expect(await db.get('bookmarks', 'bm-mig')).toMatchObject({ id: 'bm-mig', url: 'https://example.com' });
     expect(await db.get('contexts', 'ctx-mig')).toMatchObject({ id: 'ctx-mig', bookmarkId: 'bm-mig' });
     expect(await db.get('cryptoMetadata', 'singleton')).toMatchObject({ id: 'singleton', iterations: 100000 });
-    expect(await db.get('favicons', 'example.com')).toMatchObject({ hostname: 'example.com', mimeType: 'image/png' });
+    expect(await db.get('favicons', 'example.com')).toBeUndefined();
 
     // 新增 pinnedTabs store 就绪
     expect(db.objectStoreNames.contains('pinnedTabs')).toBe(true);
@@ -175,14 +216,42 @@ describe('DB migration v3→v4（PinnedTab store）', () => {
     expect(await db.get('pinnedTabs', 'pin-1')).toMatchObject({ id: 'pin-1', workspaceId: 'ws-mig' });
   });
 
-  it('全新安装（v4）：7 个 store 齐备', async () => {
+
+  it('v4→v5：保留业务数据，只清空旧 favicon 缓存', async () => {
+    await seedV4Database();
+
+    const db = await getDB();
+
+    expect(DB_VERSION).toBe(5);
+    expect(await db.get('workspaces', 'ws-v4')).toMatchObject({ id: 'ws-v4' });
+    expect(await db.get('bookmarks', 'bm-v4')).toMatchObject({ id: 'bm-v4' });
+    expect(await db.get('pinnedTabs', 'pin-v4')).toMatchObject({ id: 'pin-v4' });
+    expect(await db.get('favicons', 'legacy.example.com')).toBeUndefined();
+
+    await db.put('favicons', {
+      hostname: 'example.com',
+      blob: new Blob(['png'], { type: 'image/png' }),
+      source: 'icon-horse',
+      mimeType: 'image/png',
+      width: 64,
+      height: 64,
+      fetchedAt: 10,
+      expiresAt: 20,
+    });
+    expect(await db.get('favicons', 'example.com')).toMatchObject({
+      hostname: 'example.com',
+      source: 'icon-horse',
+    });
+  });
+
+  it('全新安装（v5）：7 个 store 齐备', async () => {
     const db = await getDB();
     for (const store of ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'favicons', 'pinnedTabs']) {
       expect(db.objectStoreNames.contains(store)).toBe(true);
     }
   });
 
-  it('v1→v4 跨版本升级：notes store 被删，workspaces 数据保留，pinnedTabs 就绪', async () => {
+  it('v1→v5 跨版本升级：notes store 被删，workspaces 数据保留，pinnedTabs 就绪', async () => {
     await seedV1Database();
     const db = await getDB();
 

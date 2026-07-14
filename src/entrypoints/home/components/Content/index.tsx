@@ -4,7 +4,6 @@ import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
-import { useOpenTabs } from '../../hooks/useOpenTabs';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
@@ -40,7 +39,11 @@ import styles from './index.module.css';
 
 type View = 'bookmarks' | 'tabs';
 
-export const Content: React.FC = () => {
+interface ContentProps {
+  openTabs: OpenTab[];
+}
+
+export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const categories = useWorkspace((s) => s.categories);
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
@@ -50,7 +53,6 @@ export const Content: React.FC = () => {
   const createBookmark = useBookmarks((s) => s.createBookmark);
   const reorderBookmarks = useBookmarks((s) => s.reorderBookmarks);
   const loadAllByWorkspace = useBookmarks((s) => s.loadAllByWorkspace);
-  const openTabs = useOpenTabs();
   const query = useSearch((s) => s.query);
   const setQuery = useSearch((s) => s.setQuery);
 
@@ -416,17 +418,21 @@ export const Content: React.FC = () => {
             </DndContext>
           ) : (
             <div className={styles.grid}>
-              {filteredBookmarks.map((bookmark) => (
-                <BookmarkCard
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
-                  onClick={handleCardClick}
-                  onViewContexts={handleViewContexts}
-                  onEditBookmark={handleEditBookmark}
-                  onDelete={handleDeleteBookmark}
-                />
-              ))}
+              {filteredBookmarks.map((bookmark) => {
+                const matchedTab = pickMostRecentMatchingTab(openTabs, bookmark.url);
+                return (
+                  <BookmarkCard
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    hasOpenTab={!!matchedTab}
+                    runtimeFavIconUrl={matchedTab?.favIconUrl}
+                    onClick={handleCardClick}
+                    onViewContexts={handleViewContexts}
+                    onEditBookmark={handleEditBookmark}
+                    onDelete={handleDeleteBookmark}
+                  />
+                );
+              })}
             </div>
           )}
         </TabPane>

@@ -1,87 +1,209 @@
-import 'fake-indexeddb/auto';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// mock FaviconService：hook 测的是状态机，不测抓取细节。
-// 注意：pickHostname 必须一起 stub —— hook 用它做 url 合法性守卫，
-// 不补全会让 hook 把所有 url 当非法返回 null，测试错乱。
 vi.mock('@/services/FaviconService', () => ({
-  pickHostname: (u: string) => {
-    try {
-      return new URL(u).hostname;
-    } catch {
-      return null;
-    }
+  pickHostname: (url: string) => {
+    try { return new URL(url).hostname; } catch { return null; }
   },
-  getCachedBlob: vi.fn(),
-  fetchAndStoreFavicon: vi.fn(),
-  buildFaviconRenderUrl: (url: string) => `chrome-extension://x/_favicon/?pageUrl=${encodeURIComponent(url)}&size=32`,
+  buildFaviconRenderUrl: (url: string) =>
+    `chrome-extension://x/_favicon/?pageUrl=${encodeURIComponent(url)}&size=64`,
+  isPrivateFaviconTarget: vi.fn(() => false),
+  getThirdPartyCache: vi.fn(),
+  fetchBestThirdPartyFavicon: vi.fn(),
+  invalidateFavicon: vi.fn(),
 }));
 
-import { getCachedBlob, fetchAndStoreFavicon, buildFaviconRenderUrl } from '@/services/FaviconService';
-import { resetDB } from '@/shared/db/database';
+import {
+  fetchBestThirdPartyFavicon,
+  getThirdPartyCache,
+  invalidateFavicon,
+  isPrivateFaviconTarget,
+} from '@/services/FaviconService';
 import { useFavicon } from '@/hooks/useFavicon';
 
-beforeEach(async () => {
-  resetDB();
+beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(isPrivateFaviconTarget).mockReturnValue(false);
+  vi.mocked(getThirdPartyCache).mockResolvedValue({
+    blob: null,
+    stale: false,
+    canRefresh: true,
+    record: undefined,
+  });
+  vi.mocked(fetchBestThirdPartyFavicon).mockResolvedValue(null);
+  vi.mocked(invalidateFavicon).mockResolvedValue(undefined);
 });
 
-describe('useFavicon — favicon 渲染源状态机', () => {
-  it('缓存命中 → 返回 blob 态', async () => {
-    vi.mocked(getCachedBlob).mockResolvedValue(new Blob(['x']));
-    const { result } = renderHook(({ u }) => useFavicon(u), {
-      initialProps: { u: 'https://github.com' },
-    });
-    await act(() => Promise.resolve());
-    await act(() => Promise.resolve()); // 等 async effect 完成
-    expect(result.current?.kind).toBe('blob');
-    expect(result.current?.src).toMatch(/^blob:/);
+describe('useFavicon 异步升级状态机', () => {
+  it('有 runtime favicon 时首帧立即返回 tab，不等待 DB', () => {
+    const { result } = renderHook(() =>
+      useFavicon('https://chatgpt.com', 'https://chatgpt.com/favicon.svg'),
+    );
+
+    expect(result.current?.kind).toBe('tab');
+    expect(result.current?.src).toBe('https://chatgpt.com/favicon.svg');
   });
 
-  it('缓存未命中 → 返回 remote 态并后台抓取', async () => {
-    vi.mocked(getCachedBlob).mockResolvedValue(null);
-    vi.mocked(fetchAndStoreFavicon).mockResolvedValue(new Blob(['y']));
-    renderHook(({ u }) => useFavicon(u), {
-      initialProps: { u: 'https://github.com' },
-    });
-    await act(() => Promise.resolve());
-    expect(fetchAndStoreFavicon).toHaveBeenCalledWith('https://github.com');
-  });
-
-  it('缓存未命中 → 初始渲染即返回 remote 占位', async () => {
-    vi.mocked(getCachedBlob).mockResolvedValue(null);
-    vi.mocked(fetchAndStoreFavicon).mockResolvedValue(null);
-    const { result } = renderHook(({ u }) => useFavicon(u), {
-      initialProps: { u: 'https://github.com' },
-    });
-    // 同步首次返回即 remote 占位（不等 DB 也不空白）
-    expect(result.current?.kind).toBe('remote');
+  it('没有 runtime favicon 时首帧返回 Chrome _favicon', () => {
+    const { result } = renderHook(() => useFavicon('https://chatgpt.com'));
+    expect(result.current?.kind).toBe('chrome');
     expect(result.current?.src).toContain('_favicon');
-    expect(result.current?.src).toBe(buildFaviconRenderUrl('https://github.com'));
   });
 
-  it('url 变化 → 重新查询缓存并 revoke 旧 blob URL', async () => {
-    vi.mocked(getCachedBlob).mockResolvedValue(new Blob(['a']));
-    const { rerender, unmount } = renderHook(({ u }) => useFavicon(u), {
-      initialProps: { u: 'https://a.com' },
+  it('第三方缓存命中后切换 Blob', async () => {
+    vi.mocked(getThirdPartyCache).mockResolvedValue({
+      blob: new Blob(['cached'], { type: 'image/png' }),
+      stale: false,
+      canRefresh: false,
     });
-    await act(() => Promise.resolve());
-    rerender({ u: 'https://b.com' });
-    await act(() => Promise.resolve());
-    // 切换后应再次查询 b.com 缓存
-    expect(getCachedBlob).toHaveBeenCalledWith('b.com');
-    // 卸载触发 revoke，不应抛错
-    unmount();
-    expect(true).toBe(true);
+    const { result } = renderHook(() => useFavicon('https://example.com'));
+
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    expect(result.current?.src).toMatch(/^blob:/);
+    expect(fetchBestThirdPartyFavicon).not.toHaveBeenCalled();
   });
 
-  it('非法 url → 立即返回 null（首字母回退），不发后台抓取', async () => {
-    const { result } = renderHook(({ u }) => useFavicon(u), {
-      initialProps: { u: 'not-a-url' },
+  it('无缓存时先显示本地，后台成功后热切换第三方', async () => {
+    vi.mocked(fetchBestThirdPartyFavicon).mockResolvedValue({
+      hostname: 'example.com',
+      source: 'icon-horse',
+      blob: new Blob(['fresh'], { type: 'image/png' }),
+      width: 64,
+      height: 64,
+      cacheId: 'cache-fresh',
     });
+    const { result } = renderHook(() =>
+      useFavicon('https://example.com', 'https://example.com/runtime.svg'),
+    );
+
+    expect(result.current?.kind).toBe('tab');
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    expect(fetchBestThirdPartyFavicon).toHaveBeenCalledWith('https://example.com');
+  });
+
+  it('第三方失败时保持本地来源', async () => {
+    const { result } = renderHook(() =>
+      useFavicon('https://example.com', 'https://example.com/runtime.svg'),
+    );
+
+    await waitFor(() => expect(fetchBestThirdPartyFavicon).toHaveBeenCalled());
+    expect(result.current?.kind).toBe('tab');
+  });
+
+  it('内网不读取第三方缓存也不抓取', async () => {
+    vi.mocked(isPrivateFaviconTarget).mockReturnValue(true);
+    const { result } = renderHook(() => useFavicon('http://192.168.1.2:3000'));
+
+    await act(() => Promise.resolve());
+    expect(result.current?.kind).toBe('chrome');
+    expect(getThirdPartyCache).not.toHaveBeenCalled();
+    expect(fetchBestThirdPartyFavicon).not.toHaveBeenCalled();
+  });
+
+  it('onError 按 third-party → tab → chrome → null 回退', async () => {
+    const cachedBlob = new Blob(['cached'], { type: 'image/png' });
+    vi.mocked(getThirdPartyCache).mockResolvedValue({
+      blob: cachedBlob,
+      stale: false,
+      canRefresh: false,
+      record: {
+        hostname: 'example.com',
+        blob: cachedBlob,
+        source: 'icon-horse',
+        cacheId: 'cache-old',
+      },
+    });
+    const { result } = renderHook(() =>
+      useFavicon('https://example.com', 'https://example.com/runtime.svg'),
+    );
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+
+    act(() => result.current?.onError());
+    expect(invalidateFavicon).toHaveBeenCalledWith('example.com', 'cache-old');
+    expect(result.current?.kind).toBe('tab');
+
+    act(() => result.current?.onError());
+    expect(result.current?.kind).toBe('chrome');
+
+    act(() => result.current?.onError());
+    expect(result.current).toBeNull();
+  });
+
+  it('旧 Object URL 的迟到错误不得使当前新缓存降级或失效', async () => {
+    vi.mocked(fetchBestThirdPartyFavicon)
+      .mockResolvedValueOnce({
+        hostname: 'example.com', source: 'icon-horse',
+        blob: new Blob(['old']), width: 64, height: 64, cacheId: 'cache-old',
+      })
+      .mockResolvedValueOnce({
+        hostname: 'example.com', source: 'icon-horse',
+        blob: new Blob(['new']), width: 64, height: 64, cacheId: 'cache-new',
+      });
+    const { result, rerender } = renderHook(
+      ({ runtime }) => useFavicon('https://example.com', runtime),
+      { initialProps: { runtime: 'https://example.com/a.svg' } },
+    );
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    const oldSrc = result.current!.src;
+
+    rerender({ runtime: 'https://example.com/b.svg' });
+    await waitFor(() => expect(fetchBestThirdPartyFavicon).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    expect(result.current?.src).not.toBe(oldSrc);
+    const currentSrc = result.current!.src;
+    act(() => result.current?.onError({ currentTarget: { src: oldSrc } } as never));
+
+    expect(invalidateFavicon).not.toHaveBeenCalled();
+    expect(result.current?.kind).toBe('third-party');
+    expect(result.current?.src).toBe(currentSrc);
+  });
+
+  it('浏览器稍后补充 runtime favicon 时从 Chrome 切到 tab', async () => {
+    const { result, rerender } = renderHook(
+      ({ runtime }) => useFavicon('https://example.com', runtime),
+      { initialProps: { runtime: undefined as string | undefined } },
+    );
+    expect(result.current?.kind).toBe('chrome');
+
+    rerender({ runtime: 'https://example.com/runtime.svg' });
+    await waitFor(() => expect(result.current?.kind).toBe('tab'));
+  });
+
+  it('runtime A 失败降级后，runtime B 出现时重新尝试 tab 来源', async () => {
+    vi.mocked(isPrivateFaviconTarget).mockReturnValue(true);
+    const { result, rerender } = renderHook(
+      ({ runtime }) => useFavicon('https://example.com', runtime),
+      { initialProps: { runtime: 'https://example.com/a.svg' } },
+    );
+    expect(result.current?.kind).toBe('tab');
+    act(() => result.current?.onError());
+    expect(result.current?.kind).toBe('chrome');
+
+    rerender({ runtime: 'https://example.com/b.svg' });
+    await waitFor(() => expect(result.current?.kind).toBe('tab'));
+    expect(result.current?.src).toBe('https://example.com/b.svg');
+  });
+
+  it('非法 URL 返回 null，不访问 DB/网络', async () => {
+    const { result } = renderHook(() => useFavicon('not-a-url'));
     await act(() => Promise.resolve());
     expect(result.current).toBeNull();
-    expect(fetchAndStoreFavicon).not.toHaveBeenCalled();
+    expect(getThirdPartyCache).not.toHaveBeenCalled();
+    expect(fetchBestThirdPartyFavicon).not.toHaveBeenCalled();
+  });
+
+  it('卸载时 revoke 第三方 Blob URL', async () => {
+    vi.mocked(getThirdPartyCache).mockResolvedValue({
+      blob: new Blob(['cached'], { type: 'image/png' }),
+      stale: false,
+      canRefresh: false,
+    });
+    const revoke = vi.spyOn(URL, 'revokeObjectURL');
+    const { result, unmount } = renderHook(() => useFavicon('https://example.com'));
+    await waitFor(() => expect(result.current?.kind).toBe('third-party'));
+    const src = result.current!.src;
+
+    unmount();
+    expect(revoke).toHaveBeenCalledWith(src);
   });
 });

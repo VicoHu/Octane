@@ -8,6 +8,7 @@ import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
 import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';
+import { useOpenTabs } from './hooks/useOpenTabs';
 import '@/styles/global.css';
 import './App.css';
 import '@/styles/semi-theme-override.css';
@@ -17,6 +18,7 @@ const App: React.FC = () => {
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
   const loadBookmarks = useBookmarks((s) => s.loadBookmarks);
   const checkStatus = useCrypto((s) => s.checkStatus);
+  const openTabs = useOpenTabs();
 
   useEffect(() => {
     checkStatus();
@@ -79,10 +81,10 @@ const App: React.FC = () => {
       <UnlockModal />
       <div className="app-layout">
         <aside className="app-sidebar semi-always-dark" id="sidebar-container">
-          <Sidebar />
+          <Sidebar openTabs={openTabs} />
         </aside>
         <main className="app-content">
-          <Content />
+          <Content openTabs={openTabs} />
         </main>
       </div>
     </>

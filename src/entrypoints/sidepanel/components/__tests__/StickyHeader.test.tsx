@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 // lottie-web 由 vitest.config.ts 全局 alias 处理（见 docs/standards/testing.md §4.4.1），无需 vi.mock
 // useFavicon 走真实 IDB/网络副作用，本组件测试只需静态 src 占位
+const faviconMocks = vi.hoisted(() => ({ onError: vi.fn() }));
 vi.mock('@/hooks/useFavicon', () => ({
-  useFavicon: (url: string) => ({ kind: 'remote', src: `https://mock-favicon/${url}` }),
+  useFavicon: (url: string) => ({
+    kind: 'chrome', src: `https://mock-favicon/${url}`, onError: faviconMocks.onError,
+  }),
 }));
 import { render, screen, fireEvent } from '@testing-library/react';
 import { StickyHeader } from '../StickyHeader';
@@ -31,11 +34,10 @@ describe('StickyHeader — 顶栏组件', () => {
     expect(onPin).toHaveBeenCalledTimes(1);
   });
 
-  it('favicon 加载失败 → onError 隐藏图片可见性', () => {
+  it('favicon 加载失败 → 交给 useFavicon 回退', () => {
     render(<StickyHeader hostname="a.com" matchCount={0} onAdd={vi.fn()} onPin={vi.fn()} />);
     const img = document.querySelector('img')!;
-    expect(img.style.visibility).not.toBe('hidden');
     fireEvent.error(img);
-    expect(img.style.visibility).toBe('hidden');
+    expect(faviconMocks.onError).toHaveBeenCalledTimes(1);
   });
 });

@@ -23,12 +23,17 @@ import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '../ManagePanel';
 import { SettingsModal } from '../SettingsModal';
 import { PinnedArea } from '../PinnedArea';
+import type { OpenTab } from '../../hooks/useOpenTabs';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
 import dndStyles from '../dnd/dnd.module.css';
 import styles from './index.module.css';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  openTabs: OpenTab[];
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const workspaces = useWorkspace((s) => s.workspaces);
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
   const categories = useWorkspace((s) => s.categories);
@@ -159,7 +164,7 @@ export const Sidebar: React.FC = () => {
       </Button>
 
       {/* 常驻标签区：per-workspace 跨分类，挂在工作区切换下方、分类列表上方 */}
-      {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} />}
+      {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} openTabs={openTabs} />}
 
       <Modal
         title="新建工作区"

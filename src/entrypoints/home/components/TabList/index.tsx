@@ -4,7 +4,7 @@ import { IconMapPin, IconPlus, IconBookmark } from '@douyinfe/semi-icons';
 import type { Bookmark } from '@/shared/types';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab } from '@/shared/tabs/matchUrl';
-import { isSafeFavIcon } from './safeFavIcon';
+import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
 import styles from './index.module.css';
 
 interface TabListProps {

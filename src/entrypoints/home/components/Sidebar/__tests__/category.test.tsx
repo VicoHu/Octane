@@ -45,7 +45,7 @@ beforeEach(() => {
 
 describe('Sidebar 分类列表（Semi List 迁移）', () => {
   it('空分类显示「暂无分类」', () => {
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(screen.getByText('暂无分类')).toBeTruthy();
   });
 
@@ -56,7 +56,7 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
       currentWorkspaceId: 'w1',
       workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
     });
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(screen.getByText('💼 工作')).toBeTruthy();
   });
 
@@ -69,7 +69,7 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
     });
     const selectCategory = vi.fn();
     useWorkspace.setState({ selectCategory });
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     fireEvent.click(screen.getByText('🏠 生活'));
     expect(selectCategory).toHaveBeenCalledWith('c2');
   });
@@ -95,7 +95,7 @@ describe('Sidebar 删除分类二次确认', () => {
 
   it('点击删除图标不立即删除，而是弹出二次确认', () => {
     const { deleteCategory } = setupWithCategory();
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     openConfirm(container);
     expect(deleteCategory).not.toHaveBeenCalled();
     // 警示文案：级联删除书签 + 上下文 + 不可恢复
@@ -105,14 +105,14 @@ describe('Sidebar 删除分类二次确认', () => {
 
   it('未输入正确短语时删除按钮禁用', () => {
     setupWithCategory();
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     openConfirm(container);
     expect(getOkButton().disabled).toBe(true);
   });
 
   it('输入正确短语后启用删除并执行级联删除', () => {
     const { deleteCategory } = setupWithCategory();
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     openConfirm(container);
     const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '我确认删除工作 分类' } });
@@ -123,7 +123,7 @@ describe('Sidebar 删除分类二次确认', () => {
 
   it('短语匹配忽略空格差异', () => {
     setupWithCategory();
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     openConfirm(container);
     const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
     // 故意不输入中间空格
@@ -133,7 +133,7 @@ describe('Sidebar 删除分类二次确认', () => {
 
   it('短语错误时删除按钮保持禁用', () => {
     setupWithCategory();
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     openConfirm(container);
     const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '我确认删除' } });
@@ -144,19 +144,19 @@ describe('Sidebar 删除分类二次确认', () => {
 describe('Sidebar 分类拖拽(T6)', () => {
   it('>1 分类:每分类渲染 grip 手柄', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(gripButtons()).toHaveLength(2);
   });
 
   it('≤1 分类:不渲染 grip(纯 List.Item 无 Sortable)', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }], 'c1');
-    render(<Sidebar />);
+    render(<Sidebar openTabs={[]} />);
     expect(gripButtons()).toHaveLength(0);
   });
 
   it('IconDelete 带 data-no-dnd(防拖拽冒泡)', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
-    const { container } = render(<Sidebar />);
+    const { container } = render(<Sidebar openTabs={[]} />);
     const del = container.querySelector('[aria-label="删除分类 工作"]');
     expect(del?.hasAttribute('data-no-dnd')).toBe(true);
   });
