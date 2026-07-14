@@ -1,4 +1,4 @@
-/* === T10 dnd 共享原语样式:grip / overlay / placeholder / dropLine ===
+/* === T10 dnd 共享原语样式:grip / overlay / placeholder ===
  * 4 层拖拽统一视觉。颜色按「面明度」分支(不按层):
  *   - 浅色面(BookmarkCard 白底 / ManagePanel Modal 白底):炭灰 #2D3436 描边
  *   - 深色面(Sidebar bg #202829 / PinnedArea chip 底 #2D3436):浅描边 rgba(255,255,255,.5) alpha≥.5 达 AA
@@ -75,29 +75,7 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* ===== drop indicator:轴感知插入线(3px 绿 + halo)===== */
-.dropLine {
-  position: absolute;
-  background: var(--primary);
-  box-shadow: 0 0 0 4px var(--primary-light);
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 1004;
-}
-/* 1D list(Sidebar/ManagePanel)横向 + 2D grid 行间 */
-.dropLineHorizontal {
-  height: 3px;
-  left: 0;
-  right: 0;
-}
-/* 2D grid 列间 */
-.dropLineVertical {
-  width: 3px;
-  top: 0;
-  bottom: 0;
-}
-
-/* ===== reduced-motion:禁 scale/rotate,保描边 + 瞬时 drop 线 ===== */
+/* ===== reduced-motion:禁 scale/rotate,保描边 ===== */
 @media (prefers-reduced-motion: reduce) {
   .grip {
     transition: none;

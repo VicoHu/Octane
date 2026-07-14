@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Select, Button, Input, Modal, List, Toast } from '@douyinfe/semi-ui';
 import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
 import {
@@ -25,7 +25,6 @@ import { SettingsModal } from '../SettingsModal';
 import { PinnedArea } from '../PinnedArea';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
-import { computeDropIndicator } from '../dnd/computeDropIndicator';
 import dndStyles from '../dnd/dnd.module.css';
 import styles from './index.module.css';
 
@@ -60,49 +59,21 @@ export const Sidebar: React.FC = () => {
   const activeCat = activeCatId ? categories.find((c) => c.id === activeCatId) ?? null : null;
   // 连发锁:drop 写入期间锁定分类容器(防 store 乐观回滚与回滚竞态)
   const [reordering, setReordering] = useState(false);
-  // D7 插入线:categoryList 容器 ref 定位(1D 恒横向)
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dropIndicator, setDropIndicator] = useState<{
-    axis: 'horizontal' | 'vertical';
-    position: 'before' | 'after';
-    top: number;
-    left: number;
-  } | null>(null);
   // M5 非法落区:over=null(拖出 categoryList)→ overlay 降透明 .5
   const [invalid, setInvalid] = useState(false);
 
   const handleCatDragStart = (e: DragStartEvent) => setActiveCatId(String(e.active.id));
   const handleCatDragOver = (e: DragOverEvent) => {
-    const { active, over } = e;
-    if (!over) {
-      setDropIndicator(null);
+    // 只判非法落区(拖出容器 over=null);落点指示由 placeholder 虚线框承担(用户真机决策去绿线)
+    if (!e.over) {
       setInvalid(true);
       return;
     }
     setInvalid(false);
-    if (active.id === over.id) {
-      setDropIndicator(null);
-      return;
-    }
-    const activeRect = active.rect.current.translated;
-    const overRect = over.rect;
-    if (!activeRect || !overRect) return;
-    const containerEl = containerRef.current;
-    if (!containerEl) return;
-    const { position } = computeDropIndicator({ activeRect, overRect, layout: '1d' });
-    const cRect = containerEl.getBoundingClientRect();
-    // 1D:axis 恒 horizontal,left:0(横线由 CSS left:0 right:0 撑满容器)
-    setDropIndicator({
-      axis: 'horizontal',
-      position,
-      top: overRect.top - cRect.top + (position === 'after' ? overRect.height : 0),
-      left: 0,
-    });
   };
   const handleCatDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveCatId(null);
-    setDropIndicator(null);
     setInvalid(false);
     if (!over || active.id === over.id || !currentWorkspaceId) return;
     const oldIndex = categories.findIndex((c) => c.id === active.id);
@@ -209,7 +180,7 @@ export const Sidebar: React.FC = () => {
 
       {/* 分类 */}
       <div className={styles.sectionLabel}>分类</div>
-      <div className={styles.categoryList} ref={containerRef}>
+      <div className={styles.categoryList}>
         {categories.length === 0 ? (
           <div className={styles.emptyHint}>暂无分类</div>
         ) : categories.length > 1 ? (
@@ -219,7 +190,7 @@ export const Sidebar: React.FC = () => {
             onDragStart={handleCatDragStart}
             onDragOver={handleCatDragOver}
             onDragEnd={handleCatDragEnd}
-            onDragCancel={() => { setActiveCatId(null); setDropIndicator(null); setInvalid(false); }}
+            onDragCancel={() => { setActiveCatId(null); setInvalid(false); }}
           >
             <SortableContext
               items={categories.map((c) => c.id)}
@@ -242,13 +213,6 @@ export const Sidebar: React.FC = () => {
                 ))}
               </List>
             </SortableContext>
-            {dropIndicator && (
-              <div
-                className={`${dndStyles.dropLine} ${dndStyles.dropLineHorizontal}`}
-                style={{ top: dropIndicator.top - 1.5 }}
-                aria-hidden="true"
-              />
-            )}
             <SortableOverlay tone="dark" invalid={invalid}>
               {activeCat && (
                 <div className={styles.catGhost}>
