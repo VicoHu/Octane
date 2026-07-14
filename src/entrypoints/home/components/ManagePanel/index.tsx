@@ -97,14 +97,16 @@ const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, o
   return (
     <div
       ref={setNodeRef}
-      className={styles.sortableRow}
-      style={{ transform: CSS.Transform.toString(transform), transition, visibility: isDragging ? 'hidden' : undefined }}
+      className={`${styles.sortableRow}${isDragging ? ` ${dndStyles.placeholder}` : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <span className={styles.gripSlot}>
-        <GripButton listeners={listeners} className={dndStyles.gripAlwaysVisible} />
-      </span>
-      <div className={styles.entityWrap}>
-        <EntityEditRow id={id} name={name} icon={icon} onSave={onSave} />
+      <div className={`${styles.rowInner}${isDragging ? ` ${styles.dragGhost}` : ''}`}>
+        <span className={styles.gripSlot}>
+          <GripButton listeners={listeners} className={dndStyles.gripAlwaysVisible} />
+        </span>
+        <div className={styles.entityWrap}>
+          <EntityEditRow id={id} name={name} icon={icon} onSave={onSave} />
+        </div>
       </div>
     </div>
   );

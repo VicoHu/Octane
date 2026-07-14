@@ -1,5 +1,5 @@
 import React from 'react';
-import { Popover } from '@douyinfe/semi-ui';
+import { Popover, Button } from '@douyinfe/semi-ui';
 import styles from './dnd.module.css';
 
 interface GripButtonProps {
@@ -65,8 +65,25 @@ export const GripButton: React.FC<GripButtonProps> = ({ listeners, disabled, cla
       position="top"
       content={
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-          <span>拖动手柄可排序</span>
-          <button type="button" aria-label="知道了" onClick={coachmark.onClose}>知道了</button>
+          {/* grip 小图标呼应 trigger 手柄,增强「这个手柄可拖」语义 */}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+            focusable="false"
+            fill="currentColor"
+            style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }}
+          >
+            <circle cx="6" cy="5" r="1.4" />
+            <circle cx="14" cy="5" r="1.4" />
+            <circle cx="6" cy="10" r="1.4" />
+            <circle cx="14" cy="10" r="1.4" />
+            <circle cx="6" cy="15" r="1.4" />
+            <circle cx="14" cy="15" r="1.4" />
+          </svg>
+          <span style={{ fontWeight: 500 }}>拖动手柄可排序</span>
+          <Button size="small" theme="solid" onClick={coachmark.onClose}>知道了</Button>
         </div>
       }
     >

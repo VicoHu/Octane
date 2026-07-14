@@ -120,8 +120,9 @@ export async function runUpgrade(
   // 组内 (createdAt ASC, id ASC) 赋 0,1,2...，与 BackupService 旧备份回填算法一致。
   // 【禁用 putRecord】它调 getDB() 开新事务，与 versionchange 升级事务并行 → 中断升级
   //（idb footgun）。必须复用 upgrade 回调注入的 transaction.objectStore('bookmarks')。
-  if (oldVersion < 5) {
-    if (!transaction) return; // 外部无 upgrade 事务直接调用（如幂等校验），跳过数据迁移
+  if (oldVersion < 5 && transaction) {
+    // 外部无 upgrade 事务直接调用（如幂等校验）时 transaction 缺失 → 跳过数据迁移；
+    // 用条件守卫而非早退 return，让未来 v6+ 迁移块仍能在同一调用内执行
     const store = transaction.objectStore('bookmarks');
     const all = (await store.getAll()) as Bookmark[];
     const groups = new Map<string, Bookmark[]>();

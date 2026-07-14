@@ -173,11 +173,12 @@
 }
 
 /* === T4 拖拽 === */
-/* 拖拽手柄 slot:hover 显(浅色面 text-secondary 次色);触屏常显 */
+/* 拖拽手柄 slot:hover 显(浅色面 text-secondary 次色);触屏常显;垂直居中(QA) */
 .gripSlot {
   position: absolute;
-  top: var(--space-xs);
+  top: 50%;
   left: var(--space-xs);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -281,10 +281,12 @@ function SortablePinChip({ pin, onDelete, disabled }: { pin: PinnedTab; onDelete
   return (
     <div
       ref={setNodeRef}
-      className={styles.sortableChip}
-      style={{ transform: CSS.Transform.toString(transform), transition, visibility: isDragging ? 'hidden' : undefined }}
+      className={`${styles.sortableChip}${isDragging ? ` ${dndStyles.placeholder} ${dndStyles.placeholderDark}` : ''}`}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <PinChip pin={pin} onDelete={onDelete} grip={<GripButton listeners={listeners} />} />
+      <div className={`${styles.pinInner}${isDragging ? ` ${styles.dragGhost}` : ''}`}>
+        <PinChip pin={pin} onDelete={onDelete} grip={<GripButton listeners={listeners} />} />
+      </div>
     </div>
   );
 }

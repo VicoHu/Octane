@@ -78,3 +78,12 @@
   font-size: var(--font-sm);
   color: var(--text-primary);
 }
+
+/* M1:isDragging 双层模式——外层 sortableRow 显 placeholder 虚线框,内层 rowInner 隐藏内容占位 */
+.rowInner {
+  display: flex;
+  align-items: center;
+}
+.dragGhost {
+  visibility: hidden;
+}

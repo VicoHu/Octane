@@ -177,3 +177,8 @@
     transition: none;
   }
 }
+
+/* M1:isDragging 双层模式——外层 placeholder 虚线框,List.Item dragGhost 隐藏内容占位 */
+.dragGhost {
+  visibility: hidden;
+}

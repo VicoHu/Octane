@@ -204,11 +204,12 @@
   display: inline-block;
   position: relative;
 }
-/* grip 手柄 slot:chip 左上角外(hover 显,与右上角 deleteBtn 对称;深色面 sidebar-text-muted);触屏常显 */
+/* grip 手柄 slot:chip 左缘外垂直居中(hover 显,与右上角 deleteBtn 对称;深色面 sidebar-text-muted);触屏常显 */
 .gripSlot {
   position: absolute;
-  top: -4px;
+  top: 50%;
   left: -4px;
+  transform: translateY(-50%);
   z-index: 2;
   display: inline-flex;
   color: var(--sidebar-text-muted);
@@ -227,4 +228,12 @@
   .gripSlot {
     transition: none;
   }
+}
+
+/* M1:isDragging 双层模式——外层 sortableChip 显 placeholder 虚线框,内层 pinInner 隐藏内容占位 */
+.pinInner {
+  display: inline-block;
+}
+.dragGhost {
+  visibility: hidden;
 }

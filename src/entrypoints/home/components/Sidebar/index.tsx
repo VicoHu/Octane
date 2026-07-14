@@ -392,15 +392,14 @@ const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSe
   return (
     <div
       ref={setNodeRef}
-      className={styles.sortableCat}
+      className={isDragging ? `${dndStyles.placeholder} ${dndStyles.placeholderDark}` : styles.sortableCat}
       style={{
         transform: transform ? `translate3d(0, ${transform.y}px, 0)` : undefined,
         transition,
-        visibility: isDragging ? 'hidden' : undefined,
       }}
     >
       <List.Item
-        className={`${styles.cat} ${isActive ? styles.catActive : ''}`}
+        className={`${styles.cat} ${isActive ? styles.catActive : ''}${isDragging ? ` ${styles.dragGhost}` : ''}`}
         onClick={onSelect}
         main={
           <span className={styles.categoryName}>
