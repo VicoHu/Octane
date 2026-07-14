@@ -12,12 +12,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
   - 数据层：`Bookmark` 加 `order` 字段（DB v4→v5 迁移按分类分组、组内 `createdAt ASC, id ASC` 回填）+ 4 个 reorder API（单事务 + 校验 + 广播）+ `createXxx` 统一 `maxOrder+1`（修删除留洞导致重复 order 的既有 bug）+ `moveBookmark` 跨分类重分配 order。
   - 备份/分享带排序：`BACKUP_VERSION` 3→4，旧版备份解析回填 order；分享导入 `reorderForImport`（工作区追加接收方末尾，分类/书签/常驻按父容器各自从 0 起保组内相对序）。
   - UI 4 层：dnd-kit（已是 semi-ui 传递依赖，无新依赖）；**grip 手柄为唯一拖拽触发器**（整卡点击跳转/切换/打开不破坏）；DragOverlay 按面明度描边（浅色面炭灰 / 深色面浅描边）+ portal body + z-index 1005；placeholder 虚线占位 + 让位 + DragOverlay 跟随指示落点；拖拽失败回弹动画 + Toast；搜索态 / 空 / 单元素禁用拖拽；首启 coachmark；`prefers-reduced-motion` 支持。
+- **Favicon 第三方高清异步升级**：书签与常驻标签图标改为「本地立即显示 + 第三方异步升级」——先渲染浏览器本地图标（已打开 Tab 的 `favIconUrl` / Chrome `_favicon` / 首字母），后台抓取第三方高清候选（Icon Horse + 同首字母 `.invalid` 探针防占位图误判），质量验证通过后热替换并持久缓存。
+  - 隐私边界：内网 URL（localhost / 私有 IP 段 / `.local`）不请求第三方，不泄露内网 hostname；不新增任何 host permission，继续以普通 CORS 为能力边界。
+  - 缓存卫生：默认图 / 坏图 / 非图片 / 低于质量阈值的结果不再永久污染缓存；SVG 规范化为 64×64 PNG；过期缓存 stale-while-revalidate（旧图继续显示、后台重验）；旧版本无元数据缓存升级后清空。
+  - 并发与回退：同 hostname 多组件挂载合并为单组后台请求（in-flight 去重）；PinnedArea 图片加载失败依次回退 `_favicon`、首字母，不再破图。
 
 ### Changed
 
 - **类型层**：`Bookmark.order` + `BACKUP_VERSION=4`（`ACCEPTED=[1,2,3,4]`）。
 - **store**：4 个 `reorderXxx` action（乐观重排 + 失败回滚，`allBookmarks` 不动）+ `moveBookmark` 切换 service 重分配 order。
 - **设计 token**：补 `--shadow-soft` / `--shadow-elevated` / `--neutral` / `--neutral-rgb` 进 DESIGN.md schema。
+- **FaviconService 重构**：来源优先级与显示速度分离（本地来源负责立即可用，第三方负责最终高清）；新增 `isPrivateFaviconTarget` 内网判定纯函数；`useFavicon(url, runtimeFavIconUrl)` 接收已打开 Tab 的 `favIconUrl`，书签 / 常驻标签即时反映 Tab 图标变化；移除源站 `/favicon.ico` 与 DuckDuckGo fetch（CORS 不可用）。
 
 ### 内部
 
