@@ -97,3 +97,32 @@ describe('ManagePanel — 工作区与分类管理', () => {
     expect(updateWorkspace).not.toHaveBeenCalled();
   });
 });
+
+describe('ManagePanel workspace 拖拽(T8)', () => {
+  const gripButtons = () =>
+    screen.getAllByRole('button').filter((b) => b.getAttribute('aria-roledescription') === '可拖拽项');
+
+  it('workspace 列表(>1):每 workspace 渲染常驻 grip(category 不排序)', () => {
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+    // beforeEach 2 workspaces + 1 category;grip 仅 workspace → 2(category 波3 不排序)
+    expect(gripButtons()).toHaveLength(2);
+  });
+
+  it('workspace ≤1:不渲染 grip(纯 EntityEditRow)', () => {
+    useWorkspace.setState({
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁', createdAt: 1, order: 0 }],
+      currentWorkspaceId: 'w1',
+      categories: [{ id: 'c1', workspaceId: 'w1', name: '工作', icon: '📂', order: 0, createdAt: 1 }],
+      currentCategoryId: 'c1',
+    });
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+    expect(gripButtons()).toHaveLength(0);
+  });
+
+  it('编辑态 Input 带 data-no-dnd(防拖拽时输入冲突)', () => {
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+    fireEvent.click(screen.getByText('主工作区'));
+    const input = screen.getByDisplayValue('主工作区');
+    expect(input.hasAttribute('data-no-dnd')).toBe(true);
+  });
+});

@@ -1,5 +1,5 @@
-import { putRecord, getByKey, getByIndex } from '@/shared/db/database';
-import { cascadeDeleteCategory } from '@/shared/db/database';
+import { putRecord, getByKey, getByIndex, getDB, broadcastChange, cascadeDeleteCategory } from '@/shared/db/database';
+import { nextOrder, validateOrderedIds } from '@/shared/utils/order';
 import type { Category } from '@/shared/types';
 
 function generateId(): string {
@@ -12,23 +12,50 @@ export async function listCategories(workspaceId: string): Promise<Category[]> {
   return categories.sort((a, b) => a.order - b.order);
 }
 
-/** 创建分类 */
+/** 创建分类(单 readwrite 事务:read maxOrder + put 同事务,防并发重复 order) */
 export async function createCategory(
   workspaceId: string,
   name: string,
   icon: string,
 ): Promise<Category> {
-  const existing = await listCategories(workspaceId);
+  const db = await getDB();
+  const tx = db.transaction('categories', 'readwrite');
+  const store = tx.objectStore('categories');
+  const existing = await store.index('by-workspaceId').getAll(workspaceId);
+  const order = nextOrder(existing); // maxOrder+1(删洞安全,非 length)
   const category: Category = {
     id: generateId(),
     workspaceId,
     name,
     icon,
-    order: existing.length,
+    order,
     createdAt: Date.now(),
   };
-  await putRecord('categories', category);
+  await store.put(category);
+  await tx.done;
+  broadcastChange('categories', 'put');
   return category;
+}
+
+/**
+ * 重排工作区内分类(per-workspace)。单 readwrite 事务:校验读取 + full-rewrite 同事务,
+ * 防 TOCTOU。校验失败 throw Error;按 orderedIds 赋 0..N。
+ */
+export async function reorderCategories(workspaceId: string, orderedIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('categories', 'readwrite');
+  const store = tx.objectStore('categories');
+  const existing = await store.index('by-workspaceId').getAll(workspaceId);
+  const err = validateOrderedIds(orderedIds, existing.map((c) => c.id));
+  if (err) throw new Error(err);
+  const byId = new Map(existing.map((c) => [c.id, c]));
+  for (let i = 0; i < orderedIds.length; i++) {
+    const c = byId.get(orderedIds[i]!)!;
+    c.order = i;
+    await store.put(c);
+  }
+  await tx.done;
+  broadcastChange('categories', 'put');
 }
 
 /** 更新分类 */

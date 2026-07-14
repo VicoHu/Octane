@@ -58,6 +58,7 @@ async function seedV3Database(): Promise<void> {
     hasEncryptedContext: false,
     createdAt: 1,
     updatedAt: 1,
+    order: 0,
   };
   const context: Context = {
     id: 'ctx-mig',

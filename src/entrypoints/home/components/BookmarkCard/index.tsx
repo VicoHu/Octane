@@ -17,13 +17,15 @@ interface BookmarkCardProps {
   hasOpenTab?: boolean;
   /** 匹配打开 Tab 时浏览器已解析的 favicon。 */
   runtimeFavIconUrl?: string;
+  /** 拖拽手柄 slot(可选;由 SortableBookmarkCard 注入 GripButton,纯 BookmarkCard 不传) */
+  grip?: React.ReactNode;
   onClick: (bookmark: Bookmark) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;
 }
 
-export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, runtimeFavIconUrl, onClick, onViewContexts, onEditBookmark, onDelete }) => {
+export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab, runtimeFavIconUrl, grip, onClick, onViewContexts, onEditBookmark, onDelete }) => {
   const faviconSrc = useFavicon(bookmark.url, runtimeFavIconUrl);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
@@ -56,6 +58,9 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
       className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
     >
+      {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
+      {grip && <div className={styles.gripSlot}>{grip}</div>}
+
       {/* Favicon（useFavicon 加载失败时回退首字母）+ 右下角上下文徽章 */}
       <div className={styles.favicon}>
         {faviconSrc ? (
@@ -99,8 +104,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       </div>
 
       {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
-      {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触） */}
-      <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
+      {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触）;data-no-dnd 防拖拽冒泡 */}
+      <div className={styles.actions} data-no-dnd onClick={(e) => e.stopPropagation()}>
         <Tooltip content="查看上下文">
           <Button
             theme="borderless"

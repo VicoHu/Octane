@@ -152,3 +152,76 @@ export function recomputeRedundancy(bookmarks: Bookmark[], contexts: Context[]):
     };
   });
 }
+
+// ── T2:分享导入 order 重映射(0.1.12 波2)──
+
+/** 稳定排序比较:按 (order, createdAt, id) 升序。order 相同 → createdAt;再相同 → id 字符串。 */
+function compareByOrderCreated<T extends { order: number; createdAt: number; id: string }>(
+  a: T,
+  b: T,
+): number {
+  if (a.order !== b.order) return a.order - b.order;
+  if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * 按父容器分子组重排 order:每组内按发送方 (order, createdAt, id) 稳定排序后各自从 0 起赋序。
+ * 不同父容器子组各自独立(非全局连续)——接收方在每个新建容器内无现有数据。
+ * 保持原数组顺序,只改 order 字段。纯函数:不 mutate 输入。
+ */
+function regroupOrderFromZero<T extends { order: number; createdAt: number; id: string }>(
+  items: readonly T[],
+  groupKey: (item: T) => string,
+): T[] {
+  // 第一遍:按父容器分组(保留首次出现顺序)
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const key = groupKey(item);
+    const arr = groups.get(key);
+    if (arr) arr.push(item);
+    else groups.set(key, [item]);
+  }
+  // 第二遍:每组稳定排序 → 建 id → newOrder 映射
+  const newOrder = new Map<string, number>();
+  for (const arr of groups.values()) {
+    const sorted = [...arr].sort(compareByOrderCreated);
+    sorted.forEach((item, i) => newOrder.set(item.id, i));
+  }
+  // 第三遍:按原数组顺序输出,仅替换 order
+  return items.map((item) => ({ ...item, order: newOrder.get(item.id)! }));
+}
+
+/**
+ * 分享导入 order 重映射(T2 纯函数)。
+ *
+ * 前提:remapShareIds 已给所有实体新 ID,导入实体总是新建(resolveNameConflicts 加后缀创建副本,
+ * 不合并到接收方现有实体)。故只有 workspaces 组需查接收方 maxOrder(追加在其后);
+ * categories / bookmarks / pinnedTabs 的父容器均为新建实体,接收方在该容器内无现有数据 →
+ * 每个父容器子组各自从 0 起赋序(非全局连续)。
+ *
+ * 算法:
+ * 1. workspaces:按发送方 (order, createdAt, id) 稳定排序,赋 receiverMaxWorkspaceOrder+1, +2, ...
+ * 2. categories:按 workspaceId 分组,各组从 0 起
+ * 3. bookmarks:按 categoryId 分组,各组从 0 起
+ * 4. pinnedTabs:按 workspaceId 分组,各组从 0 起
+ *
+ * 纯函数:不碰 DB/crypto,不 mutate 输入,不改 ID(只重排 order)。
+ * receiverMaxWorkspaceOrder 由编排层(applyShareImport)注入(读接收方现有 ws max order,空集 → -1)。
+ */
+export function reorderForImport(
+  data: BackupData,
+  receiverMaxWorkspaceOrder: number,
+): BackupData {
+  // workspaces:全局一组,排序算 newOrder 后按原数组顺序输出(只改 order,不改顺序/ID)
+  const wsSorted = [...data.workspaces].sort(compareByOrderCreated);
+  const wsNewOrder = new Map<string, number>();
+  wsSorted.forEach((ws, i) => wsNewOrder.set(ws.id, receiverMaxWorkspaceOrder + 1 + i));
+  const workspaces = data.workspaces.map((ws) => ({ ...ws, order: wsNewOrder.get(ws.id)! }));
+  const categories = regroupOrderFromZero(data.categories, (c) => c.workspaceId);
+  const bookmarks = regroupOrderFromZero(data.bookmarks, (b) => b.categoryId);
+  const pinnedTabs = data.pinnedTabs
+    ? regroupOrderFromZero(data.pinnedTabs, (p) => p.workspaceId)
+    : data.pinnedTabs;
+  return { ...data, workspaces, categories, bookmarks, pinnedTabs };
+}

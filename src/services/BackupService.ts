@@ -7,7 +7,7 @@ import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadat
 import { exportAllData, replaceAllDataRaw, mergeImportRaw, getAll, getByKey, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
-import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy } from '@/services/shareImport';
+import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy, reorderForImport } from '@/services/shareImport';
 import type { ExistingNames } from '@/services/shareImport';
 
 export type ValidationResult =
@@ -24,6 +24,26 @@ function isObj(v: unknown): v is Record<string, unknown> {
 
 function hasString(v: unknown, ...keys: string[]): boolean {
   return isObj(v) && keys.every((k) => typeof v[k] === 'string');
+}
+
+/**
+ * 旧版本（v1/v2/v3）备份 bookmark 无 order → 按 categoryId 分组、组内 (createdAt ASC, id ASC)
+ * 回填 order=0,1,2...。与 DB v4→v5 迁移算法一致（见 database.ts runUpgrade）。
+ */
+function normalizeBookmarkOrder(bookmarks: Bookmark[]): Bookmark[] {
+  const groups = new Map<string, Bookmark[]>();
+  for (const b of bookmarks) {
+    const arr = groups.get(b.categoryId) ?? [];
+    arr.push(b);
+    groups.set(b.categoryId, arr);
+  }
+  for (const arr of groups.values()) {
+    arr.sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    arr.forEach((b, i) => {
+      b.order = i;
+    });
+  }
+  return bookmarks;
 }
 
 /**
@@ -96,10 +116,15 @@ export function validateBackup(parsed: unknown): ValidationResult {
     return { ok: false, error: '备份含加密数据但缺少加密元数据，无法恢复' };
   }
 
+  // 标准化 bookmark order：v1/v2/v3 旧备份 bookmark 无 order → 按 categoryId 分组
+  //(createdAt ASC, id ASC)回填，与 DB v4→v5 迁移一致；v4+ 已有 order 原样保留。
+  const rawBookmarks = data.bookmarks as Bookmark[];
+  const bookmarks = parsed.version < 4 ? normalizeBookmarkOrder(rawBookmarks) : rawBookmarks;
+
   const backupData: BackupData = {
     workspaces: data.workspaces as Workspace[],
     categories: data.categories as Category[],
-    bookmarks: data.bookmarks as Bookmark[],
+    bookmarks,
     contexts: data.contexts as Context[],
     pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,
@@ -239,7 +264,7 @@ export async function applyShareImport(
     ...remapped,
     bookmarks: recomputeRedundancy(remapped.bookmarks, remapped.contexts),
   };
-  // 5. 读接收方现有同名(workspace/category)
+  // 5. 读接收方现有同名(workspace/category)+ 现有 ws max order(T2:分享 ws 追加在其后)
   const [existingWs, existingCat] = await Promise.all([
     getAll<Workspace>('workspaces'),
     getAll<Category>('categories'),
@@ -248,8 +273,10 @@ export async function applyShareImport(
     workspaces: new Set(existingWs.map((w) => w.name)),
     categories: new Set(existingCat.map((c) => c.name)),
   };
-  // 6. 同名后缀
-  const resolved = resolveNameConflicts(recomputed, existing);
+  // 接收方现有 ws 最大 order(空库 → -1,新 ws 从 0 起);单用户扩展无并发,maxOrder 读在事务前
+  const receiverMaxWsOrder = existingWs.reduce((m, w) => Math.max(m, w.order), -1);
+  // 6. 同名后缀 + order 重映射(T2:ws 追加 maxOrder+1;cat/bm/pin 按父容器各自从 0 起)
+  const resolved = reorderForImport(resolveNameConflicts(recomputed, existing), receiverMaxWsOrder);
   // 7. 读接收方 cryptoMetadata
   const receiverMeta = (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null;
   // 8. 死密文过滤(salt 冲突)

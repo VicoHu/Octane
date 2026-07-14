@@ -23,7 +23,7 @@ afterAll(() => resetDB());
 // 构造：备份里 bookmark 的冗余字段被「篡改」为错误值，验证 applyImport 重算
 const tamperedBm: Bookmark = {
   id: 'bm-1', workspaceId: 'ws-1', categoryId: 'cat-1', name: 'n', url: 'https://x.com',
-  description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, // 故意写错：实际有 1 条 context
+  description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, // 故意写错：实际有 1 条 context
   createdAt: 1, updatedAt: 1,
 };
 const realCtx: Context = {

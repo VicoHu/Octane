@@ -166,4 +166,29 @@ describe('PinnedTabService', () => {
       expect(await db.get('pinnedTabs', pin.id)).toBeUndefined();
     });
   });
+
+  describe('reorderPinnedTabs — 单事务校验 + full-rewrite(per-workspace)', () => {
+    it('按 orderedIds 重排该工作区的常驻标签:full-rewrite order 0..N', async () => {
+      await PinnedTabService.createPinnedTab('ws-1', { name: 'A', url: 'https://a.com' });
+      await PinnedTabService.createPinnedTab('ws-1', { name: 'B', url: 'https://b.com' });
+      await PinnedTabService.createPinnedTab('ws-1', { name: 'C', url: 'https://c.com' });
+      const before = await PinnedTabService.listByWorkspace('ws-1');
+      const ids = before.map((p) => p.id);
+      await PinnedTabService.reorderPinnedTabs('ws-1', [ids[2]!, ids[1]!, ids[0]!]);
+      const list = await PinnedTabService.listByWorkspace('ws-1');
+      expect(list.map((p) => p.name)).toEqual(['C', 'B', 'A']);
+      expect(list.map((p) => p.order)).toEqual([0, 1, 2]);
+    });
+
+    it('拒绝不属于该工作区的 ID → throw', async () => {
+      await PinnedTabService.createPinnedTab('ws-1', { name: 'A', url: 'https://a.com' });
+      await PinnedTabService.createPinnedTab('ws-1', { name: 'B', url: 'https://b.com' });
+      await PinnedTabService.createPinnedTab('ws-2', { name: 'X', url: 'https://x.com' });
+      const w1 = await PinnedTabService.listByWorkspace('ws-1');
+      const w2 = await PinnedTabService.listByWorkspace('ws-2');
+      await expect(
+        PinnedTabService.reorderPinnedTabs('ws-1', [w1[0]!.id, w2[0]!.id]),
+      ).rejects.toThrow('不属于');
+    });
+  });
 });

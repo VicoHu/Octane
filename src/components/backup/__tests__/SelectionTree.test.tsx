@@ -12,8 +12,8 @@ const categories: Category[] = [
   { id: 'cat-1b', workspaceId: 'ws-1', name: '文档', icon: '📂', order: 1, createdAt: 1 },
 ];
 const bookmarks: Bookmark[] = [
-  { id: 'bm-1a', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'A', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
-  { id: 'bm-1b', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'B', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
+  { id: 'bm-1a', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'A', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1, order: 0 },
+  { id: 'bm-1b', workspaceId: 'ws-1', categoryId: 'cat-1a', name: 'B', url: '', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1, order: 0 },
 ];
 
 describe('SelectionTree — Semi Tree 勾选产出 ShareSelection', () => {

@@ -22,6 +22,8 @@
   --danger: #ef4444;
 
   /* === 中性色 === */
+  --neutral: #2d3436;          /* 炭灰锚定色(DESIGN.md neutral/primary-on/sidebar-surface 都是 #2D3436) */
+  --neutral-rgb: 45, 52, 54;   /* 炭灰 alpha 变体基底:rgba(var(--neutral-rgb), X) */
   --muted: #64748b;
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -51,6 +53,10 @@
   /* === 过渡 === */
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;
+
+  /* === 拖拽浮层阴影(T10,DESIGN.md shadow token;navy alpha 呼应绿族冷调)=== */
+  --shadow-soft: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-elevated: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 /* === 暗色侧边栏 token（必须在 .semi-always-dark scope 定义：Semi 的 --semi-color-*

@@ -8,6 +8,7 @@ vi.mock('@/services/PinnedTabService', () => ({
     makePin('new-1', _ws, data.name, data.url, 0),
   ),
   deletePinnedTab: vi.fn(async () => undefined),
+  reorderPinnedTabs: vi.fn(async () => undefined),
   PINNED_TAB_CAP: 8,
 }));
 
@@ -98,5 +99,42 @@ describe('usePinnedTabs', () => {
 
     await expect(usePinnedTabs.getState().deletePinnedTab('a')).rejects.toThrow('删除失败');
     expect(usePinnedTabs.getState().pinnedTabs).toEqual(before);
+  });
+});
+
+describe('usePinnedTabs — T3 reorderPinnedTabs(乐观重排 + 失败回滚)', () => {
+  it('乐观重排:pinnedTabs 切片按 orderedIds 重排并赋 0..N', async () => {
+    usePinnedTabs.setState({
+      pinnedTabs: [
+        makePin('a', 'ws-1', 'A', 'https://a.com', 0),
+        makePin('b', 'ws-1', 'B', 'https://b.com', 1),
+        makePin('c', 'ws-1', 'C', 'https://c.com', 2),
+      ],
+    });
+
+    await usePinnedTabs.getState().reorderPinnedTabs('ws-1', ['c', 'a', 'b']);
+
+    expect(PinnedTabService.reorderPinnedTabs).toHaveBeenCalledWith('ws-1', ['c', 'a', 'b']);
+    const ps = usePinnedTabs.getState().pinnedTabs;
+    expect(ps.map((p) => p.id)).toEqual(['c', 'a', 'b']);
+    expect(ps.map((p) => p.order)).toEqual([0, 1, 2]);
+  });
+
+  it('失败回滚:service 抛错 → pinnedTabs 恢复前一快照', async () => {
+    usePinnedTabs.setState({
+      pinnedTabs: [
+        makePin('a', 'ws-1', 'A', 'https://a.com', 0),
+        makePin('b', 'ws-1', 'B', 'https://b.com', 1),
+      ],
+    });
+    vi.mocked(PinnedTabService.reorderPinnedTabs).mockRejectedValue(new Error('排序 ID 数量与现有记录不一致'));
+
+    await expect(
+      usePinnedTabs.getState().reorderPinnedTabs('ws-1', ['b', 'a']),
+    ).rejects.toThrow('排序 ID 数量与现有记录不一致');
+
+    const ps = usePinnedTabs.getState().pinnedTabs;
+    expect(ps.map((p) => p.id)).toEqual(['a', 'b']);
+    expect(ps.map((p) => p.order)).toEqual([0, 1]);
   });
 });

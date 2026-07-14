@@ -22,6 +22,18 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Sidebar } from '../../Sidebar';
 import { useWorkspace } from '@/store/useWorkspace';
 
+const setCats = (cats: Array<{ id: string; name: string; icon: string }>, currentCategoryId: string | null = null) => {
+  useWorkspace.setState({
+    categories: cats as never,
+    currentCategoryId,
+    currentWorkspaceId: 'w1',
+    workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
+  });
+};
+
+const gripButtons = () =>
+  screen.getAllByRole('button').filter((b) => b.getAttribute('aria-roledescription') === '可拖拽项');
+
 beforeEach(() => {
   useWorkspace.setState({
     workspaces: [{ id: 'w1', name: '主工作区', icon: '📁' }] as never,
@@ -126,5 +138,26 @@ describe('Sidebar 删除分类二次确认', () => {
     const input = screen.getByLabelText('确认删除短语') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '我确认删除' } });
     expect(getOkButton().disabled).toBe(true);
+  });
+});
+
+describe('Sidebar 分类拖拽(T6)', () => {
+  it('>1 分类:每分类渲染 grip 手柄', () => {
+    setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
+    render(<Sidebar />);
+    expect(gripButtons()).toHaveLength(2);
+  });
+
+  it('≤1 分类:不渲染 grip(纯 List.Item 无 Sortable)', () => {
+    setCats([{ id: 'c1', name: '工作', icon: '💼' }], 'c1');
+    render(<Sidebar />);
+    expect(gripButtons()).toHaveLength(0);
+  });
+
+  it('IconDelete 带 data-no-dnd(防拖拽冒泡)', () => {
+    setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
+    const { container } = render(<Sidebar />);
+    const del = container.querySelector('[aria-label="删除分类 工作"]');
+    expect(del?.hasAttribute('data-no-dnd')).toBe(true);
   });
 });

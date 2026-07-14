@@ -1,5 +1,5 @@
-import { getAll, putRecord, getByKey } from '@/shared/db/database';
-import { cascadeDeleteWorkspace } from '@/shared/db/database';
+import { getAll, putRecord, getByKey, getDB, broadcastChange, cascadeDeleteWorkspace } from '@/shared/db/database';
+import { nextOrder, validateOrderedIds } from '@/shared/utils/order';
 import type { Workspace } from '@/shared/types';
 
 function generateId(): string {
@@ -12,18 +12,45 @@ export async function listWorkspaces(): Promise<Workspace[]> {
   return all.sort((a, b) => a.order - b.order);
 }
 
-/** 创建工作区 */
+/** 创建工作区(单 readwrite 事务:read maxOrder + put 同事务,防并发重复 order) */
 export async function createWorkspace(name: string, icon: string): Promise<Workspace> {
-  const all = await listWorkspaces();
+  const db = await getDB();
+  const tx = db.transaction('workspaces', 'readwrite');
+  const store = tx.objectStore('workspaces');
+  const existing = await store.getAll();
+  const order = nextOrder(existing); // maxOrder+1(删洞安全,非 length)
   const workspace: Workspace = {
     id: generateId(),
     name,
     icon,
     createdAt: Date.now(),
-    order: all.length,
+    order,
   };
-  await putRecord('workspaces', workspace);
+  await store.put(workspace);
+  await tx.done;
+  broadcastChange('workspaces', 'put');
   return workspace;
+}
+
+/**
+ * 重排全部工作区(全局,无 containerId)。校验:无重复 ID 且输入集合 === 全部 workspace ID。
+ * 单 readwrite 事务 full-rewrite 0..N + 广播。
+ */
+export async function reorderWorkspaces(orderedIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('workspaces', 'readwrite');
+  const store = tx.objectStore('workspaces');
+  const existing = await store.getAll();
+  const err = validateOrderedIds(orderedIds, existing.map((w) => w.id));
+  if (err) throw new Error(err);
+  const byId = new Map(existing.map((w) => [w.id, w]));
+  for (let i = 0; i < orderedIds.length; i++) {
+    const w = byId.get(orderedIds[i]!)!;
+    w.order = i;
+    await store.put(w);
+  }
+  await tx.done;
+  broadcastChange('workspaces', 'put');
 }
 
 /** 更新工作区 */

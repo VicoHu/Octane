@@ -1,13 +1,15 @@
-import { putRecord, getByKey, getByIndex, deleteBookmarkCascade } from '@/shared/db/database';
+import { putRecord, getByKey, getByIndex, deleteBookmarkCascade, getDB, broadcastChange } from '@/shared/db/database';
 import type { Bookmark } from '@/shared/types';
+import { nextOrder, validateOrderedIds } from '@/shared/utils/order';
 
 function generateId(): string {
   return crypto.randomUUID();
 }
 
-/** 获取指定分类下的书签 */
+/** 获取指定分类下的书签,按 order 升序(order 缺失 fallback createdAt,防御 v5 库灌入旧备份) */
 export async function listBookmarks(categoryId: string): Promise<Bookmark[]> {
-  return getByIndex<Bookmark>('bookmarks', 'by-categoryId', categoryId);
+  const list = await getByIndex<Bookmark>('bookmarks', 'by-categoryId', categoryId);
+  return list.sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
 }
 
 /** 获取指定工作区下的所有书签 */
@@ -16,12 +18,18 @@ export async function listBookmarksByWorkspace(workspaceId: string): Promise<Boo
 }
 
 /** 创建书签 */
+/** 创建书签(单 readwrite 事务:read maxOrder + put 同事务,防 MV3 多 context 并发重复 order) */
 export async function createBookmark(
   workspaceId: string,
   categoryId: string,
   data: { name: string; url: string; description?: string },
 ): Promise<Bookmark> {
   const now = Date.now();
+  const db = await getDB();
+  const tx = db.transaction('bookmarks', 'readwrite');
+  const store = tx.objectStore('bookmarks');
+  const existing = await store.index('by-categoryId').getAll(categoryId);
+  const order = nextOrder(existing); // maxOrder+1(删洞安全,非 length)
   const bookmark: Bookmark = {
     id: generateId(),
     workspaceId,
@@ -34,9 +42,34 @@ export async function createBookmark(
     hasEncryptedContext: false,
     createdAt: now,
     updatedAt: now,
+    order,
   };
-  await putRecord('bookmarks', bookmark);
+  await store.put(bookmark);
+  await tx.done;
+  broadcastChange('bookmarks', 'put');
   return bookmark;
+}
+
+/**
+ * 重排分类内书签(单 readwrite 事务:校验读取 + full-rewrite 同事务,防 TOCTOU)。
+ * 校验(失败 throw Error,UI catch + Toast):ID 无重复 / 全部属于该 categoryId /
+ * 输入集合 === 当前集合(无缺失/多余)。按 orderedIds 赋 0..N full-rewrite。
+ */
+export async function reorderBookmarks(categoryId: string, orderedBookmarkIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('bookmarks', 'readwrite');
+  const store = tx.objectStore('bookmarks');
+  const existing = await store.index('by-categoryId').getAll(categoryId);
+  const err = validateOrderedIds(orderedBookmarkIds, existing.map((b) => b.id));
+  if (err) throw new Error(err);
+  const byId = new Map(existing.map((b) => [b.id, b]));
+  for (let i = 0; i < orderedBookmarkIds.length; i++) {
+    const b = byId.get(orderedBookmarkIds[i]!)!;
+    b.order = i;
+    await store.put(b);
+  }
+  await tx.done;
+  broadcastChange('bookmarks', 'put');
 }
 
 /** 更新书签 */
@@ -45,6 +78,37 @@ export async function updateBookmark(id: string, updates: Partial<Pick<Bookmark,
   if (!existing) throw new Error('书签不存在');
   const updated: Bookmark = { ...existing, ...updates, updatedAt: Date.now() };
   await putRecord('bookmarks', updated);
+}
+
+/**
+ * 移动书签到目标工作区/分类(编辑面板「改分类」入口)。
+ * 单 readwrite 事务:读 existing + 读目标分类现有 + put 同事务,防并发。
+ * order 重分配 = 目标分类 maxOrder+1(末尾追加;排除自身防同分类移动与旧 order 冲突)。
+ * store action(T3)改成调本函数,替代旧 updateBookmark({...}) 保留 order 的路径。
+ */
+export async function moveBookmark(
+  id: string,
+  targetWorkspaceId: string,
+  targetCategoryId: string,
+): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('bookmarks', 'readwrite');
+  const store = tx.objectStore('bookmarks');
+  const existing = await store.get(id);
+  if (!existing) throw new Error('书签不存在');
+  const targetMembers = (await store.index('by-categoryId').getAll(targetCategoryId))
+    .filter((b) => b.id !== id);
+  const order = nextOrder(targetMembers);
+  const updated: Bookmark = {
+    ...existing,
+    workspaceId: targetWorkspaceId,
+    categoryId: targetCategoryId,
+    order,
+    updatedAt: Date.now(),
+  };
+  await store.put(updated);
+  await tx.done;
+  broadcastChange('bookmarks', 'put');
 }
 
 /** 删除书签（级联删除上下文） */

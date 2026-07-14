@@ -23,6 +23,7 @@ const bookmark: Bookmark = {
   faviconUrl: '',
   contextCount: 0,
   hasEncryptedContext: false,
+  order: 0,
   createdAt: 0,
   updatedAt: 0,
 };
