@@ -34,6 +34,8 @@ export interface Bookmark {
   createdAt: number;
   /** 乐观锁字段，防止并发覆盖 */
   updatedAt: number;
+  /** 分类内排序，0 起（v4→v5 迁移按 createdAt ASC, id ASC 回填） */
+  order: number;
 }
 
 /** 上下文类型 */
@@ -95,7 +97,7 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /** Favicon 缓存记录（per-hostname 去重） */
 export interface FaviconRecord {
@@ -129,10 +131,10 @@ export interface PinnedTab {
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
-/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind） */
-export const BACKUP_VERSION = 3;
-/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup） */
-export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3];
+/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind，v4 起书签带 order） */
+export const BACKUP_VERSION = 4;
+/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup；v1/v2/v3 书签无 order → 解析时回填） */
+export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3, 4];
 
 /** 备份文件种类：backup=全量覆盖恢复（灾备），share=部分合并导入（分享） */
 export type BackupKind = 'backup' | 'share';

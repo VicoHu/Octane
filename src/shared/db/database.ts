@@ -1,4 +1,4 @@
-import { openDB, type IDBPDatabase, type IDBPObjectStore } from 'idb';
+import { openDB, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 import { DB_NAME, DB_VERSION } from '@/shared/types';
 import type {
   BackupData,
@@ -66,11 +66,12 @@ let dbPromise: Promise<IDBPDatabase<OctaneDB>> | null = null;
  * v1–v3 的建库逻辑保留幂等 `if (!contains)` 守卫（不按版本门控），以精确复刻历史行为、
  * 避免对老库的回归风险；v4 起新增 store 走显式 `oldVersion < N` 门控，让迁移边界清晰可测。
  */
-export function runUpgrade(
+export async function runUpgrade(
   db: IDBPDatabase<OctaneDB>,
   oldVersion: number,
   _newVersion: number | null,
-): void {
+  transaction?: IDBPTransaction<OctaneDB, string[], 'versionchange'>,
+): Promise<void> {
   // 工作区表
   if (!db.objectStoreNames.contains('workspaces')) {
     db.createObjectStore('workspaces', { keyPath: 'id' });
@@ -114,14 +115,40 @@ export function runUpgrade(
     const pinnedStore = db.createObjectStore('pinnedTabs', { keyPath: 'id' });
     pinnedStore.createIndex('by-workspaceId', 'workspaceId');
   }
+
+  // Bookmark order 回填（v4→v5）：拖拽排序 0.1.12 新增 order 字段。按 categoryId 分组，
+  // 组内 (createdAt ASC, id ASC) 赋 0,1,2...，与 BackupService 旧备份回填算法一致。
+  // 【禁用 putRecord】它调 getDB() 开新事务，与 versionchange 升级事务并行 → 中断升级
+  //（idb footgun）。必须复用 upgrade 回调注入的 transaction.objectStore('bookmarks')。
+  if (oldVersion < 5 && transaction) {
+    // 外部无 upgrade 事务直接调用（如幂等校验）时 transaction 缺失 → 跳过数据迁移；
+    // 用条件守卫而非早退 return，让未来 v6+ 迁移块仍能在同一调用内执行
+    const store = transaction.objectStore('bookmarks');
+    const all = (await store.getAll()) as Bookmark[];
+    const groups = new Map<string, Bookmark[]>();
+    for (const b of all) {
+      const arr = groups.get(b.categoryId) ?? [];
+      arr.push(b);
+      groups.set(b.categoryId, arr);
+    }
+    for (const arr of groups.values()) {
+      arr.sort(
+        (a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      );
+      for (let i = 0; i < arr.length; i++) {
+        arr[i]!.order = i;
+        await store.put(arr[i]!);
+      }
+    }
+  }
 }
 
 /** 获取 IndexedDB 连接（单例） */
 export function getDB(): Promise<IDBPDatabase<OctaneDB>> {
   if (!dbPromise) {
     dbPromise = openDB<OctaneDB>(DB_NAME, DB_VERSION, {
-      upgrade: (db, oldVersion, newVersion) => {
-        runUpgrade(db, oldVersion, newVersion);
+      upgrade: (db, oldVersion, newVersion, transaction) => {
+        return runUpgrade(db, oldVersion, newVersion, transaction);
       },
     });
   }

@@ -1,5 +1,6 @@
 import { getDB, deleteRecord, broadcastChange } from '@/shared/db/database';
 import type { PinnedTab } from '@/shared/types';
+import { validateOrderedIds } from '@/shared/utils/order';
 
 /** 每个工作区常驻标签上限（2 行 × 4 列）；超限由调用方 Toast 提示。 */
 export const PINNED_TAB_CAP = 8;
@@ -91,6 +92,27 @@ export async function createPinnedTab(
   // 跨 context 广播（T6 home 订阅后刷新）；事务外触发，不阻塞原子性
   broadcastChange('pinnedTabs', 'put');
   return pin;
+}
+
+/**
+ * 重排工作区内常驻标签(per-workspace)。单 readwrite 事务:校验读取 + full-rewrite 同事务,
+ * 防 TOCTOU。校验失败 throw Error;按 orderedIds 赋 0..N。
+ */
+export async function reorderPinnedTabs(workspaceId: string, orderedIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('pinnedTabs', 'readwrite');
+  const store = tx.objectStore('pinnedTabs');
+  const existing = await store.index('by-workspaceId').getAll(workspaceId);
+  const err = validateOrderedIds(orderedIds, existing.map((p) => p.id));
+  if (err) throw new Error(err);
+  const byId = new Map(existing.map((p) => [p.id, p]));
+  for (let i = 0; i < orderedIds.length; i++) {
+    const p = byId.get(orderedIds[i]!)!;
+    p.order = i;
+    await store.put(p);
+  }
+  await tx.done;
+  broadcastChange('pinnedTabs', 'put');
 }
 
 /** 删除常驻标签。deleteRecord 内置 broadcast，跨 context 同步。 */

@@ -1,0 +1,86 @@
+/* === T10 dnd 共享原语样式:grip / overlay / placeholder ===
+ * 4 层拖拽统一视觉。颜色按「面明度」分支(不按层):
+ *   - 浅色面(BookmarkCard 白底 / ManagePanel Modal 白底):炭灰 #2D3436 描边
+ *   - 深色面(Sidebar bg #202829 / PinnedArea chip 底 #2D3436):浅描边 rgba(255,255,255,.5) alpha≥.5 达 AA
+ */
+
+/* ===== GripButton:4 层统一的拖拽手柄(D6 唯一拖拽源)===== */
+.grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  /* inherit 自适应所在面:浅色面随深文,深色面随浅文。opacity 统一控可见性 */
+  color: inherit;
+  opacity: 0.45;
+  cursor: grab;
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+}
+.grip:hover {
+  opacity: 0.9;
+}
+.grip:active {
+  cursor: grabbing;
+}
+.grip:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+/* ManagePanel 整理语境:grip 常驻(不靠 hover 显) */
+.gripAlwaysVisible {
+  opacity: 0.55;
+}
+.gripAlwaysVisible:hover {
+  opacity: 0.9;
+}
+.gripIcon {
+  pointer-events: none;
+}
+
+/* ===== SortableOverlay:DragOverlay 内容包裹(z-index 1005 > Modal 1000 < Toast 1010)===== */
+.overlay {
+  box-shadow: var(--shadow-elevated);
+  border-radius: var(--radius-md);
+  transform: scale(1.04);
+  cursor: grabbing;
+}
+/* 浅色面:炭灰描边 */
+.overlayLight {
+  border: 1.5px solid var(--neutral);
+}
+/* 深色面:浅描边 alpha≥.5(炭灰在炭灰底不可见) */
+.overlayDark {
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+}
+/* 非法落区:降透明 + not-allowed */
+.overlayInvalid {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== placeholder:被拖节点原位占位(dnd-kit measured rect,禁固定 min-height 防列位跳跃)===== */
+.placeholder {
+  border: 1.5px dashed rgba(var(--neutral-rgb), 0.4);
+  background: rgba(var(--neutral-rgb), 0.04);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+}
+.placeholderDark {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ===== reduced-motion:禁 scale/rotate,保描边 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .grip {
+    transition: none;
+  }
+  .overlay {
+    transform: none;
+  }
+}

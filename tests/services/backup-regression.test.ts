@@ -56,7 +56,7 @@ const ws: Workspace = { id: 'ws-1', name: '工作', icon: '📁', createdAt: 1, 
 const cat: Category = { id: 'cat-1', workspaceId: 'ws-1', name: '工具', icon: '📂', order: 0, createdAt: 1 };
 const bm: Bookmark = {
   id: 'bm-1', workspaceId: 'ws-1', categoryId: 'cat-1', name: 'Octane', url: 'https://x.com',
-  description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: true, createdAt: 1, updatedAt: 1,
+  description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: true, order: 0, createdAt: 1, updatedAt: 1,
 };
 const encCtx: Context = {
   id: 'ctx-1', bookmarkId: 'bm-1', type: ContextType.NOTE, title: '密钥', content: '',

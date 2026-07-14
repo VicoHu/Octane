@@ -22,9 +22,11 @@ interface PinnedTabsState {
   ) => Promise<PinnedTab>;
   /** 删除常驻标签。 */
   deletePinnedTab: (id: string) => Promise<void>;
+  /** 重排工作区内常驻标签(乐观重排 pinnedTabs 切片 + 失败回滚)。 */
+  reorderPinnedTabs: (workspaceId: string, orderedIds: string[]) => Promise<void>;
 }
 
-export const usePinnedTabs = create<PinnedTabsState>((set) => ({
+export const usePinnedTabs = create<PinnedTabsState>((set, get) => ({
   pinnedTabs: [],
   loading: false,
 
@@ -51,5 +53,18 @@ export const usePinnedTabs = create<PinnedTabsState>((set) => ({
   deletePinnedTab: async (id) => {
     await PinnedTabService.deletePinnedTab(id);
     set((s) => ({ pinnedTabs: s.pinnedTabs.filter((p) => p.id !== id) }));
+  },
+
+  reorderPinnedTabs: async (workspaceId, orderedIds) => {
+    // 乐观重排:按 orderedIds 重建 pinnedTabs 切片并赋 0..N
+    const prev = get().pinnedTabs;
+    const byId = new Map(prev.map((p) => [p.id, p]));
+    set({ pinnedTabs: orderedIds.map((id, i) => ({ ...byId.get(id)!, order: i })) });
+    try {
+      await PinnedTabService.reorderPinnedTabs(workspaceId, orderedIds);
+    } catch (e) {
+      set({ pinnedTabs: prev });
+      throw e;
+    }
   },
 }));

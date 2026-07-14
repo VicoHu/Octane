@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy } from '@/services/shareImport';
+import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy, reorderForImport } from '@/services/shareImport';
 import type { BackupData, Bookmark, Context, CryptoMetadata } from '@/shared/types';
 import { ContextType } from '@/shared/types';
 
@@ -26,7 +26,7 @@ const shareData: BackupData = {
   bookmarks: [
     {
       id: 'bm-old', workspaceId: 'ws-old', categoryId: 'cat-old', name: 'n', url: 'https://x.com',
-      description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1,
+      description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1,
     },
   ],
   contexts: [
@@ -162,8 +162,8 @@ describe('filterEncryptedBySalt — 死密文过滤(N1)', () => {
 describe('recomputeRedundancy — 冗余字段预修正(F1)', () => {
   it('按实际 context 数重算 contextCount + hasEncryptedContext(发送方冗余值失效)', () => {
     const bms: Bookmark[] = [
-      { id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
-      { id: 'b2', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 },
+      { id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 },
+      { id: 'b2', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 },
     ];
     const ctxs: Context[] = [
       { id: 'x1', bookmarkId: 'b1', type: ContextType.NOTE, title: 'p', content: '', isEncrypted: false, order: 0, createdAt: 1, updatedAt: 1 },
@@ -177,8 +177,145 @@ describe('recomputeRedundancy — 冗余字段预修正(F1)', () => {
   });
 
   it('纯函数:不 mutate 输入 bookmark', () => {
-    const bms: Bookmark[] = [{ id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, createdAt: 1, updatedAt: 1 }];
+    const bms: Bookmark[] = [{ id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'n', url: 'u', description: '', faviconUrl: '', contextCount: 99, hasEncryptedContext: false, order: 0, createdAt: 1, updatedAt: 1 }];
     recomputeRedundancy(bms, []);
     expect(bms[0]!.contextCount).toBe(99);
+  });
+});
+
+// ── T2:分享导入 order 重映射(0.1.12 波2)──
+// 纯函数,不碰 DB。maxOrder 由编排层(applyShareImport)注入。
+
+function bm(id: string, workspaceId: string, categoryId: string, order: number, createdAt: number): Bookmark {
+  return {
+    id, workspaceId, categoryId, name: 'n', url: 'u', description: '', faviconUrl: '',
+    contextCount: 0, hasEncryptedContext: false, order, createdAt, updatedAt: createdAt,
+  };
+}
+
+// 2 ws × 2 category × 2 bookmark + 2 ws 各自 pinnedTab。发送方 order 故意跨容器重叠 + 乱序,
+// 用以验证「不同父容器子组各自独立从 0 起,非全局连续」(outside voice P1 修正点)。
+const multiWsData: BackupData = {
+  workspaces: [
+    { id: 'ws-x', name: 'X', icon: '📁', createdAt: 100, order: 5 },
+    { id: 'ws-y', name: 'Y', icon: '📁', createdAt: 50, order: 2 },
+  ],
+  categories: [
+    { id: 'cat-a1', workspaceId: 'ws-x', name: 'A1', icon: '📂', order: 3, createdAt: 1 },
+    { id: 'cat-a2', workspaceId: 'ws-x', name: 'A2', icon: '📂', order: 1, createdAt: 2 },
+    { id: 'cat-b1', workspaceId: 'ws-y', name: 'B1', icon: '📂', order: 0, createdAt: 3 },
+    { id: 'cat-b2', workspaceId: 'ws-y', name: 'B2', icon: '📂', order: 4, createdAt: 4 },
+  ],
+  bookmarks: [
+    bm('bm-a1-1', 'ws-x', 'cat-a1', 10, 1),
+    bm('bm-a1-2', 'ws-x', 'cat-a1', 8, 2),
+    bm('bm-a2-1', 'ws-x', 'cat-a2', 0, 3),
+    bm('bm-b1-1', 'ws-y', 'cat-b1', 5, 4),
+    bm('bm-b1-2', 'ws-y', 'cat-b1', 3, 5),
+    bm('bm-b2-1', 'ws-y', 'cat-b2', 1, 6),
+  ],
+  contexts: [],
+  pinnedTabs: [
+    { id: 'pin-x1', workspaceId: 'ws-x', name: 'p', url: 'u', order: 2, createdAt: 1 },
+    { id: 'pin-x2', workspaceId: 'ws-x', name: 'p', url: 'u', order: 0, createdAt: 2 },
+    { id: 'pin-y1', workspaceId: 'ws-y', name: 'p', url: 'u', order: 7, createdAt: 3 },
+  ],
+  cryptoMetadata: null,
+};
+
+describe('reorderForImport — 分享导入 order 重映射(T2 纯函数)', () => {
+  it('workspaces 按发送方(order,createdAt,id)稳定排序,追加 receiverMax+1,+2...', () => {
+    // receiverMaxWorkspaceOrder=1(接收方现有最大 ws order)
+    const r = reorderForImport(multiWsData, 1);
+    // 发送方 order 升序:ws-y(2) < ws-x(5) → 赋 2, 3
+    const byId = new Map(r.workspaces.map((w) => [w.id, w.order]));
+    expect(byId.get('ws-y')).toBe(2);
+    expect(byId.get('ws-x')).toBe(3);
+  });
+
+  it('receiverMaxWorkspaceOrder=-1(空接收方)→ 新 ws 从 0 起', () => {
+    const r = reorderForImport(multiWsData, -1);
+    const byId = new Map(r.workspaces.map((w) => [w.id, w.order]));
+    expect(byId.get('ws-y')).toBe(0); // order=2 升序第一 → 0
+    expect(byId.get('ws-x')).toBe(1);
+  });
+
+  it('categories 按 workspaceId 分子组,每组各自从 0 起(非全局连续)', () => {
+    const r = reorderForImport(multiWsData, 1);
+    const byId = new Map(r.categories.map((c) => [c.id, c.order]));
+    // ws-x 组:cat-a2(order=1) < cat-a1(order=3) → 0, 1
+    expect(byId.get('cat-a2')).toBe(0);
+    expect(byId.get('cat-a1')).toBe(1);
+    // ws-y 组:cat-b1(order=0) < cat-b2(order=4) → 0, 1(非 2,3 —— P1 修正点)
+    expect(byId.get('cat-b1')).toBe(0);
+    expect(byId.get('cat-b2')).toBe(1);
+  });
+
+  it('bookmarks 按 categoryId 分子组,每组各自从 0 起(非全局连续)', () => {
+    const r = reorderForImport(multiWsData, 1);
+    const byId = new Map(r.bookmarks.map((b) => [b.id, b.order]));
+    // cat-a1 组:bm-a1-2(order=8) < bm-a1-1(order=10) → 0, 1
+    expect(byId.get('bm-a1-2')).toBe(0);
+    expect(byId.get('bm-a1-1')).toBe(1);
+    // cat-a2 组:bm-a2-1(order=0) → 0(独立从 0 起,非全局连续)
+    expect(byId.get('bm-a2-1')).toBe(0);
+    // cat-b1 组:bm-b1-2(order=3) < bm-b1-1(order=5) → 0, 1
+    expect(byId.get('bm-b1-2')).toBe(0);
+    expect(byId.get('bm-b1-1')).toBe(1);
+    // cat-b2 组:bm-b2-1(order=1) → 0
+    expect(byId.get('bm-b2-1')).toBe(0);
+  });
+
+  it('pinnedTabs 按 workspaceId 分子组,每组各自从 0 起(非全局连续)', () => {
+    const r = reorderForImport(multiWsData, 1);
+    const byId = new Map(r.pinnedTabs!.map((p) => [p.id, p.order]));
+    // ws-x 组:pin-x2(order=0) < pin-x1(order=2) → 0, 1
+    expect(byId.get('pin-x2')).toBe(0);
+    expect(byId.get('pin-x1')).toBe(1);
+    // ws-y 组:pin-y1(order=7) → 0(独立从 0 起)
+    expect(byId.get('pin-y1')).toBe(0);
+  });
+
+  it('纯函数:不 mutate 输入(原数据 order 不变)', () => {
+    reorderForImport(multiWsData, 1);
+    expect(multiWsData.workspaces[0]!.order).toBe(5);
+    expect(multiWsData.categories[0]!.order).toBe(3);
+    expect(multiWsData.bookmarks[0]!.order).toBe(10);
+    expect(multiWsData.pinnedTabs![0]!.order).toBe(2);
+  });
+
+  it('ID 不变(只重排 order;ID remap 由 remapShareIds 另行处理)', () => {
+    const r = reorderForImport(multiWsData, 1);
+    expect(r.workspaces.map((w) => w.id)).toEqual(['ws-x', 'ws-y']);
+    expect(r.categories.map((c) => c.id)).toEqual(['cat-a1', 'cat-a2', 'cat-b1', 'cat-b2']);
+  });
+
+  it('cryptoMetadata 原样透传', () => {
+    const r = reorderForImport(multiWsData, 1);
+    expect(r.cryptoMetadata).toBeNull();
+  });
+
+  it('缺 pinnedTabs(undefined)→ 输出仍为 undefined', () => {
+    const noPin: BackupData = { ...multiWsData, pinnedTabs: undefined };
+    const r = reorderForImport(noPin, 1);
+    expect(r.pinnedTabs).toBeUndefined();
+  });
+
+  it('同 order tie-break:createdAt 升序,再 id 字符串升序', () => {
+    // 三个 ws 同 order=0,验证 (createdAt, id) tie-break
+    const tieData: BackupData = {
+      ...multiWsData,
+      workspaces: [
+        { id: 'ws-c', name: 'C', icon: '📁', createdAt: 50, order: 0 },
+        { id: 'ws-a', name: 'A', icon: '📁', createdAt: 50, order: 0 },
+        { id: 'ws-b', name: 'B', icon: '📁', createdAt: 30, order: 0 },
+      ],
+    };
+    const r = reorderForImport(tieData, 0);
+    // 排序:ws-b(createdAt=30) < ws-a(50,id=a) < ws-c(50,id=c) → 赋 1, 2, 3(receiverMax=0)
+    const byId = new Map(r.workspaces.map((w) => [w.id, w.order]));
+    expect(byId.get('ws-b')).toBe(1);
+    expect(byId.get('ws-a')).toBe(2);
+    expect(byId.get('ws-c')).toBe(3);
   });
 });
