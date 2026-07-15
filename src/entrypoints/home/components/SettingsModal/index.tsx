@@ -30,8 +30,8 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
           <DialogTitle>系统设置</DialogTitle>
         </DialogHeader>
         <div style={{ maxHeight: '70vh', overflow: 'auto', paddingBottom: 'var(--space-xl)' }}>
-          <Tabs defaultValue="shortcuts" orientation="vertical">
-            <TabsList variant="line">
+          <Tabs defaultValue="shortcuts">
+            <TabsList>
               <TabsTrigger value="shortcuts">快捷键</TabsTrigger>
               <TabsTrigger value="backup">数据备份和同步</TabsTrigger>
               <TabsTrigger value="maintenance">数据维护</TabsTrigger>
