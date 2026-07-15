@@ -146,11 +146,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <div className={styles.sectionLabel}>工作区</div>
       <div className={styles.workspaceSelect}>
         <Select
-          value={currentWorkspaceId ?? undefined}
+          value={currentWorkspaceId}
           onValueChange={(val) => val && selectWorkspace(val)}
         >
           <SelectTrigger className={styles.select}>
-            <SelectValue placeholder="选择工作区" />
+            <SelectValue>
+              {(value: string | null) => {
+                const ws = workspaces.find((w) => w.id === value);
+                if (!ws) return '选择工作区';
+                return (
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden="true">{ws.icon}</span>
+                    <span className="truncate">{ws.name}</span>
+                  </span>
+                );
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {workspaces.map((ws) => (
