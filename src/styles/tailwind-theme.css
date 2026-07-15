@@ -15,6 +15,10 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-light: var(--primary-light);
+  --color-primary-text: var(--primary-text);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -52,7 +56,8 @@
   --secondary: #f1f5f9; /* surface-secondary */
   --secondary-foreground: #475569; /* text-secondary */
   --muted: #f1f5f9;
-  --muted-foreground: #64748b; /* muted，仅元信息 */
+  --text-muted: #64748b; /* 仅元信息；与 muted 表面色分离 */
+  --muted-foreground: var(--text-muted);
   --accent: #f1f5f9; /* hover 中性 fill（绿色预算：hover 不用绿）*/
   --accent-foreground: #0f172a;
   --destructive: #ef4444; /* danger */
@@ -77,7 +82,8 @@
   --secondary: #2d3436;
   --secondary-foreground: #ffffff;
   --muted: #2d3436;
-  --muted-foreground: #9ca3af;
+  --text-muted: #9ca3af;
+  --muted-foreground: var(--text-muted);
   --accent: #2d3436;
   --accent-foreground: #ffffff;
   --destructive: #ef4444;
