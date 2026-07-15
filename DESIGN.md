@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Octane
-description: Octane 浏览器扩展设计系统。品牌 DNA：克制双色 · 几何粗线 · 速度母题。基座为 Semi Design，本文件是项目语义 token 的单一真源；Semi --semi-* 应派生自此。
+description: Octane 浏览器扩展设计系统。品牌 DNA：克制双色 · 几何粗线 · 速度母题。基座为 shadcn/ui（Base UI），本文件是项目语义 token 的单一真源；shadcn CSS 变量（--background/--primary 等）与残留 Semi 的 --semi-* 均派生自此。
 colors:
   # 品牌绿族（accent，不是底色）
   primary: "#00B894"            # Logo 速度线/书签飘带原色；accent：图标/描边/选中/按钮底
@@ -101,7 +101,7 @@ components:
 # Design System — Octane
 
 > 本文件是 Octane 设计系统的**单一真源**（机器可读 token + 理由），遵循 [Google DESIGN.md alpha spec](https://github.com/google-labs-code/design.md)。
-> 完整理由、现状审视、设计债务清单、交付检查清单见 `docs/design-guidelines.md`；Semi DSM token 机制见 `docs/semi-design-spec.md`。
+> 完整理由、现状审视、设计债务清单、交付检查清单见 `docs/design-guidelines.md`；Semi DSM token 机制（仅残留 Semi Form/Tree）见 `docs/semi-design-spec.md`；Semi→shadcn 迁移见 `docs/superpowers/specs/2026-07-15-semi-to-shadcn-design.md`。
 > 做任何视觉/UI 决策前必读本文件。样式一律引用 token，禁止裸写；改主题只动 token 不动组件。
 
 ## Brand & Style
@@ -143,7 +143,7 @@ components:
 
 ## Layout
 
-深色侧栏（`--sidebar-width 260px`）+ 浅色内容区（`max-width 1400px` 居中）。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色的 Semi token 覆盖须同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
+深色侧栏（`--sidebar-width 260px`）+ 浅色内容区（`max-width 1400px` 居中）。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色经 tailwind `@theme` + shadcn 变量派生（`src/styles/tailwind-theme.css` 的 `:root`/`.dark`）；残留 Semi 组件的品牌色仍由 `semi-theme-override.css` 同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
 
 ## Elevation & Depth
 
@@ -166,7 +166,7 @@ components:
 - **输入**：`rounded sm`，focus 用 `primary-focus` ring（白底可见）。
 - **导航/列表选中**：左 3px `primary` 竖条 + 文字提亮 + 极轻中性底；hover 用中性 fill（**不用绿**）。（DESIGN.md schema 无 border-left 属性，落地时按此规则实现。）
 - **Modal**：`rounded lg`，主按钮同主按钮规范。
-- **图标**：功能图标统一 `@douyinfe/semi-icons`（几何、24×24）；品牌区用单色线性图标，不用彩色 emoji。
+- **图标**：功能图标统一 `lucide-react`（几何、24×24）；品牌区用单色线性图标，不用彩色 emoji。残留 Semi Form/Tree 内的 `@douyinfe/semi-icons` 待其迁移时再换。
 
 ## Do's and Don'ts
 
