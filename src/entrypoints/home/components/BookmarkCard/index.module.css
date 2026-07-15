@@ -1,17 +1,34 @@
 .card {
-  cursor: pointer;
   position: relative;
   overflow: hidden;
   /* 视觉层：原靠 Semi Card，迁 shadcn 后须在 module 显式补回（DESIGN.md：卡片 card-bg 白底 + rounded md + 极轻影 hover 略升）*/
   display: flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-lg);
+  min-height: 70px;
+  padding: 0 var(--space-lg);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--card-shadow);
   transition: box-shadow var(--transition-normal);
+}
+
+.mainAction {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+}
+
+.mainAction:focus-visible {
+  outline: 2px solid var(--primary-focus);
+  outline-offset: -2px;
 }
 .card:hover {
   box-shadow: var(--card-hover-shadow);
@@ -19,6 +36,8 @@
 
 .favicon {
   position: relative;
+  z-index: 1;
+  pointer-events: none;
   flex-shrink: 0;
   width: 40px;
   height: 40px;
@@ -62,6 +81,7 @@
   justify-content: center;
   color: #fff;
   z-index: 1;
+  pointer-events: auto;
 }
 
 .contextBadgeDot {
@@ -77,6 +97,9 @@
 }
 
 .info {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -86,7 +109,7 @@
 
 .name {
   font-weight: 600;
-  font-size: var(--font-md);
+  font-size: var(--font-lg);
   margin-bottom: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,6 +170,7 @@
   opacity: 0;
   transform: translateY(-50%) translateX(4px);
   pointer-events: none;
+  z-index: 2;
   transition: opacity var(--transition-normal), transform var(--transition-normal);
 }
 

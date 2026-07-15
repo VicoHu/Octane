@@ -125,17 +125,29 @@
 }
 
 .deleteIcon {
-  font-size: var(--font-xs);
-  opacity: 0.5;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
   cursor: pointer;
   flex-shrink: 0;
   transition: opacity var(--transition-fast), color var(--transition-fast);
   color: var(--sidebar-text-muted);
 }
 
+.cat:hover .deleteIcon,
+.cat:focus-within .deleteIcon {
+  opacity: 0.5;
+}
+
 .deleteIcon:hover {
   opacity: 1;
   color: var(--danger);
+}
+
+@media (pointer: coarse) {
+  .deleteIcon {
+    opacity: 0.5;
+  }
 }
 
 .bottomButton {

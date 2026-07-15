@@ -340,14 +340,16 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             className="pr-8 pl-8"
           />
           {query && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setQuery('')}
-              className="absolute top-1/2 right-2 -translate-y-1/2 opacity-50 hover:opacity-100"
+              className="absolute top-1/2 right-1 -translate-y-1/2 opacity-50 hover:opacity-100"
               aria-label="清除搜索"
             >
-              <X className="size-4" />
-            </button>
+              <X />
+            </Button>
           )}
         </div>
 
@@ -366,7 +368,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
 
       {/* 视图切换:卡片式 Tabs(书签 / 标签页)。默认书签,向后兼容 */}
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as View)}>
-        <TabsList className={styles.tabsList}>
+        <TabsList variant="segmented" className={styles.tabsList}>
           <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签</TabsTrigger>
           <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页({openTabs.length})</TabsTrigger>
         </TabsList>

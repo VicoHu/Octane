@@ -55,16 +55,22 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
     <Card
       role="listitem"
       aria-label={hasOpenTab ? `${bookmark.name}，已打开` : bookmark.name}
-      onClick={() => {
-        onClick(bookmark);
-        // 有已打开 tab 时触发竖线脉冲（跳转反馈）
-        if (hasOpenTab) {
-          setPulsing(true);
-          setTimeout(() => setPulsing(false), 400);
-        }
-      }}
       className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
     >
+      <button
+        type="button"
+        className={styles.mainAction}
+        aria-label={`打开书签 ${bookmark.name}`}
+        onClick={() => {
+          onClick(bookmark);
+          // 有已打开 tab 时触发竖线脉冲（跳转反馈）
+          if (hasOpenTab) {
+            setPulsing(true);
+            setTimeout(() => setPulsing(false), 400);
+          }
+        }}
+      />
+
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
       {grip && <div className={styles.gripSlot}>{grip}</div>}
 

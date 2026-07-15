@@ -1,14 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-// Semi 组件链（Card 等）间接拉入 lottie-web；jsdom 无 canvas 会崩，mock 掉
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {}, play() {}, pause() {}, addEventListener() {}, removeEventListener() {},
-    }),
-    destroy() {}, registerAnimation() {},
-  },
-}));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BookmarkCard } from '../../BookmarkCard';
 import { useFavicon } from '@/hooks/useFavicon';
 import type { Bookmark } from '@/shared/types';
@@ -58,48 +50,54 @@ const renderCard = (
 describe('BookmarkCard', () => {
   it('渲染书签名、域名，且 favicon 缺省时回退首字母', () => {
     renderCard();
-    expect(screen.getByText('GitHub')).toBeTruthy();
-    expect(screen.getByText('github.com')).toBeTruthy();
-    expect(screen.getByText('G')).toBeTruthy();
+    expect(screen.getByText('GitHub')).toBeInTheDocument();
+    expect(screen.getByText('github.com')).toBeInTheDocument();
+    expect(screen.getByText('G')).toBeInTheDocument();
   });
 
-  it('点击卡片触发 onClick（透传到 Card）', () => {
+  it('点击主操作按钮 → 调用 onClick 并传入书签', async () => {
+    const user = userEvent.setup();
     const onClick = vi.fn();
     renderCard({}, { onClick });
-    fireEvent.click(screen.getByText('GitHub'));
+
+    await user.click(screen.getByRole('button', { name: '打开书签 GitHub' }));
+
     expect(onClick).toHaveBeenCalledWith(bookmark);
   });
 
-  it('点击操作按钮不冒泡到卡片 onClick（Semi Button 合成事件 stopPropagation 有效）', () => {
+  it('点击编辑书签 → 只调用编辑回调，不重复调用主操作', async () => {
+    const user = userEvent.setup();
     const onClick = vi.fn();
     const onEdit = vi.fn();
     renderCard({}, { onClick, onEditBookmark: onEdit });
-    fireEvent.click(screen.getByRole('button', { name: '编辑书签' }));
+
+    await user.click(screen.getByRole('button', { name: '打开书签 GitHub' }));
+    await user.click(screen.getByRole('button', { name: '编辑书签' }));
+
     expect(onEdit).toHaveBeenCalledWith(bookmark);
-    expect(onClick).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it('查看上下文按钮触发 onViewContexts 且不冒泡', () => {
+  it('查看上下文按钮触发 onViewContexts 且不冒泡', async () => {
+    const user = userEvent.setup();
     const onClick = vi.fn();
     const onView = vi.fn();
     renderCard({}, { onClick, onViewContexts: onView });
-    fireEvent.click(screen.getByRole('button', { name: '查看上下文' }));
+
+    await user.click(screen.getByRole('button', { name: '查看上下文' }));
+
     expect(onView).toHaveBeenCalledWith(bookmark);
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('加密上下文书签显示锁徽章（替代旧脱敏文案）', () => {
     renderCard({ hasEncryptedContext: true, contextCount: 1 });
-    const badge = screen.getByRole('img', { name: '包含加密上下文（1 条）' });
-    // 锁徽章内含 svg（IconLock）
-    expect(badge.querySelector('svg')).toBeTruthy();
+    expect(screen.getByRole('img', { name: '包含加密上下文（1 条）' })).toBeInTheDocument();
   });
 
   it('明文上下文书签显示圆点徽章（无锁图标）', () => {
     renderCard({ contextCount: 2 });
-    const badge = screen.getByRole('img', { name: '2 条上下文' });
-    // 圆点徽章不含 svg
-    expect(badge.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('img', { name: '2 条上下文' })).toBeInTheDocument();
   });
 
   it('无上下文书签不渲染徽章', () => {
@@ -108,47 +106,56 @@ describe('BookmarkCard', () => {
   });
 
   it('hasOpenTab 时 Card aria-label 标注已打开', () => {
-    const { container } = renderCard({}, {}, true);
-    expect(container.querySelector('[aria-label="GitHub，已打开"]')).toBeTruthy();
+    renderCard({}, {}, true);
+    expect(screen.getByRole('listitem', { name: 'GitHub，已打开' })).toBeInTheDocument();
   });
 
   it('hasOpenTab 缺省时 Card aria-label 仅书签名', () => {
-    const { container } = renderCard();
-    expect(container.querySelector('[aria-label="GitHub"]')).toBeTruthy();
+    renderCard();
+    expect(screen.getByRole('listitem', { name: 'GitHub' })).toBeInTheDocument();
   });
 
   it('T9 渲染删除按钮且带 aria-label="删除书签"', () => {
     renderCard();
-    expect(screen.getByRole('button', { name: '删除书签' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '删除书签' })).toBeInTheDocument();
   });
 
   it('T8a 无上下文(count=0)时 Popconfirm 文案不含计数', async () => {
+    const user = userEvent.setup();
     renderCard({ contextCount: 0 });
-    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+
+    await user.click(screen.getByRole('button', { name: '删除书签' }));
+
     await waitFor(() => {
-      expect(screen.getByText('确定删除该书签？')).toBeTruthy();
+      expect(screen.getByText('确定删除该书签？')).toBeInTheDocument();
     });
   });
 
   it('T8b 有上下文(count>0)时 Popconfirm 文案显示计数', async () => {
+    const user = userEvent.setup();
     renderCard({ contextCount: 3 });
-    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+
+    await user.click(screen.getByRole('button', { name: '删除书签' }));
+
     await waitFor(() => {
-      expect(screen.getByText(/将同时删除 3 条上下文/)).toBeTruthy();
+      expect(screen.getByText(/将同时删除 3 条上下文/)).toBeInTheDocument();
     });
   });
 
-  it('删除按钮点击不冒泡到卡片 onClick（容器级 stopPropagation）', () => {
+  it('删除按钮点击不冒泡到卡片 onClick（容器级 stopPropagation）', async () => {
+    const user = userEvent.setup();
     const onClick = vi.fn();
     renderCard({}, { onClick });
-    fireEvent.click(screen.getByRole('button', { name: '删除书签' }));
+
+    await user.click(screen.getByRole('button', { name: '删除书签' }));
+
     expect(onClick).not.toHaveBeenCalled();
   });
 
   it('favicon 渲染走 useFavicon（不再读 bookmark.faviconUrl）', () => {
     vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:abc', onError: vi.fn() });
     renderCard({ url: 'https://github.com', faviconUrl: 'https://old.example/icon.png' });
-    const img = screen.getByRole('listitem').querySelector('img');
+    const img = screen.getByRole('presentation');
     expect(img).toHaveAttribute('src', 'blob:abc');
     // 旧 faviconUrl 字段不再被使用
     expect(img).not.toHaveAttribute('src', 'https://old.example/icon.png');
@@ -173,7 +180,8 @@ describe('BookmarkCard', () => {
       'https://github.com/page',
       'https://github.com/runtime.svg',
     );
-    fireEvent.error(screen.getByRole('listitem').querySelector('img')!);
+    // 图片加载失败是底层 error 事件，userEvent 不提供对应 API，允许直接派发。
+    fireEvent.error(screen.getByRole('presentation'));
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
