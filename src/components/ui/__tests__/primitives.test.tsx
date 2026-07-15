@@ -66,6 +66,45 @@ describe('共享 UI 原语', () => {
     expect(screen.queryByText('通用设置')).not.toBeInTheDocument();
   });
 
+  it('纵向 Tabs 内嵌横向 segmented Tabs 时不继承外层方向选择器', () => {
+    render(
+      <Tabs defaultValue="settings" orientation="vertical">
+        <TabsList aria-label="外层标签页" variant="line">
+          <TabsTrigger value="settings">设置</TabsTrigger>
+        </TabsList>
+        <TabsContent value="settings">
+          <Tabs defaultValue="local" orientation="horizontal">
+            <TabsList
+              aria-label="内层备份方式"
+              aria-orientation="horizontal"
+              variant="segmented"
+            >
+              <TabsTrigger value="local">本地备份</TabsTrigger>
+            </TabsList>
+            <TabsContent value="local">本地备份内容</TabsContent>
+          </Tabs>
+        </TabsContent>
+      </Tabs>,
+    );
+
+    const outerList = screen.getByRole('tablist', { name: '外层标签页' });
+    const innerList = screen.getByRole('tablist', { name: '内层备份方式' });
+    const innerTrigger = screen.getByRole('tab', { name: '本地备份' });
+
+    expect(outerList).toHaveAttribute('aria-orientation', 'vertical');
+    expect(innerList).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(innerList).toHaveClass('data-[orientation=horizontal]:h-8');
+    expect(innerList).not.toHaveClass(
+      'group-data-[orientation=vertical]/tabs:h-fit',
+    );
+    expect(innerTrigger).toHaveClass(
+      'data-[orientation=horizontal]:after:bottom-[-5px]',
+    );
+    expect(innerTrigger).not.toHaveClass(
+      'group-data-[orientation=vertical]/tabs:w-full',
+    );
+  });
+
   it('info Alert 以警报语义呈现正文', () => {
     render(
       <Alert variant="info">
