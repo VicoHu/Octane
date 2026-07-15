@@ -16,13 +16,19 @@
 }
 
 .mainAction {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  align-items: center;
+  gap: var(--space-md);
+  min-width: 0;
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 

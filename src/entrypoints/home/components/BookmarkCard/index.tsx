@@ -71,58 +71,51 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
         className={styles.mainAction}
         aria-label={`打开书签 ${bookmark.name}`}
         onClick={handleOpen}
-      />
+      >
+        {/* Favicon（useFavicon 加载失败时回退首字母）+ 右下角上下文徽章 */}
+        <div className={styles.favicon}>
+          {faviconSrc ? (
+            <img
+              src={faviconSrc.src}
+              alt=""
+              className={styles.faviconImg}
+              onError={faviconSrc.onError}
+            />
+          ) : (
+            <div className={styles.fallback}>
+              {bookmark.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          {bookmark.contextCount > 0 && (
+            <Tooltip>
+              <TooltipTrigger
+                render={<div className={styles.contextBadge} role="img" aria-label={badgeTooltip} />}
+              >
+                {bookmark.hasEncryptedContext ? (
+                  <Lock size={10} className={styles.contextBadgeIcon} />
+                ) : (
+                  <span className={styles.contextBadgeDot} />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{badgeTooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+
+        {/* 右侧信息 */}
+        <div className={styles.info}>
+          <div className={styles.name}>{bookmark.name}</div>
+          <div className={styles.url}>{displayUrl}</div>
+          {bookmark.description && (
+            <div className={styles.description}>
+              {bookmark.description}
+            </div>
+          )}
+        </div>
+      </button>
 
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
       {grip && <div className={styles.gripSlot}>{grip}</div>}
-
-      {/* Favicon（useFavicon 加载失败时回退首字母）+ 右下角上下文徽章 */}
-      <div className={styles.favicon}>
-        {faviconSrc ? (
-          <img
-            src={faviconSrc.src}
-            alt=""
-            className={styles.faviconImg}
-            onError={faviconSrc.onError}
-          />
-        ) : (
-          <div className={styles.fallback}>
-            {bookmark.name.charAt(0).toUpperCase()}
-          </div>
-        )}
-        {bookmark.contextCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <div
-                  className={styles.contextBadge}
-                  role="img"
-                  aria-label={badgeTooltip}
-                  onClick={handleOpen}
-                />
-              }
-            >
-              {bookmark.hasEncryptedContext ? (
-                <Lock size={10} className={styles.contextBadgeIcon} />
-              ) : (
-                <span className={styles.contextBadgeDot} />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>{badgeTooltip}</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
-
-      {/* 右侧信息 */}
-      <div className={styles.info}>
-        <div className={styles.name}>{bookmark.name}</div>
-        <div className={styles.url}>{displayUrl}</div>
-        {bookmark.description && (
-          <div className={styles.description}>
-            {bookmark.description}
-          </div>
-        )}
-      </div>
 
       {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
       {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触）;data-no-dnd 防拖拽冒泡 */}

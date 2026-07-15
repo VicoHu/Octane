@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BookmarkCard } from '../../BookmarkCard';
 import { useFavicon } from '@/hooks/useFavicon';
@@ -63,6 +63,29 @@ describe('BookmarkCard', () => {
     await user.click(screen.getByRole('button', { name: '打开书签 GitHub' }));
 
     expect(onClick).toHaveBeenCalledWith(bookmark);
+  });
+
+  it('主操作按钮是唯一入口且包含上下文徽章', () => {
+    renderCard({ contextCount: 2 });
+    const mainAction = screen.getByRole('button', { name: '打开书签 GitHub' });
+
+    expect(within(mainAction).getByRole('img', { name: '2 条上下文' })).toBeInTheDocument();
+  });
+
+  it('主操作按钮获得焦点后 → Enter 与 Space 均打开书签', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    renderCard({}, { onClick });
+    const mainAction = screen.getByRole('button', { name: '打开书签 GitHub' });
+    await user.tab();
+    expect(mainAction).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+
+    expect(onClick).toHaveBeenCalledTimes(2);
+    expect(onClick).toHaveBeenNthCalledWith(1, bookmark);
+    expect(onClick).toHaveBeenNthCalledWith(2, bookmark);
   });
 
   it('点击编辑书签 → 只调用编辑回调，不重复调用主操作', async () => {
