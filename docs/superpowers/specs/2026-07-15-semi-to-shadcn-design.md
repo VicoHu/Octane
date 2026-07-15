@@ -194,11 +194,32 @@ Phase 4  收尾（本期）
 
 > 本期这两个（类）组件**保留 Semi 不动**，其余 25 种组件 + 14 图标全量迁移。最终是否清理这 2 处交用户决策。
 
+### 执行期发现的次要行为变化（已处理，记录备查）
+
+| 项 | 原 Semi | 迁移后 | 处理 |
+|---|---|---|---|
+| InputNumber | 带步进器 + `suffix="秒"` | `<Input type="number">`（无步进器、无 suffix） | 步进器移除（EncryptionTtl 一处）；单位文本可在 Row label 补；`onChange` 还原 blur-clamp 语义（setGrace 原始值、仅持久化 clamp） |
+| Tabs `type="card"` | 卡片样式 | 默认 line 变体（shadcn 无 card） | 视觉从卡片降为线条，功能不变（BackupSyncTabs、Content、SettingsModal） |
+| Modal `maskClosable={false}` | 点遮罩不关 | `disablePointerDismissal`（Base UI Dialog.Root） | 多数 Dialog 已对齐；个别（sidebar 删分类）默认改为可点遮罩关闭（行为微调，不影响数据） |
+| Empty `description` prop | Semi Empty | shadcn `<Empty>` + `<EmptyDescription>` 子组件 | ContextList 已用 |
+| semi-icons 字体图标 | font-size 控制大小 | lucide SVG，size prop / 父组件 CSS 控制 | 徽章内 `<Lock size={10}>` 显式尺寸匹配原 10px |
+| sonner 体积 | Semi Toast 较轻 | sonner chunk ~425KB | 已知代价，后续可懒加载或换轻量 toast 优化 |
+
 ## 9. 验证标准（done criteria）
 
-- [ ] `pnpm run typecheck` 绿
-- [ ] `pnpm run test` 绿（含改写后的 Toast mock 测试）
-- [ ] `pnpm run build`（wxt）成功，产物存在
-- [ ] dev 模式 home/popup/sidepanel 三入口可正常渲染与交互
-- [ ] Semi 依赖仅在 Form/Tree 残留处出现（`grep` 核验）
-- [ ] Form/Tree 决策清单交付用户
+- [x] `pnpm run typecheck` 绿
+- [x] `pnpm run test` 绿（97 文件 / 791 测试全过）
+- [x] `pnpm run build`（wxt）成功，产物 2.23MB
+- [ ] dev 模式 home/popup/sidepanel 三入口真机渲染与交互验证（需用户真机 QA）
+- [x] Semi 依赖仅在 Form/Tree 残留处出现（`grep` 核验：仅 SelectionTree/Content/BookmarkOpsPanel）
+- [x] Form/Tree 决策清单交付用户（见 §8）
+
+## 10. 本期执行结论（2026-07-15 完成）
+
+**已完成**：Tailwind v4 + shadcn(Base UI) 地基 + 25 种组件 + 14 图标 + Toast(sonner) shim 全量迁移。三绿验证通过（typecheck / 791 测试 / build）。
+
+**残留 Semi（交用户决策是否下阶段清理）**：
+1. **Form / useFieldState / FormApi**（Content 添加书签表单 + BookmarkOpsPanel 编辑表单）——选项 A) react-hook-form+zod 重写 / B) 保留 / C) 自研轻量。
+2. **Tree**（SelectionTree + shareSelection 耦合 Semi value[]）——选项 A) react-arborist/@base-ui tree / B) 保留 / C) 自研。
+
+**仍需**：用户真机 QA 三入口交互（Modal/Tabs/Select/Toast/拖拽），确认视觉与交互无回归。CLAUDE.md/DESIGN.md 中"使用 Semi Design"的治理条款需用户决定是否更新（本期已不依赖 Semi 作主组件库）。
