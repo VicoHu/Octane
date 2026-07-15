@@ -1,80 +1,71 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-// Semi 加载动画依赖 lottie-web；jsdom 无 canvas，mock 掉
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
-
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { IconPicker } from '@/components/IconPicker';
 
 describe('IconPicker — emoji 图标选择器', () => {
-  beforeEach(() => {
-    // 隔离 Semi Input 的潜在 portal 残留
-    document.body.innerHTML = '';
-  });
-
-  it('渲染预设网格与当前选中预览', () => {
+  it('渲染预设图标按钮并标记当前选中项', () => {
     render(<IconPicker value="📁" onChange={vi.fn()} />);
-    // 预览区显示当前 icon
-    expect(screen.getByTestId('icon-preview').textContent).toBe('📁');
-    // 预设网格项存在
-    expect(screen.getByTestId('icon-grid').children.length).toBeGreaterThan(0);
+
+    expect(screen.getByText('当前图标')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '选择图标 📁' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('点击网格项触发 onChange', () => {
+  it('点击预设图标按钮触发 onChange', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<IconPicker value="📁" onChange={onChange} />);
-    const grid = screen.getByTestId('icon-grid');
-    // 点第一个网格按钮（应为某个预设 emoji）
-    const firstBtn = grid.children[0]! as HTMLButtonElement;
-    fireEvent.click(firstBtn);
+
+    const firstButton = screen.getAllByRole('button', { name: /选择图标/ })[0]!;
+    await user.click(firstButton);
+
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(typeof onChange.mock.calls[0]![0]).toBe('string');
   });
 
-  it('输入合法 emoji 触发 onChange 并清空错误', () => {
+  it('输入合法 emoji 触发 onChange 并清空错误', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<IconPicker value="📁" onChange={onChange} />);
-    const input = screen.getByTestId('icon-input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '🚀' } });
+
+    await user.type(screen.getByPlaceholderText('或粘贴 / 输入自定义 emoji'), '🚀');
+
     expect(onChange).toHaveBeenCalledWith('🚀');
-    expect(screen.queryByTestId('icon-error')).toBeNull();
+    expect(screen.queryByText('仅支持单个 emoji 字符')).not.toBeInTheDocument();
   });
 
-  it('输入非 emoji 不触发 onChange 且显示错误', () => {
+  it('输入非 emoji 不触发 onChange 且显示错误', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<IconPicker value="📁" onChange={onChange} />);
-    const input = screen.getByTestId('icon-input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: 'abc' } });
+
+    await user.type(screen.getByPlaceholderText('或粘贴 / 输入自定义 emoji'), 'abc');
+
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByTestId('icon-error')).toBeTruthy();
+    expect(screen.getByText('仅支持单个 emoji 字符')).toBeInTheDocument();
   });
 
-  it('输入中文不触发 onChange', () => {
+  it('输入中文不触发 onChange', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<IconPicker value="📁" onChange={onChange} />);
-    const input = screen.getByTestId('icon-input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '工作' } });
+
+    await user.type(screen.getByPlaceholderText('或粘贴 / 输入自定义 emoji'), '工作');
+
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByTestId('icon-error')).toBeTruthy();
+    expect(screen.getByText('仅支持单个 emoji 字符')).toBeInTheDocument();
   });
 
-  it('清空输入不触发 onChange 也不报错（允许中间态空值）', () => {
+  it('清空输入不触发 onChange 也不报错（允许中间态空值）', async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(<IconPicker value="📁" onChange={onChange} />);
-    const input = screen.getByTestId('icon-input') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '' } });
+
+    const input = screen.getByPlaceholderText('或粘贴 / 输入自定义 emoji');
+    await user.type(input, 'abc');
+    await user.clear(input);
+
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('icon-error')).toBeNull();
+    expect(screen.queryByText('仅支持单个 emoji 字符')).not.toBeInTheDocument();
   });
 });

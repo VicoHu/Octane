@@ -81,8 +81,9 @@ describe('PinnedArea', () => {
     ]);
 
     const view = renderArea();
-    const chip = await screen.findByRole('button', { name: /打开 GitHub/ });
-    fireEvent.error(chip.querySelector('img')!);
+    await screen.findByRole('button', { name: /打开 GitHub/ });
+    // userEvent 不提供资源加载失败事件；这里精确触发 img 的底层 error 边界。
+    fireEvent.error(screen.getByRole('presentation'));
     expect(onError).toHaveBeenCalledTimes(1);
 
     vi.mocked(useFavicon).mockReturnValue(null);
@@ -118,6 +119,22 @@ describe('PinnedArea', () => {
     openSpy.mockRestore();
   });
 
+  it.each(['{Enter}', ' '])('聚焦 chip 后按 %s → 打开常驻标签', async (key) => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
+      makePin('p1', 'GitHub', 'https://github.com', 0),
+    ]);
+    renderArea();
+    const chip = await screen.findByRole('button', { name: /打开 GitHub/ });
+
+    chip.focus();
+    await user.keyboard(key);
+
+    expect(openSpy).toHaveBeenCalledWith('https://github.com', '_blank');
+    openSpy.mockRestore();
+  });
+
   it('点击 × 删除 → deletePinnedTab(id) + chip 消失', async () => {
     vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([makePin('p1', 'GitHub', 'https://github.com', 0)]);
 
@@ -129,6 +146,21 @@ describe('PinnedArea', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /打开 GitHub/ })).not.toBeInTheDocument();
     });
+  });
+
+  it('点击删除按钮只删除常驻标签，不打开链接', async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
+      makePin('p1', 'GitHub', 'https://github.com', 0),
+    ]);
+    renderArea();
+
+    await user.click(await screen.findByRole('button', { name: /取消常驻 GitHub/ }));
+
+    expect(PinnedTabService.deletePinnedTab).toHaveBeenCalledWith('p1');
+    expect(openSpy).not.toHaveBeenCalled();
+    openSpy.mockRestore();
   });
 
   it('cap 满（8）：「+」按钮 disabled，点击仍触发 Toast 提示', async () => {

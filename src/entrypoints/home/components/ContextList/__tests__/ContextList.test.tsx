@@ -1,10 +1,4 @@
 import { describe, it, expect, vi } from 'vitest';
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({ destroy() {}, play() {}, pause() {}, addEventListener() {}, removeEventListener() {} }),
-    destroy() {}, registerAnimation() {},
-  },
-}));
 vi.mock('@/services/ContextService', () => ({
   getContexts: vi.fn().mockResolvedValue([
     { id: 'ctx1', title: '上下文一', isEncrypted: false, updatedAt: 0, type: 'note', order: 0, createdAt: 0 },
@@ -18,6 +12,7 @@ vi.mock('@/store/useBookmarks', () => ({
 vi.mock('../../ContextEditor', () => ({ ContextEditor: () => null }));
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ContextList } from '../../ContextList';
 import type { Bookmark } from '@/shared/types';
 
@@ -28,8 +23,30 @@ const bookmark = {
 } as Bookmark;
 
 describe('ContextList（T6 Semi List 迁移）', () => {
+  it.each(['{Enter}', ' '])('聚焦上下文主操作后按 %s 进入编辑态', async (key) => {
+    const user = userEvent.setup();
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+    const editButton = await screen.findByRole('button', { name: '编辑上下文 上下文一' });
+
+    editButton.focus();
+    await user.keyboard(key);
+
+    expect(screen.queryByRole('button', { name: '编辑上下文 上下文一' })).not.toBeInTheDocument();
+  });
+
+  it('点击删除按钮只打开确认框，不进入编辑态', async () => {
+    const user = userEvent.setup();
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+    const editButton = await screen.findByRole('button', { name: '编辑上下文 上下文一' });
+
+    await user.click(screen.getByRole('button', { name: '删除上下文 上下文一' }));
+
+    expect(screen.getByText('确认删除该上下文？')).toBeInTheDocument();
+    expect(editButton).toBeInTheDocument();
+  });
+
   it('加载后渲染上下文列表项', async () => {
     render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
-    expect(await screen.findByText('上下文一')).toBeTruthy();
+    expect(await screen.findByText('上下文一')).toBeInTheDocument();
   });
 });

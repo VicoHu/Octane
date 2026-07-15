@@ -11,16 +11,7 @@
 }
 
 .backBtn {
-  background: none;
-  border: none;
-  color: var(--primary);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  padding: var(--space-xs) 0;
-}
-
-.backBtn:hover {
-  text-decoration: underline;
+  color: var(--primary-text);
 }
 
 .meta {

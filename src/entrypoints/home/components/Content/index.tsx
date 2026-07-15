@@ -198,13 +198,13 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         content: (
           <span>
             书签已保存{' '}
-            <a
-              role="button"
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => setSelectedBookmark(created)}
-              style={{ fontWeight: 600 }}
             >
               添加上下文
-            </a>
+            </Button>
           </span>
         ),
         duration: 5,

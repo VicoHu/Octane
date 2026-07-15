@@ -42,7 +42,7 @@ export const TabList: React.FC<TabListProps> = ({
   // 直接渲染传入的 tabs——排序职责归 useOpenTabs(按浏览器 index 序,与 tab 栏一致)。
   // 此处不二次排序,保持单一数据源。
   return (
-    <div className={styles.list} role="list" aria-label="打开的标签页">
+    <ul className={styles.list} aria-label="打开的标签页">
       {tabs.map((tab) => {
         // 跨分类去重:命中任意已有书签 → 已收藏
         const saved = bookmarks.some((bm) => bookmarkMatchesOpenTab(bm.url, tab.url));
@@ -57,7 +57,7 @@ export const TabList: React.FC<TabListProps> = ({
           />
         );
       })}
-    </div>
+    </ul>
   );
 };
 
@@ -86,40 +86,43 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
   const saveHint = saved ? '已在书签库' : canSave ? '' : '请先选择分类';
 
   return (
-    <div
-      role="listitem"
-      className={styles.card}
-      onClick={onTabClick}
-      aria-label={`${title}${saved ? ',已收藏' : ''}`}
-    >
-      <div className={styles.favicon}>
-        {showFavIcon ? (
-          <img
-            src={tab.favIconUrl}
-            alt=""
-            className={styles.faviconImg}
-            onError={() => setFaviconError(true)}
-          />
-        ) : (
-          <div className={styles.fallback}>{title.charAt(0).toUpperCase()}</div>
-        )}
-        {/* 已收藏角标(favicon 角,镜像 BookmarkCard 的 contextBadge 思路) */}
-        {saved && (
-          <Tooltip>
-            <TooltipTrigger
-              render={<div className={styles.savedBadge} role="img" aria-label="已收藏" />}
-            >
-              <BookmarkIcon className={styles.savedBadgeIcon} />
-            </TooltipTrigger>
-            <TooltipContent>已在书签库</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+    <li className={styles.card}>
+      <Button
+        type="button"
+        variant="ghost"
+        className={styles.mainButton}
+        aria-label={`打开标签页 ${title}`}
+        onClick={onTabClick}
+      >
+        <div className={styles.favicon}>
+          {showFavIcon ? (
+            <img
+              src={tab.favIconUrl}
+              alt=""
+              className={styles.faviconImg}
+              onError={() => setFaviconError(true)}
+            />
+          ) : (
+            <div className={styles.fallback}>{title.charAt(0).toUpperCase()}</div>
+          )}
+          {/* 已收藏角标(favicon 角,镜像 BookmarkCard 的 contextBadge 思路) */}
+          {saved && (
+            <Tooltip>
+              <TooltipTrigger
+                render={<div className={styles.savedBadge} role="img" aria-label="已收藏" />}
+              >
+                <BookmarkIcon className={styles.savedBadgeIcon} />
+              </TooltipTrigger>
+              <TooltipContent>已在书签库</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
 
-      <div className={styles.info}>
-        <div className={styles.title}>{title}</div>
-        <div className={styles.host}>{host}</div>
-      </div>
+        <div className={styles.info}>
+          <div className={styles.title}>{title}</div>
+          <div className={styles.host}>{host}</div>
+        </div>
+      </Button>
 
       <div className={styles.actions}>
         {tab.pinned && (
@@ -136,10 +139,7 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
                 size="sm"
                 disabled={saveDisabled}
                 className={styles.saveBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSave();
-                }}
+                onClick={onSave}
               />
             }
           >
@@ -149,6 +149,6 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
           <TooltipContent sideOffset={6}>{saveHint || '收藏到当前分类'}</TooltipContent>
         </Tooltip>
       </div>
-    </div>
+    </li>
   );
 };

@@ -1,19 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
-
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ManagePanel } from '../../ManagePanel';
 import { useWorkspace } from '@/store/useWorkspace';
 
@@ -32,67 +19,87 @@ beforeEach(() => {
 });
 
 describe('ManagePanel — 工作区与分类管理', () => {
+  it.each(['{enter}', ' '])('聚焦工作区主操作后按 %s 进入编辑态', async (key) => {
+    const user = userEvent.setup();
+    useWorkspace.setState({
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁', createdAt: 1, order: 0 }],
+    });
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+    const editButton = screen.getByRole('button', { name: '编辑 主工作区' });
+
+    editButton.focus();
+    expect(editButton).toHaveFocus();
+    await user.keyboard(key);
+
+    expect(await screen.findByDisplayValue('主工作区')).toBeInTheDocument();
+  });
+
   it('渲染所有 workspace 与 category 名称', () => {
     render(<ManagePanel visible={true} onCancel={() => {}} />);
-    expect(screen.getByText('主工作区')).toBeTruthy();
-    expect(screen.getByText('副工作区')).toBeTruthy();
-    expect(screen.getByText('工作')).toBeTruthy();
+    expect(screen.getByText('主工作区')).toBeInTheDocument();
+    expect(screen.getByText('副工作区')).toBeInTheDocument();
+    expect(screen.getByText('工作')).toBeInTheDocument();
   });
 
-  it('点击工作区项进入编辑态，显示名称输入框与图标选择器', () => {
+  it('点击工作区项进入编辑态，显示名称输入框与图标选择器', async () => {
+    const user = userEvent.setup();
     render(<ManagePanel visible={true} onCancel={() => {}} />);
-    // 点击「主工作区」进入编辑
-    fireEvent.click(screen.getByText('主工作区'));
-    expect(screen.getByTestId('icon-grid')).toBeTruthy();
-    expect(screen.getByDisplayValue('主工作区')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '编辑 主工作区' }));
+    expect(screen.getAllByRole('button', { name: /选择图标/ }).length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue('主工作区')).toBeInTheDocument();
   });
 
-  it('编辑名称后点保存调用 updateWorkspace', () => {
+  it('编辑名称后点保存调用 updateWorkspace', async () => {
+    const user = userEvent.setup();
     const updateWorkspace = vi.fn();
     useWorkspace.setState({ updateWorkspace });
     render(<ManagePanel visible={true} onCancel={() => {}} />);
 
-    fireEvent.click(screen.getByText('主工作区'));
-    const input = screen.getByDisplayValue('主工作区') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '改名后' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await user.click(screen.getByRole('button', { name: '编辑 主工作区' }));
+    const input = screen.getByDisplayValue('主工作区');
+    await user.clear(input);
+    await user.type(input, '改名后');
+    await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect(updateWorkspace).toHaveBeenCalledWith('w1', expect.objectContaining({ name: '改名后' }));
   });
 
-  it('点击网格图标后点保存调用 updateWorkspace 带 icon', () => {
+  it('点击网格图标后点保存调用 updateWorkspace 带 icon', async () => {
+    const user = userEvent.setup();
     const updateWorkspace = vi.fn();
     useWorkspace.setState({ updateWorkspace });
     render(<ManagePanel visible={true} onCancel={() => {}} />);
 
-    fireEvent.click(screen.getByText('主工作区'));
-    const grid = screen.getByTestId('icon-grid');
-    fireEvent.click(grid.children[0]! as HTMLButtonElement);
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await user.click(screen.getByRole('button', { name: '编辑 主工作区' }));
+    await user.click(screen.getAllByRole('button', { name: /选择图标/ })[0]!);
+    await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect(updateWorkspace).toHaveBeenCalledWith('w1', expect.objectContaining({ icon: expect.any(String) }));
   });
 
-  it('编辑分类保存调用 updateCategory', () => {
+  it('编辑分类保存调用 updateCategory', async () => {
+    const user = userEvent.setup();
     const updateCategory = vi.fn();
     useWorkspace.setState({ updateCategory });
     render(<ManagePanel visible={true} onCancel={() => {}} />);
 
-    fireEvent.click(screen.getByText('工作'));
-    const input = screen.getByDisplayValue('工作') as HTMLInputElement;
-    fireEvent.change(input, { target: { value: '生活' } });
-    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await user.click(screen.getByRole('button', { name: '编辑 工作' }));
+    const input = screen.getByDisplayValue('工作');
+    await user.clear(input);
+    await user.type(input, '生活');
+    await user.click(screen.getByRole('button', { name: '保存' }));
 
     expect(updateCategory).toHaveBeenCalledWith('c1', expect.objectContaining({ name: '生活' }));
   });
 
-  it('取消编辑不调用 update', () => {
+  it('取消编辑不调用 update', async () => {
+    const user = userEvent.setup();
     const updateWorkspace = vi.fn();
     useWorkspace.setState({ updateWorkspace });
     render(<ManagePanel visible={true} onCancel={() => {}} />);
 
-    fireEvent.click(screen.getByText('主工作区'));
-    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    await user.click(screen.getByRole('button', { name: '编辑 主工作区' }));
+    await user.click(screen.getByRole('button', { name: '取消' }));
 
     expect(updateWorkspace).not.toHaveBeenCalled();
   });
@@ -119,9 +126,10 @@ describe('ManagePanel workspace 拖拽(T8)', () => {
     expect(gripButtons()).toHaveLength(0);
   });
 
-  it('编辑态 Input 带 data-no-dnd(防拖拽时输入冲突)', () => {
+  it('编辑态 Input 带 data-no-dnd(防拖拽时输入冲突)', async () => {
+    const user = userEvent.setup();
     render(<ManagePanel visible={true} onCancel={() => {}} />);
-    fireEvent.click(screen.getByText('主工作区'));
+    await user.click(screen.getByRole('button', { name: '编辑 主工作区' }));
     const input = screen.getByDisplayValue('主工作区');
     expect(input.hasAttribute('data-no-dnd')).toBe(true);
   });

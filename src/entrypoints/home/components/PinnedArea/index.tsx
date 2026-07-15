@@ -171,15 +171,17 @@ export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
             );
           })
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           className={styles.addBtn}
           aria-label="添加常驻标签"
           disabled={atCap}
           onClick={handleAddClick}
         >
           <Plus />
-        </button>
+        </Button>
       </div>
 
       <Dialog
@@ -229,8 +231,10 @@ function PinChip({
   return (
     <div className={styles.chipWrap}>
       {grip && <span className={styles.gripSlot}>{grip}</span>}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         className={styles.chip}
         aria-label={`打开 ${pin.name}`}
         title={pin.name}
@@ -244,9 +248,11 @@ function PinChip({
           )}
         </div>
         <span className={styles.chipName}>{pin.name}</span>
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         className={styles.deleteBtn}
         aria-label={`取消常驻 ${pin.name}`}
         data-no-dnd
@@ -256,7 +262,7 @@ function PinChip({
         }}
       >
         <X />
-      </button>
+      </Button>
     </div>
   );
 }

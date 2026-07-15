@@ -6,16 +6,28 @@
   max-height: calc(100vh - var(--space-2xl) * 3);
   overflow-y: auto;
   padding-right: var(--space-xs);
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-left: 0;
+  list-style: none;
 }
 
 .card {
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
+  padding: 0;
   border-radius: var(--radius-md, 8px);
-  cursor: pointer;
   transition: background var(--transition-fast, 0.15s);
+}
+
+.mainButton {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  justify-content: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
 }
 .card:hover {
   background: var(--semi-color-fill-0);

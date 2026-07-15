@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ChevronLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Toast } from '@/components/ui/toast';
@@ -90,9 +93,10 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
     <div className={styles.editor}>
       {/* 顶部：返回按钮 + 标题输入 */}
       <div className={styles.header}>
-        <button className={styles.backBtn} onClick={handleBack}>
-          ← 返回
-        </button>
+        <Button variant="ghost" size="sm" className={styles.backBtn} onClick={handleBack}>
+          <ChevronLeft data-icon="inline-start" />
+          返回
+        </Button>
         <div className={styles.meta}>
           <span className={styles.typeTag}>笔记</span>
           <span className={styles.saveStatus}>
@@ -125,10 +129,11 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
           <TabsTrigger value="preview">预览</TabsTrigger>
         </TabsList>
         <TabsContent value="edit">
-          <textarea
+          <Textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
             placeholder="点击开始记录...（支持 Markdown）"
+            aria-label="上下文内容"
             className={styles.textarea}
           />
         </TabsContent>

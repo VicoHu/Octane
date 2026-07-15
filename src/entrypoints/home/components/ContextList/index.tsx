@@ -155,27 +155,33 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
                   {contexts.map((ctx) => (
                     <li
                       key={ctx.id}
-                      className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 hover:bg-muted"
-                      onClick={() => setEditingContext(ctx)}
+                      className="flex items-center justify-between gap-2 rounded-lg"
                     >
-                      <div className={styles.contextInfo}>
-                        <div className={styles.contextTitle}>
-                          {ctx.title || '无标题'}
-                          {ctx.isEncrypted && <Lock className={styles.contextLock} />}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-auto flex-1 justify-start px-3 py-2"
+                        aria-label={`编辑上下文 ${ctx.title || '无标题'}`}
+                        onClick={() => setEditingContext(ctx)}
+                      >
+                        <div className={styles.contextInfo}>
+                          <div className={styles.contextTitle}>
+                            {ctx.title || '无标题'}
+                            {ctx.isEncrypted && <Lock className={styles.contextLock} />}
+                          </div>
+                          <div className={styles.contextTime}>
+                            {new Date(ctx.updatedAt).toLocaleString()}
+                          </div>
                         </div>
-                        <div className={styles.contextTime}>
-                          {new Date(ctx.updatedAt).toLocaleString()}
-                        </div>
-                      </div>
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger
                           render={
                             <Button
                               variant="ghost"
                               size="icon-sm"
-                              aria-label="删除"
+                              aria-label={`删除上下文 ${ctx.title || '无标题'}`}
                               className={styles.deleteBtn}
-                              onClick={(e) => e.stopPropagation()}
                             />
                           }
                         >

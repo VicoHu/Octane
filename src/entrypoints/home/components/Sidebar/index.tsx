@@ -160,7 +160,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="ghost" size="icon" onClick={() => setShowNewWorkspace(true)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="新建工作区"
+          onClick={() => setShowNewWorkspace(true)}
+        >
           <Plus />
         </Button>
       </div>
@@ -241,12 +246,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
               <li
                 key={cat.id}
                 className={`${styles.cat} ${currentCategoryId === cat.id ? styles.catActive : ''}`}
-                onClick={() => useWorkspace.getState().selectCategory(cat.id)}
               >
-                <span className={styles.categoryName}>
-                  {cat.icon} {cat.name}
-                </span>
-                <Trash2
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={styles.categoryMain}
+                  aria-label={`选择分类 ${cat.name}`}
+                  aria-current={currentCategoryId === cat.id ? 'page' : undefined}
+                  onClick={() => useWorkspace.getState().selectCategory(cat.id)}
+                >
+                  <span className={styles.categoryName}>
+                    {cat.icon} {cat.name}
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   className={styles.deleteIcon}
                   aria-label={`删除分类 ${cat.name}`}
                   onClick={(e) => {
@@ -254,7 +271,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
                     setConfirmText('');
                     setDeleteTarget(cat);
                   }}
-                />
+                >
+                  <Trash2 />
+                </Button>
               </li>
             ))}
           </ul>
@@ -361,7 +380,7 @@ interface SortableCategoryProps {
 /**
  * SortableCategory —— 分类项的拖拽 wrapper(T6)。
  *
- * - D6:listeners 收敛到 grip GripButton(extra 区),li onClick(selectCategory)保留。
+ * - D6:listeners 收敛到 grip GripButton(extra 区),分类主操作保留。
  * - 1D verticalListSortingStrategy:wrapper 承载 setNodeRef + translateY 让位。
  * - 深色面:overlay 浅描边(tone="dark" 在 Sidebar 层 SortableOverlay);grip 跟随 sidebar-text-muted。
  * - isDragging 原位 visibility:hidden 保留 li 高度(measured rect 占位),DragOverlay 副本浮于指针。
@@ -380,21 +399,35 @@ const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSe
     >
       <li
         className={`${styles.cat} ${isActive ? styles.catActive : ''}${isDragging ? ` ${styles.dragGhost}` : ''}`}
-        onClick={onSelect}
       >
-        <span className={styles.categoryName}>
-          {cat.icon} {cat.name}
-        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={styles.categoryMain}
+          aria-label={`选择分类 ${cat.name}`}
+          aria-current={isActive ? 'page' : undefined}
+          onClick={onSelect}
+        >
+          <span className={styles.categoryName}>
+            {cat.icon} {cat.name}
+          </span>
+        </Button>
         <span className={styles.catExtra}>
           <span className={styles.gripSlot}>
             <GripButton listeners={listeners} />
           </span>
-          <Trash2
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
             className={styles.deleteIcon}
             aria-label={`删除分类 ${cat.name}`}
             data-no-dnd
             onClick={onDelete}
-          />
+          >
+            <Trash2 />
+          </Button>
         </span>
       </li>
     </div>
