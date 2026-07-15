@@ -31,7 +31,7 @@
 
 .typeTag {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   background: var(--surface-secondary);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
@@ -39,7 +39,7 @@
 
 .saveStatus {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .titleInput {
@@ -62,7 +62,7 @@
 }
 
 .encryptInactive {
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .textarea {

@@ -97,7 +97,7 @@
 
 .url {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   margin-bottom: 0;
   overflow: hidden;
   text-overflow: ellipsis;

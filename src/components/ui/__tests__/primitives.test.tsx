@@ -11,28 +11,34 @@ import {
 } from '@/components/ui/tabs';
 
 describe('共享 UI 原语', () => {
-  it('TabsList 支持 line 与 segmented 视觉变体', () => {
-    const { rerender } = render(
+  it('TabsList 支持 line 视觉变体', () => {
+    render(
       <Tabs defaultValue="overview">
-        <TabsList variant="line">
+        <TabsList aria-label="线型标签页" variant="line">
           <TabsTrigger value="overview">概览</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">概览内容</TabsContent>
       </Tabs>,
     );
 
-    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(
+      screen.getByRole('tablist', { name: '线型标签页' }),
+    ).toHaveAttribute('data-variant', 'line');
+  });
 
-    rerender(
+  it('TabsList 支持 segmented 视觉变体', () => {
+    render(
       <Tabs defaultValue="overview">
-        <TabsList variant="segmented">
+        <TabsList aria-label="分段标签页" variant="segmented">
           <TabsTrigger value="overview">概览</TabsTrigger>
         </TabsList>
         <TabsContent value="overview">概览内容</TabsContent>
       </Tabs>,
     );
 
-    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(
+      screen.getByRole('tablist', { name: '分段标签页' }),
+    ).toHaveAttribute('data-variant', 'segmented');
   });
 
   it('vertical Tabs 暴露垂直方向并可切换内容', async () => {

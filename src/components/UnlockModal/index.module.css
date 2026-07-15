@@ -84,7 +84,7 @@
 
 .hint {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   margin-top: var(--space-xs);
   margin-bottom: var(--space-md);
   text-align: center;

@@ -27,7 +27,7 @@
 .saveTarget {
   flex-shrink: 0;
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   background: var(--semi-color-fill-0);
   padding: 2px var(--space-sm);
   border-radius: 999px;
@@ -36,7 +36,7 @@
 
 .searchHint {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   margin-bottom: var(--space-md);
 }
 
