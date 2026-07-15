@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { renderMarkdown } from '@/shared/utils/markdown';
 import { useUnlockRequest } from '../unlockContext';
 import type { Context } from '@/shared/types';
@@ -22,22 +23,15 @@ export function ContextCard({ context }: ContextCardProps) {
 
   if (context.isEncrypted && !context.content) {
     return (
-      <div
+      <Button
+        variant="ghost"
         className={styles.locked}
-        role="button"
-        tabIndex={0}
         aria-label="加密上下文，点击解锁"
         onClick={requestUnlock}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            requestUnlock();
-          }
-        }}
       >
         <Lock className={styles.lockIcon} />
         <span>加密上下文，点击解锁查看</span>
-      </div>
+      </Button>
     );
   }
 

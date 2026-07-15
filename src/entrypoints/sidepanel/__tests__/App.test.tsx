@@ -59,29 +59,29 @@ describe('App — 四状态 + 分组渲染', () => {
     tabMock.mockReturnValue({ hostname: null, loading: true });
     hostMock.mockReturnValue({ matched: [], loading: false });
     render(<App />);
-    expect(screen.getByText('加载中…')).toBeTruthy();
+    expect(screen.getByText('加载中…')).toBeInTheDocument();
   });
 
   it('hostname 为 null（非 http(s)）→ 此页面不支持联动', () => {
     tabMock.mockReturnValue({ hostname: null, loading: false });
     hostMock.mockReturnValue({ matched: [], loading: false });
     render(<App />);
-    expect(screen.getByText('此页面不支持联动')).toBeTruthy();
+    expect(screen.getByText('此页面不支持联动')).toBeInTheDocument();
   });
 
   it('匹配中 → 显示匹配态', () => {
     tabMock.mockReturnValue({ hostname: 'a.com', loading: false });
     hostMock.mockReturnValue({ matched: [], loading: true });
     render(<App />);
-    expect(screen.getByText('匹配中…')).toBeTruthy();
+    expect(screen.getByText('匹配中…')).toBeInTheDocument();
   });
 
-  it('无命中 → 空状态 + 在 Octane 管理', () => {
+  it('无命中 → 空状态中的在 Octane 管理是按钮', () => {
     tabMock.mockReturnValue({ hostname: 'a.com', loading: false });
     hostMock.mockReturnValue({ matched: [], loading: false });
     render(<App />);
-    expect(screen.getByText(/无匹配书签/)).toBeTruthy();
-    expect(screen.getByText('在 Octane 管理')).toBeTruthy();
+    expect(screen.getByText(/无匹配书签/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '在 Octane 管理' })).toBeInTheDocument();
   });
 
   it('有命中 + sourceMap 就绪 → StickyHeader + 工作区/分类段头 + 书签卡（含分类 chip）', () => {
@@ -94,13 +94,13 @@ describe('App — 四状态 + 分组渲染', () => {
       ready: true,
     });
     render(<App />);
-    expect(screen.getByText('a.com')).toBeTruthy();
-    expect(screen.getByText(/2 个书签命中/)).toBeTruthy();
+    expect(screen.getByText('a.com')).toBeInTheDocument();
+    expect(screen.getByText(/2 个书签命中/)).toBeInTheDocument();
     // 工作区段头（仅段头出现，唯一）；分类名同时出现在段头 + 卡片 chip（R1 常驻）
-    expect(screen.getByText(/工作区1/)).toBeTruthy();
+    expect(screen.getByText(/工作区1/)).toBeInTheDocument();
     expect(screen.getAllByText(/分类1/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Google')).toBeTruthy();
-    expect(screen.getByText('Gmail')).toBeTruthy();
+    expect(screen.getByText('Google')).toBeInTheDocument();
+    expect(screen.getByText('Gmail')).toBeInTheDocument();
   });
 
   it('≥2 工作区 + 总命中>6 → Collapse 默认仅展开命中最多者，其余折叠（T2）', () => {
@@ -124,11 +124,11 @@ describe('App — 四状态 + 分组渲染', () => {
     });
     render(<App />);
     // 两个段头恒在（Collapse panel header）
-    expect(screen.getByText(/工作区1/)).toBeTruthy();
-    expect(screen.getByText(/工作区2/)).toBeTruthy();
+    expect(screen.getByText(/工作区1/)).toBeInTheDocument();
+    expect(screen.getByText(/工作区2/)).toBeInTheDocument();
     // ws1 展开 → 内容可见
-    expect(screen.getByText('WS1-0')).toBeTruthy();
+    expect(screen.getByText('WS1-0')).toBeInTheDocument();
     // ws2 折叠 → 内容不可见（keepDOM=false，折叠面板内容不在 DOM）
-    expect(screen.queryByText('WS2-ONLY')).toBeNull();
+    expect(screen.queryByText('WS2-ONLY')).not.toBeInTheDocument();
   });
 });

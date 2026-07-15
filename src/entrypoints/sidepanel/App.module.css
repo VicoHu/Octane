@@ -60,16 +60,7 @@
   color: var(--semi-color-text-1, #666);
 }
 .manageBtn {
-  padding: 8px 16px;
-  border: 1px solid var(--primary-text);
-  border-radius: 8px;
-  background: transparent;
   color: var(--primary-text);
-  font-size: 13px;
-  cursor: pointer;
-}
-.manageBtn:hover {
-  background: var(--primary-light);
 }
 /* empty 状态操作行：「在 Octane 管理」+ 📌 Pin 图标按钮并排 */
 .emptyActions {
@@ -79,22 +70,5 @@
 }
 /* Pin 图标按钮（empty 状态）：与 manageBtn 等高，中性边框，hover 弱化 */
 .pinBtn {
-  width: 36px;
-  height: 36px;
   flex-shrink: 0;
-  border: 1px solid var(--semi-color-border, #eee);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--semi-color-text-1, #666);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-.pinBtn:hover {
-  background: var(--semi-color-fill-0, #f3f3f3);
-  color: var(--primary);
 }

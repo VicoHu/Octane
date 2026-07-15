@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { Pin } from 'lucide-react';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -155,15 +156,16 @@ function usePinCurrentTab(groups: WorkspaceGroup[]) {
 /** Pin 图标按钮（📌）—— empty 状态与 StickyHeader 复用同一形态 */
 function PinIconButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-lg"
       className={styles.pinBtn}
       onClick={onClick}
       aria-label="Pin 当前 Tab"
       title="Pin 当前 Tab"
     >
-      📌
-    </button>
+      <Pin />
+    </Button>
   );
 }
 
@@ -270,7 +272,9 @@ export default function App() {
     <div className={styles.empty}>
       <div className={styles.emptyText}>该页面暂无匹配书签</div>
       <div className={styles.emptyActions}>
-        <button className={styles.manageBtn} onClick={openHomeTab}>在 Octane 管理</button>
+        <Button variant="outline" size="sm" className={styles.manageBtn} onClick={openHomeTab}>
+          在 Octane 管理
+        </Button>
         <PinIconButton onClick={openPin} />
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Lock, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useEncryptedContexts } from '../hooks/useEncryptedContexts';
 import { ContextCard } from './ContextCard';
 import { InlineContextEditor } from './InlineContextEditor';
@@ -35,14 +36,16 @@ export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: Bookmark
           </span>
         )}
         <span className={styles.count}>{bookmark.contextCount} 条上下文</span>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           className={styles.addBtn}
           onClick={() => setEditing(true)}
           aria-label="添加上下文"
           title="就地创建上下文"
         >
           <Plus />
-        </button>
+        </Button>
       </div>
       {editing && (
         <InlineContextEditor bookmarkId={bookmark.id} onDone={() => setEditing(false)} />

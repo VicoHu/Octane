@@ -115,27 +115,29 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       </Typography.Text>
       <ul className={cn(styles.featureList, 'flex flex-col')}>
         {features.map((f) => (
-          <li
-            key={f.key ?? 'action'}
-            className={cn(
-              'flex items-center gap-3',
-              f.primary ? styles.featureItemPrimary : styles.featureItem,
-            )}
-            onClick={() => {
-              if (f.onClick) f.onClick();
-              else if (f.key) onNavigate(f.key);
-            }}
-          >
-            <span>{f.icon}</span>
-            <div className="flex flex-1 flex-col">
-              <Typography.Text strong={f.primary}>{f.title}</Typography.Text>
-              {f.desc && (
-                <Typography.Text type="tertiary" size="small">
-                  {f.desc}
-                </Typography.Text>
+          <li key={f.key ?? 'action'}>
+            <Button
+              variant="ghost"
+              className={cn(
+                'h-auto w-full justify-start gap-3 px-3 py-3 text-left whitespace-normal',
+                f.primary ? styles.featureItemPrimary : styles.featureItem,
               )}
-            </div>
-            <ChevronRight />
+              onClick={() => {
+                if (f.onClick) f.onClick();
+                else if (f.key) onNavigate(f.key);
+              }}
+            >
+              <span>{f.icon}</span>
+              <span className="flex flex-1 flex-col">
+                <Typography.Text strong={f.primary}>{f.title}</Typography.Text>
+                {f.desc && (
+                  <Typography.Text type="tertiary" size="small">
+                    {f.desc}
+                  </Typography.Text>
+                )}
+              </span>
+              <ChevronRight className="ml-auto" />
+            </Button>
           </li>
         ))}
       </ul>
