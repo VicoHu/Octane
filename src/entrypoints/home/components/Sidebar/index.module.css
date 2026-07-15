@@ -80,6 +80,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.5;
+  /* <button> UA 默认 text-align:center 会被 span 继承，导致分类名水平居中；显式靠左 */
+  text-align: left;
 }
 
 /* 分类项基类：行布局(flex 行 + padding)原靠 Semi List.Item，迁 <li> 后须在 module 补回；
