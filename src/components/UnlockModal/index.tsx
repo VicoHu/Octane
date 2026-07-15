@@ -1,4 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
@@ -89,32 +97,32 @@ export const UnlockModal: React.FC = () => {
     }
   };
 
-  if (!visible) return null;
-
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="unlock-title"
-      onClick={(e) => {
-        if (canDismiss && e.target === e.currentTarget) closeUnlockModal();
+    <Dialog
+      open={visible}
+      disablePointerDismissal={!canDismiss}
+      onOpenChange={(open) => {
+        if (!open && canDismiss) closeUnlockModal();
       }}
     >
-      <div className={styles.card}>
-        <div className={styles.header}>
+      <DialogContent
+        showCloseButton={canDismiss}
+        className={styles.card}
+        aria-describedby="unlock-subtitle"
+      >
+        <DialogHeader className={styles.header}>
           <div className={`${styles.badge} ${mode === 'reset' ? styles.badgeDanger : ''}`}>
             {mode === 'reset' ? <TriangleAlert size={20} /> : <Lock size={20} />}
           </div>
-          <h2 id="unlock-title" className={styles.title}>{copy.title}</h2>
-          <p className={styles.subtitle}>{copy.subtitle}</p>
-        </div>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription id="unlock-subtitle">{copy.subtitle}</DialogDescription>
+        </DialogHeader>
 
         {mode === 'reset' && (
-          <div className={styles.warning}>
+          <Alert variant="destructive" className={styles.warning}>
             <TriangleAlert className={styles.warningIcon} />
-            <span>所有已加密笔记将被清除且无法恢复，请确认后再继续。</span>
-          </div>
+            <AlertDescription>所有已加密笔记将被清除且无法恢复，请确认后再继续。</AlertDescription>
+          </Alert>
         )}
 
         <div className={styles.field}>
@@ -164,7 +172,7 @@ export const UnlockModal: React.FC = () => {
         >
           {copy.cta}
         </Button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
