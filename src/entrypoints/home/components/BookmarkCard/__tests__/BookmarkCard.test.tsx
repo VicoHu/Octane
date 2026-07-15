@@ -100,6 +100,19 @@ describe('BookmarkCard', () => {
     expect(screen.getByRole('img', { name: '2 条上下文' })).toBeInTheDocument();
   });
 
+  it('点击上下文徽章 → 与主操作相同地打开书签', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    renderCard({ contextCount: 2 }, { onClick });
+    const badge = screen.getByRole('img', { name: '2 条上下文' });
+    expect(badge).toBeVisible();
+
+    await user.click(badge);
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onClick).toHaveBeenCalledWith({ ...bookmark, contextCount: 2 });
+  });
+
   it('无上下文书签不渲染徽章', () => {
     renderCard({ contextCount: 0 });
     expect(screen.queryByRole('img', { name: /上下文/ })).toBeNull();

@@ -51,6 +51,15 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
     ? `包含加密上下文（${bookmark.contextCount} 条）`
     : `${bookmark.contextCount} 条上下文`;
 
+  const handleOpen = () => {
+    onClick(bookmark);
+    // 有已打开 tab 时触发竖线脉冲（跳转反馈）
+    if (hasOpenTab) {
+      setPulsing(true);
+      setTimeout(() => setPulsing(false), 400);
+    }
+  };
+
   return (
     <Card
       role="listitem"
@@ -61,14 +70,7 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
         type="button"
         className={styles.mainAction}
         aria-label={`打开书签 ${bookmark.name}`}
-        onClick={() => {
-          onClick(bookmark);
-          // 有已打开 tab 时触发竖线脉冲（跳转反馈）
-          if (hasOpenTab) {
-            setPulsing(true);
-            setTimeout(() => setPulsing(false), 400);
-          }
-        }}
+        onClick={handleOpen}
       />
 
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
@@ -91,7 +93,14 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
         {bookmark.contextCount > 0 && (
           <Tooltip>
             <TooltipTrigger
-              render={<div className={styles.contextBadge} role="img" aria-label={badgeTooltip} />}
+              render={
+                <div
+                  className={styles.contextBadge}
+                  role="img"
+                  aria-label={badgeTooltip}
+                  onClick={handleOpen}
+                />
+              }
             >
               {bookmark.hasEncryptedContext ? (
                 <Lock size={10} className={styles.contextBadgeIcon} />
