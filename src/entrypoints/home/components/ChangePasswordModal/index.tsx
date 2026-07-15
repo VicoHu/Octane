@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
-import { IconKey, IconAlertTriangle } from '@douyinfe/semi-icons';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Toast } from '@/components/ui/toast';
+import { Key, TriangleAlert } from 'lucide-react';
 import { useCrypto } from '@/store/useCrypto';
 import styles from './index.module.css';
 
@@ -51,55 +55,63 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
   };
 
   return (
-    <Modal
-      title={
-        <div className={styles.titleRow}>
-          <div className={styles.badge}>
-            <IconKey />
-          </div>
-          <span>修改主密码</span>
+    <Dialog open={visible} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            <div className={styles.titleRow}>
+              <div className={styles.badge}>
+                <Key />
+              </div>
+              <span>修改主密码</span>
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+        <div className={styles.body}>
+          <Input
+            type="password"
+            placeholder="当前主密码"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
+            className={styles.input}
+          />
+          <Input
+            type="password"
+            placeholder="新主密码（至少 12 个字符）"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
+            className={styles.input}
+          />
+          <Input
+            type="password"
+            placeholder="确认新主密码"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
+            className={styles.input}
+          />
+          {error && (
+            <div className={styles.error}>
+              <TriangleAlert size={14} />
+              <span>{error}</span>
+            </div>
+          )}
         </div>
-      }
-      visible={visible}
-      footer={
-        <Button theme="solid" block loading={loading} onClick={handleSubmit} style={{ marginLeft: 0 }}>
-          确认修改
-        </Button>
-      }
-      onCancel={onClose}
-    >
-      <div className={styles.body}>
-        <Input
-          mode="password"
-          placeholder="当前主密码"
-          value={oldPassword}
-          onChange={setOldPassword}
-          onEnterPress={handleSubmit}
-          className={styles.input}
-        />
-        <Input
-          mode="password"
-          placeholder="新主密码（至少 12 个字符）"
-          value={newPassword}
-          onChange={setNewPassword}
-          onEnterPress={handleSubmit}
-          className={styles.input}
-        />
-        <Input
-          mode="password"
-          placeholder="确认新主密码"
-          value={confirmPassword}
-          onChange={setConfirmPassword}
-          onEnterPress={handleSubmit}
-          className={styles.input}
-        />
-        {error && (
-          <div className={styles.error}>
-            <IconAlertTriangle size="small" />
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
-    </Modal>
+        <DialogFooter>
+          <Button variant="default" className="w-full" disabled={loading} onClick={handleSubmit}>
+            {loading && <Spinner data-icon="inline-start" />}
+            确认修改
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

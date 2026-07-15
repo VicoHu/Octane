@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Input } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
 import { isEmoji } from '@/shared/utils/emoji';
 import { PRESET_ICONS } from './preset';
 import styles from './index.module.css';
@@ -70,7 +70,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
           data-testid="icon-input"
           placeholder="或粘贴 / 输入自定义 emoji"
           maxLength={8}
-          onChange={handleInputChange}
+          onChange={(e) => handleInputChange(e.target.value)}
         />
         {error && (
           <div className={styles.error} data-testid="icon-error">

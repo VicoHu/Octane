@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Input, Button, TextArea, Select } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select';
 import type { Workspace, Category, Bookmark } from '@/shared/types';
 import { listWorkspaces } from '@/services/WorkspaceService';
 import { listCategories } from '@/services/CategoryService';
@@ -147,35 +156,41 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
         <>
           <Select
             value={selectedWorkspaceId}
-            onChange={(v) => handleWorkspaceChange(String(v))}
-            placeholder="选择工作区"
-            style={{ width: '100%' }}
+            onValueChange={(v) => handleWorkspaceChange(String(v))}
           >
-            {workspaces.map((w) => (
-              <Select.Option key={w.id} value={w.id}>
-                {w.icon} {w.name}
-              </Select.Option>
-            ))}
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="选择工作区" />
+            </SelectTrigger>
+            <SelectContent>
+              {workspaces.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.icon} {w.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           <Select
             value={selectedCategoryId}
-            onChange={(v) => setSelectedCategoryId(String(v))}
-            placeholder="选择分类"
+            onValueChange={(v) => setSelectedCategoryId(String(v))}
             disabled={!selectedWorkspaceId || categories.length === 0}
-            style={{ width: '100%' }}
           >
-            {categories.map((c) => (
-              <Select.Option key={c.id} value={c.id}>
-                {c.icon} {c.name}
-              </Select.Option>
-            ))}
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="选择分类" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           <Input
             placeholder="https://example.com"
             value={url}
-            onChange={(v) => setUrl(v)}
+            onChange={(e) => setUrl(e.target.value)}
             aria-label="URL"
           />
           <div className={styles.faviconRow}>
@@ -184,13 +199,13 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
           <Input
             placeholder="名称（留空使用域名）"
             value={name}
-            onChange={(v) => setName(v)}
+            onChange={(e) => setName(e.target.value)}
             aria-label="名称"
           />
-          <TextArea
+          <Textarea
             placeholder="描述（可选）"
             value={description}
-            onChange={(v) => setDescription(v)}
+            onChange={(e) => setDescription(e.target.value)}
             maxLength={200}
             aria-label="描述"
           />
@@ -198,19 +213,18 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
           {duplicate && (
             <div className={styles.duplicateHint} role="alert">
               <span>该分类下已存在相同 URL（{duplicate.name}）</span>
-              <Button size="small" theme="solid" onClick={() => handleSave(true)}>
+              <Button size="sm" variant="default" onClick={() => handleSave(true)}>
                 仍然保存
               </Button>
             </div>
           )}
 
           <Button
-            theme="solid"
-            loading={saving}
+            variant="default"
             disabled={!isUrlValid(url) || saving || saved}
             onClick={() => handleSave(false)}
           >
-            {saved ? '已保存 ✓' : '保存'}
+            {saved ? '已保存 ✓' : saving ? '保存中…' : '保存'}
           </Button>
         </>
       )}

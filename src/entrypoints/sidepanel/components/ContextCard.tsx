@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { IconLock } from '@douyinfe/semi-icons';
+import { Lock } from 'lucide-react';
 import { renderMarkdown } from '@/shared/utils/markdown';
 import { useUnlockRequest } from '../unlockContext';
 import type { Context } from '@/shared/types';
@@ -35,7 +35,7 @@ export function ContextCard({ context }: ContextCardProps) {
           }
         }}
       >
-        <IconLock className={styles.lockIcon} />
+        <Lock className={styles.lockIcon} />
         <span>加密上下文，点击解锁查看</span>
       </div>
     );

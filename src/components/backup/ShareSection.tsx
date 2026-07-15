@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, Banner } from '@douyinfe/semi-ui';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ShareExportModal } from './ShareExportModal';
 import { ShareImportModal } from './ShareImportModal';
 
@@ -13,13 +14,14 @@ export function ShareSection() {
   const [importOpen, setImportOpen] = useState(false);
   return (
     <div style={{ marginTop: 24 }}>
-      <Banner
-        type="info"
-        description="把部分工作区或分类打包成分享包发给同事，对方导入即合并到他的库，不影响现有数据。"
-      />
+      <Alert>
+        <AlertDescription>
+          把部分工作区或分类打包成分享包发给同事，对方导入即合并到他的库，不影响现有数据。
+        </AlertDescription>
+      </Alert>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <Button theme="solid" onClick={() => setExportOpen(true)}>导出分享包</Button>
-        <Button onClick={() => setImportOpen(true)}>导入分享包</Button>
+        <Button variant="default" onClick={() => setExportOpen(true)}>导出分享包</Button>
+        <Button variant="outline" onClick={() => setImportOpen(true)}>导入分享包</Button>
       </div>
       <ShareExportModal visible={exportOpen} onClose={() => setExportOpen(false)} />
       <ShareImportModal visible={importOpen} onClose={() => setImportOpen(false)} />

@@ -2,20 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// Toast 涉及 portal + 全局副作用，partial mock 保留其余 Semi 组件真实渲染。
-vi.mock('@douyinfe/semi-ui', async (importActual) => {
-  const actual = await importActual<typeof import('@douyinfe/semi-ui')>();
-  return {
-    ...actual,
-    Toast: { ...actual.Toast, success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  };
-});
+// Toast 涉及 portal + 全局副作用，mock 为副作用边界。
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), close: vi.fn() },
+}));
 // unlock 副作用边界：PBKDF2 派生 + verifier 校验，mock 隔离。
 vi.mock('@/services/UnlockSession', () => ({ unlock: vi.fn() }));
 
 import { SidePanelUnlockModal } from '../SidePanelUnlockModal';
 import { unlock } from '@/services/UnlockSession';
-import { Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@/components/ui/toast';
 
 describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
   beforeEach(() => vi.clearAllMocks());

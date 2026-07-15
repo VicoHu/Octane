@@ -1,6 +1,18 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Input, Button, Modal, Form, Toast, Skeleton, Tabs, TabPane } from '@douyinfe/semi-ui';
-import { IconPlus, IconSearch } from '@douyinfe/semi-icons';
+import { Form } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Toast } from '@/components/ui/toast';
+import { Plus, Search, X } from 'lucide-react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
@@ -8,6 +20,7 @@ import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
 import * as CategoryService from '@/services/CategoryService';
+import { cn } from '@/lib/utils';
 import { BookmarkCard } from '../BookmarkCard';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
@@ -318,21 +331,28 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           </span>
         )}
 
-        <Input
-          prefix={<IconSearch />}
-          placeholder="搜索书签..."
-          value={query}
-          onChange={setQuery}
-          className={styles.searchInput}
-          showClear
-          onClear={() => setQuery('')}
-        />
+        <div className={cn('relative', styles.searchInput)}>
+          <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50" />
+          <Input
+            placeholder="搜索书签..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pr-8 pl-8"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="absolute top-1/2 right-2 -translate-y-1/2 opacity-50 hover:opacity-100"
+              aria-label="清除搜索"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
 
-        <Button
-          theme="solid"
-          icon={<IconPlus />}
-          onClick={openAddManual}
-        >
+        <Button variant="default" onClick={openAddManual}>
+          <Plus data-icon="inline-start" />
           添加书签
         </Button>
       </div>
@@ -345,27 +365,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
       )}
 
       {/* 视图切换:卡片式 Tabs(书签 / 标签页)。默认书签,向后兼容 */}
-      <Tabs
-        type="card"
-        activeKey={activeView}
-        onChange={(key) => setActiveView(key as View)}
-        keepDOM={false}
-        contentStyle={{ paddingTop: 'var(--space-md)' }}
-      >
-        <TabPane tab="书签" itemKey="bookmarks">
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as View)}>
+        <TabsList>
+          <TabsTrigger value="bookmarks">书签</TabsTrigger>
+          <TabsTrigger value="tabs">标签页({openTabs.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="bookmarks" className="pt-3">
           {loading ? (
             <div className={styles.grid}>
               {[1, 2, 3].map((i) => (
-                <Skeleton
-                  key={i}
-                  active
-                  placeholder={
-                    <div className={styles.skeletonCard}>
-                      <Skeleton.Title style={{ width: '60%', marginBottom: 12 }} />
-                      <Skeleton.Paragraph rows={2} />
-                    </div>
-                  }
-                />
+                <div key={i} className={styles.skeletonCard}>
+                  <Skeleton className="mb-3 h-4 w-3/5" />
+                  <Skeleton className="mb-2 h-3 w-full" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
               ))}
             </div>
           ) : filteredBookmarks.length === 0 ? (
@@ -435,9 +448,9 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
               })}
             </div>
           )}
-        </TabPane>
+        </TabsContent>
 
-        <TabPane tab={`标签页(${openTabs.length})`} itemKey="tabs">
+        <TabsContent value="tabs">
           <TabList
             tabs={openTabs}
             bookmarks={allBookmarks}
@@ -445,41 +458,45 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             onTabClick={handleTabClick}
             onSaveTab={openAddForTab}
           />
-        </TabPane>
+        </TabsContent>
       </Tabs>
 
       {/* 添加书签弹窗(支持从 tab 预填 + 分类选择器 R4) */}
-      <Modal
-        title={saveFromTab ? '从标签页保存书签' : '添加书签'}
-        visible={showAddModal}
-        onCancel={() => {
-          setShowAddModal(false);
-          setSaveFromTab(null);
+      <Dialog
+        open={showAddModal}
+        onOpenChange={(o) => {
+          if (!o) {
+            setShowAddModal(false);
+            setSaveFromTab(null);
+          }
         }}
-        footer={
-          <>
-            <Button onClick={() => { setShowAddModal(false); setSaveFromTab(null); }}>取消</Button>
-            <Button theme="solid" onClick={() => addFormApi?.submitForm()}>添加</Button>
-          </>
-        }
       >
-        <Form
-          key={addModalKey}
-          getFormApi={setAddFormApi}
-          initValues={addInitValues}
-          onSubmit={(values) => handleAddBookmark(values as Record<string, string>)}
-        >
-          <Form.Select
-            field="categoryId"
-            label="分类"
-            style={{ width: '100%' }}
-            optionList={categories.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))}
-          />
-          <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
-          <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
-          <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
-        </Form>
-      </Modal>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{saveFromTab ? '从标签页保存书签' : '添加书签'}</DialogTitle>
+          </DialogHeader>
+          <Form
+            key={addModalKey}
+            getFormApi={setAddFormApi}
+            initValues={addInitValues}
+            onSubmit={(values) => handleAddBookmark(values as Record<string, string>)}
+          >
+            <Form.Select
+              field="categoryId"
+              label="分类"
+              style={{ width: '100%' }}
+              optionList={categories.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))}
+            />
+            <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
+            <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
+            <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
+          </Form>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setShowAddModal(false); setSaveFromTab(null); }}>取消</Button>
+            <Button variant="default" onClick={() => addFormApi?.submitForm()}>添加</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 上下文列表（侧滑面板） */}
       <ContextList
@@ -489,28 +506,30 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
       />
 
       {/* 书签编辑弹窗（归属位置 + 书签信息） */}
-      <Modal
-        title="编辑书签"
-        visible={!!editingBookmark}
-        onCancel={() => setEditingBookmark(null)}
-        footer={
-          <>
-            <Button onClick={() => setEditingBookmark(null)}>取消</Button>
-            <Button theme="solid" onClick={() => editPanelRef.current?.submit()}>保存</Button>
-          </>
-        }
+      <Dialog
+        open={!!editingBookmark}
+        onOpenChange={(o) => { if (!o) setEditingBookmark(null); }}
       >
-        {editingBookmark && (
-          <BookmarkOpsPanel
-            ref={editPanelRef}
-            key={editingBookmark.id}
-            bookmark={editingBookmark}
-            workspaces={workspaces}
-            categoriesLoader={categoriesLoader}
-            onSubmit={handleBookmarkSubmit}
-          />
-        )}
-      </Modal>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑书签</DialogTitle>
+          </DialogHeader>
+          {editingBookmark && (
+            <BookmarkOpsPanel
+              ref={editPanelRef}
+              key={editingBookmark.id}
+              bookmark={editingBookmark}
+              workspaces={workspaces}
+              categoriesLoader={categoriesLoader}
+              onSubmit={handleBookmarkSubmit}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditingBookmark(null)}>取消</Button>
+            <Button variant="default" onClick={() => editPanelRef.current?.submit()}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import { unlock } from '@/services/UnlockSession';
 
 interface SidePanelUnlockModalProps {
@@ -43,36 +46,36 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
   };
 
   return (
-    <Modal
-      title="解锁加密上下文"
-      visible={open}
-      onCancel={onClose}
-      width="calc(100vw - 32px)"
-      maskClosable
-      hasCancel={false}
-      footer={
-        <Button theme="solid" size="large" loading={loading} onClick={handleSubmit}>
-          解 锁
-        </Button>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <p style={{ margin: 0, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
-          输入主密码以解锁当前 side panel 的加密上下文。离开超时或达硬上限将自动重新锁定。
-        </p>
-        <Input
-          mode="password"
-          placeholder="输入主密码"
-          value={password}
-          onChange={setPassword}
-          onEnterPress={handleSubmit}
-          size="large"
-          autoFocus
-        />
-        {error && (
-          <div style={{ color: 'var(--semi-color-danger)', fontSize: 13 }}>{error}</div>
-        )}
-      </div>
-    </Modal>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>解锁加密上下文</DialogTitle>
+        </DialogHeader>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>
+            输入主密码以解锁当前 side panel 的加密上下文。离开超时或达硬上限将自动重新锁定。
+          </p>
+          <Input
+            type="password"
+            placeholder="输入主密码"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSubmit();
+            }}
+            className="h-9"
+            autoFocus
+          />
+          {error && (
+            <div style={{ color: 'var(--destructive)', fontSize: 13 }}>{error}</div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="default" size="lg" disabled={loading} onClick={handleSubmit}>
+            {loading ? '解锁中…' : '解 锁'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

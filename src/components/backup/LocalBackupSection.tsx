@@ -1,5 +1,11 @@
 import { useRef, useState } from 'react';
-import { Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Toast } from '@/components/ui/toast';
+import { Typography } from '@/components/ui/typography';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Spinner } from '@/components/ui/spinner';
 import { useBackup } from '@/store/useBackup';
 import styles from './LocalBackupSection.module.css';
 
@@ -32,47 +38,53 @@ export function LocalBackupSection() {
   };
 
   const modalOpen = status === 'confirming' && pendingData !== null;
+  const exporting = status === 'running' && !modalOpen;
 
   return (
     <div className={styles.backupSection}>
-      <Banner type="info" description="导出文件含加密笔记的密文（非明文）。在另一台设备恢复时，需使用相同的主密码解锁。" />
+      <Alert>
+        <AlertDescription>导出文件含加密笔记的密文（非明文）。在另一台设备恢复时，需使用相同的主密码解锁。</AlertDescription>
+      </Alert>
       <div className={styles.backupActions}>
-        <Button theme="solid" loading={status === 'running' && !modalOpen} onClick={handleExport}>导出数据</Button>
-        <Button onClick={() => fileRef.current?.click()}>导入数据</Button>
+        <Button variant="default" disabled={exporting} onClick={handleExport}>
+          {exporting && <Spinner />}
+          导出数据
+        </Button>
+        <Button variant="outline" onClick={() => fileRef.current?.click()}>导入数据</Button>
         <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={handlePick} />
       </div>
       {status === 'error' && errorMessage && (
         <Typography.Text type="danger" role="alert" className={styles.backupError}>{errorMessage}</Typography.Text>
       )}
 
-      <Modal
-        title="确认覆盖全部数据"
-        visible={modalOpen}
-        onCancel={cancelImport}
-        maskClosable={false}
-        footer={
-          <Button
-            theme="solid"
-            type="danger"
-            block
-            disabled={!confirmed}
-            loading={status === 'running'}
-            onClick={handleConfirm}
-          >
-            确认覆盖
-          </Button>
-        }
-      >
-        <div className={styles.backupConfirmBody}>
-          <Typography.Text>
-            此操作将清除当前全部工作区、书签与上下文，并替换为备份内容，不可撤销。
-            {pendingData?.cryptoMetadata ? ' 备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
-          </Typography.Text>
-          <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked ?? false)}>
-            我了解此操作不可撤销
-          </Checkbox>
-        </div>
-      </Modal>
+      <Dialog open={modalOpen} onOpenChange={(o) => !o && cancelImport()} disablePointerDismissal>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认覆盖全部数据</DialogTitle>
+          </DialogHeader>
+          <div className={styles.backupConfirmBody}>
+            <Typography.Text>
+              此操作将清除当前全部工作区、书签与上下文，并替换为备份内容，不可撤销。
+              {pendingData?.cryptoMetadata ? ' 备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
+            </Typography.Text>
+            <label className="flex items-center gap-2">
+              <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(c)} />
+              我了解此操作不可撤销
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              className="w-full"
+              disabled={!confirmed || status === 'running'}
+              onClick={handleConfirm}
+            >
+              {status === 'running' && <Spinner />}
+              确认覆盖
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@/components/ui/toast';
 
 // 副作用边界 mock：service 层（DB）+ favicon hook（DB）+ Toast 静态方法
 vi.mock('@/services/PinnedTabService', () => ({
@@ -16,13 +16,9 @@ vi.mock('@/services/PinnedTabService', () => ({
 vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:test', onError: vi.fn() })),
 }));
-vi.mock('@douyinfe/semi-ui', async (orig) => {
-  const real = await orig();
-  return {
-    ...(real as object),
-    Toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() },
-  };
-});
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn(), close: vi.fn() },
+}));
 
 import { PinnedArea } from '../../PinnedArea';
 import * as PinnedTabService from '@/services/PinnedTabService';

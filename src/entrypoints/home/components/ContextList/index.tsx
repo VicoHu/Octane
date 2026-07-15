@@ -1,6 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SideSheet, Button, Popconfirm, Toast, Spin, Empty, List } from '@douyinfe/semi-ui';
-import { IconPlus, IconLock, IconDelete } from '@douyinfe/semi-icons';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import { Toast } from '@/components/ui/toast';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
+import { Plus, Lock, Trash2 } from 'lucide-react';
 import { getContexts, createContext, deleteContext } from '@/services/ContextService';
 import { ContextEditor } from '../ContextEditor';
 import { useBookmarks } from '@/store/useBookmarks';
@@ -92,104 +106,112 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
   };
 
   return (
-    <SideSheet
-      title={
-        bookmark ? (
-          <div className={styles.titleRow}>
-            <span className={styles.titleName}>{bookmark.name}</span>
-            {bookmark.hasEncryptedContext && <IconLock className={styles.lockIcon} />}
-          </div>
-        ) : null
-      }
-      visible={visible && !!bookmark}
-      onCancel={handleClose}
-      width={500}
-      placement="right"
-      footer={editingContext ? null : (
-        bookmark ? (
-          <div className={styles.footer}>
-            <Button
-              theme="solid"
-              icon={<IconPlus />}
-              onClick={handleCreate}
-            >
-              新增上下文
-            </Button>
-          </div>
-        ) : null
-      )}
+    <Sheet
+      open={visible && !!bookmark}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
     >
-      {bookmark && (
-        editingContext ? (
-          <ContextEditor
-            context={editingContext}
-            onBack={handleEditorBack}
-          />
-        ) : (
-          <div className={styles.listContainer}>
-            {loading ? (
-              <div className={styles.loading}>
-                <Spin />
+      <SheetContent side="right" className="w-[500px] sm:max-w-[500px]">
+        <SheetHeader>
+          <SheetTitle>
+            {bookmark ? (
+              <div className={styles.titleRow}>
+                <span className={styles.titleName}>{bookmark.name}</span>
+                {bookmark.hasEncryptedContext && <Lock className={styles.lockIcon} />}
               </div>
-            ) : error ? (
-              <div className={styles.error}>
-                <Empty description={error} />
-                <Button onClick={loadContexts}>重试</Button>
-              </div>
-            ) : contexts.length === 0 ? (
-              <Empty
-                description="暂无上下文"
-              >
-                <Button theme="solid" icon={<IconPlus />} onClick={handleCreate}>
-                  添加第一条上下文
-                </Button>
-              </Empty>
-            ) : (
-              <List size="small">
-                {contexts.map((ctx) => (
-                  <List.Item
-                    key={ctx.id}
-                    onClick={() => setEditingContext(ctx)}
-                    main={
+            ) : null}
+          </SheetTitle>
+        </SheetHeader>
+
+        {bookmark &&
+          (editingContext ? (
+            <ContextEditor context={editingContext} onBack={handleEditorBack} />
+          ) : (
+            <div className={`${styles.listContainer} flex-1 overflow-auto`}>
+              {loading ? (
+                <div className={styles.loading}>
+                  <Spinner />
+                </div>
+              ) : error ? (
+                <div className={styles.error}>
+                  <Empty>
+                    <EmptyDescription>{error}</EmptyDescription>
+                  </Empty>
+                  <Button variant="outline" onClick={loadContexts}>
+                    重试
+                  </Button>
+                </div>
+              ) : contexts.length === 0 ? (
+                <Empty>
+                  <EmptyDescription>暂无上下文</EmptyDescription>
+                  <Button variant="default" onClick={handleCreate}>
+                    <Plus />
+                    添加第一条上下文
+                  </Button>
+                </Empty>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {contexts.map((ctx) => (
+                    <li
+                      key={ctx.id}
+                      className="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 hover:bg-muted"
+                      onClick={() => setEditingContext(ctx)}
+                    >
                       <div className={styles.contextInfo}>
                         <div className={styles.contextTitle}>
                           {ctx.title || '无标题'}
-                          {ctx.isEncrypted && <IconLock className={styles.contextLock} />}
+                          {ctx.isEncrypted && <Lock className={styles.contextLock} />}
                         </div>
                         <div className={styles.contextTime}>
                           {new Date(ctx.updatedAt).toLocaleString()}
                         </div>
                       </div>
-                    }
-                    extra={
-                      <Popconfirm
-                        title="确认删除该上下文？"
-                        okType="danger"
-                        okText="删除"
-                        trigger="click"
-                        onConfirm={(e) => {
-                          e?.stopPropagation();
-                          handleDelete(ctx.id);
-                        }}
-                        onCancel={(e) => e?.stopPropagation()}
-                      >
-                        <Button
-                          theme="borderless"
-                          size="small"
-                          icon={<IconDelete />}
-                          aria-label="删除"
-                          className={styles.deleteBtn}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Popconfirm>
-                    }
-                  />
-                ))}
-              </List>
-            )}
-          </div>
-        )
-      )}
-    </SideSheet>
+                      <AlertDialog>
+                        <AlertDialogTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="删除"
+                              className={styles.deleteBtn}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          }
+                        >
+                          <Trash2 />
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>确认删除该上下文？</AlertDialogTitle>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogAction
+                              variant="destructive"
+                              onClick={() => handleDelete(ctx.id)}
+                            >
+                              删除
+                            </AlertDialogAction>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+
+        {!editingContext && bookmark && (
+          <SheetFooter>
+            <Button variant="default" onClick={handleCreate}>
+              <Plus />
+              新增上下文
+            </Button>
+          </SheetFooter>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 };

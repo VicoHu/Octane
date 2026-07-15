@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// Toast 涉及 portal + 全局副作用，partial mock 保留 Collapse 等其余 Semi 组件真实渲染。
-// lottie-web 已由 vitest.config.ts 全局 alias 处理，Collapse 不再需要整体 mock。
-vi.mock('@douyinfe/semi-ui', async (importActual) => {
-  const actual = await importActual<typeof import('@douyinfe/semi-ui')>();
-  return {
-    ...actual,
-    Toast: { ...actual.Toast, success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  };
-});
+// Toast 涉及 portal + 全局副作用，mock 为副作用边界（其余 ui 组件真实渲染）。
+// lottie-web 已由 vitest.config.ts 全局 alias 处理。
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), close: vi.fn() },
+}));
 
 vi.mock('../hooks/useCurrentTabContext', () => ({
   useCurrentTabContext: vi.fn(),

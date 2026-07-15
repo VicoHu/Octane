@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { InputNumber } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
 import { readTtlConfig, writeTtlConfig } from '@/services/UnlockSession';
 
 /** 单位：秒。grace 下限 1 秒给用户最大自由度（细粒度，特别适合失焦锁定）。 */
@@ -41,13 +41,17 @@ export function EncryptionTtlSection() {
   }, []);
 
   const commitGrace = async (v: number | string | null | undefined) => {
-    const seconds = clamp(Number(v), MIN_GRACE_SECONDS, MAX_GRACE_SECONDS);
-    setGrace(seconds);
+    const raw = Number(v);
+    // 展示原始输入值：不逐键 clamp（原 Semi InputNumber 在 blur 才 clamp），
+    // 否则 user.type 过程中被钳回 min（如清空→1，再输 90 变 190），仅持久化值 clamp。
+    setGrace(raw);
+    const seconds = clamp(raw, MIN_GRACE_SECONDS, MAX_GRACE_SECONDS);
     await writeTtlConfig({ grace: seconds * 1000 });
   };
   const commitHardCap = async (v: number | string | null | undefined) => {
-    const seconds = clamp(Number(v), MIN_HARDCAP_SECONDS, MAX_HARD_CAP_SECONDS);
-    setHardCap(seconds);
+    const raw = Number(v);
+    setHardCap(raw);
+    const seconds = clamp(raw, MIN_HARDCAP_SECONDS, MAX_HARD_CAP_SECONDS);
     await writeTtlConfig({ hardCap: seconds * 1000 });
   };
 
@@ -64,24 +68,24 @@ export function EncryptionTtlSection() {
         仅作用于 side panel。home 页解锁不联动 side panel。
       </div>
       <Row label="失焦锁定" hint="side panel 失焦超过该时长自动锁回（短暂切窗不打扰，如 30/90 秒）">
-        <InputNumber
+        <Input
+          type="number"
           data-testid="ttl-grace"
           value={grace}
           min={MIN_GRACE_SECONDS}
           max={MAX_GRACE_SECONDS}
-          suffix="秒"
-          onChange={commitGrace}
+          onChange={(e) => commitGrace(Number(e.target.value))}
           disabled={!loaded}
         />
       </Row>
       <Row label="硬上限" hint="解锁后最长时长，无论是否活跃必锁（防一直盯着永不锁）">
-        <InputNumber
+        <Input
+          type="number"
           data-testid="ttl-hardcap"
           value={hardCap}
           min={MIN_HARDCAP_SECONDS}
           max={MAX_HARD_CAP_SECONDS}
-          suffix="秒"
-          onChange={commitHardCap}
+          onChange={(e) => commitHardCap(Number(e.target.value))}
           disabled={!loaded}
         />
       </Row>

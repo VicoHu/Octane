@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
-import { Card as SemiCard, Button, Tooltip, Popconfirm } from '@douyinfe/semi-ui';
-import { IconLock, IconComment, IconEdit, IconDelete } from '@douyinfe/semi-icons';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import { Lock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import type { Bookmark } from '@/shared/types';
 import { useFavicon } from '@/hooks/useFavicon';
 import styles from './index.module.css';
-
-// Semi Card 的 CardProps 未声明 role / onClick，运行时透传到 DOM 但类型缺失。
-// 这里扩展为带 HTML 属性的组件类型，保留 a11y 与点击行为。
-const Card = SemiCard as React.ComponentType<
-  React.ComponentProps<typeof SemiCard> & { role?: string; onClick?: React.MouseEventHandler<HTMLElement> }
->;
 
 interface BookmarkCardProps {
   bookmark: Bookmark;
@@ -29,6 +36,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
   const faviconSrc = useFavicon(bookmark.url, runtimeFavIconUrl);
   // Phase 3：点击已打开书签跳转时，竖线做一次脉冲动效（设计 §4.3）
   const [pulsing, setPulsing] = useState(false);
+  // 删除二次确认 AlertDialog 受控开关（shadcn AlertDialogAction 不自动关闭，需手动置 false）
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const displayUrl = (() => {
     try {
       return new URL(bookmark.url).hostname;
@@ -54,9 +63,8 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
           setTimeout(() => setPulsing(false), 400);
         }
       }}
-      shadows="hover"
-      bodyStyle={{ display: 'flex', gap: 'var(--space-md)', padding: 'var(--space-lg)', alignItems: 'center' }}
       className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
+      style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', padding: 'var(--space-lg)' }}
     >
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
       {grip && <div className={styles.gripSlot}>{grip}</div>}
@@ -76,18 +84,17 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
           </div>
         )}
         {bookmark.contextCount > 0 && (
-          <Tooltip content={badgeTooltip}>
-            <div
-              className={styles.contextBadge}
-              role="img"
-              aria-label={badgeTooltip}
+          <Tooltip>
+            <TooltipTrigger
+              render={<div className={styles.contextBadge} role="img" aria-label={badgeTooltip} />}
             >
               {bookmark.hasEncryptedContext ? (
-                <IconLock className={styles.contextBadgeIcon} />
+                <Lock size={10} className={styles.contextBadgeIcon} />
               ) : (
                 <span className={styles.contextBadgeDot} />
               )}
-            </div>
+            </TooltipTrigger>
+            <TooltipContent>{badgeTooltip}</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -106,57 +113,83 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
       {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触）;data-no-dnd 防拖拽冒泡 */}
       <div className={styles.actions} data-no-dnd onClick={(e) => e.stopPropagation()}>
-        <Tooltip content="查看上下文">
-          <Button
-            theme="borderless"
-            type="tertiary"
-            icon={<IconComment />}
-            aria-label="查看上下文"
-            className={styles.actionBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewContexts(bookmark);
-            }}
-          />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="查看上下文"
+                className={styles.actionBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewContexts(bookmark);
+                }}
+              />
+            }
+          >
+            <MessageSquare />
+          </TooltipTrigger>
+          <TooltipContent>查看上下文</TooltipContent>
         </Tooltip>
-        <Tooltip content="编辑书签">
-          <Button
-            theme="borderless"
-            type="tertiary"
-            icon={<IconEdit />}
-            aria-label="编辑书签"
-            className={styles.actionBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditBookmark(bookmark);
-            }}
-          />
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="编辑书签"
+                className={styles.actionBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditBookmark(bookmark);
+                }}
+              />
+            }
+          >
+            <Pencil />
+          </TooltipTrigger>
+          <TooltipContent>编辑书签</TooltipContent>
         </Tooltip>
-        {/* 删除：级联删上下文，Popconfirm 二次确认。文案按 contextCount 分支（0 条时不显示无意义计数）。
-            onConfirm 用 body block 不返回 Promise——否则 Semi Popconfirm 进入异步 loading 模式，
-            其 overlay(z-index 1030) 遮挡 Toast(1010)，导致删除成功 Toast 不可见。 */}
-        <Popconfirm
-          title="删除书签"
-          content={
-            bookmark.contextCount > 0
-              ? `将同时删除 ${bookmark.contextCount} 条上下文，不可撤销`
-              : '确定删除该书签？'
-          }
-          okType="danger"
-          position="bottomRight"
-          onConfirm={() => {
-            onDelete(bookmark);
-          }}
-        >
-          <Button
-            theme="borderless"
-            type="danger"
-            icon={<IconDelete />}
-            aria-label="删除书签"
-            className={styles.actionBtn}
-            onClick={(e) => e.stopPropagation()}
-          />
-        </Popconfirm>
+        {/* 删除：级联删上下文，AlertDialog 二次确认。文案按 contextCount 分支（0 条时不显示无意义计数）。
+            AlertDialogAction 不自动关闭，需 setDeleteOpen(false)；content 经 Portal 不冒泡到卡片。 */}
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogTrigger
+            render={
+              <Button
+                variant="destructive"
+                size="icon-sm"
+                aria-label="删除书签"
+                className={styles.actionBtn}
+                onClick={(e) => e.stopPropagation()}
+              />
+            }
+          >
+            <Trash2 />
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除书签</AlertDialogTitle>
+              <AlertDialogDescription>
+                {bookmark.contextCount > 0
+                  ? `将同时删除 ${bookmark.contextCount} 条上下文，不可撤销`
+                  : '确定删除该书签？'}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  onDelete(bookmark);
+                  setDeleteOpen(false);
+                }}
+              >
+                删除
+              </AlertDialogAction>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Card>
   );

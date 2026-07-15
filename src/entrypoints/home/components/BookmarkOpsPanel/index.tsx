@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState, useImperativeHandle } from 'react';
-import { Form, Banner, useFieldState } from '@douyinfe/semi-ui';
+import { Form, useFieldState } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import styles from './index.module.css';
 
 /** 面板提交值 */
@@ -144,13 +145,9 @@ export const BookmarkOpsPanel = React.forwardRef<
           rules={[{ required: true, message: '请选择目标分类' }]}
         />
         {categoryEmpty ? (
-          <Banner
-            className={styles.banner}
-            fullMode={false}
-            type="warning"
-            bordered
-            description="目标工作区无分类，请先创建"
-          />
+          <Alert variant="default" className={styles.banner}>
+            <AlertDescription>目标工作区无分类，请先创建</AlertDescription>
+          </Alert>
         ) : null}
       </Form.Section>
 

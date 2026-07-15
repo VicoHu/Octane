@@ -2,14 +2,37 @@ import type { ReactNode } from 'react';
 import { toast as sonnerToast } from 'sonner';
 
 /** Semi Toast 命令式 API 的 drop-in shim：内部转调 sonner。
- *  代码库全部为字符串首参调用（如 Toast.error('刷新失败')），故签名 message: ReactNode。
+ *  同时兼容两种调用形态：
+ *  - 字符串/ReactNode 首参（多数调用，如 Toast.error('刷新失败')）
+ *  - 对象首参（如 Toast.success({ content: <span/>, duration: 5 })）
  *  调用点仅改 import 路径（@douyinfe/semi-ui → @/components/ui/toast），用法不变。 */
 type ToastOptions = { duration?: number; id?: string | number };
+type ToastInput = ReactNode | ({ content: ReactNode } & ToastOptions);
+
+function resolve(input: ToastInput): [ReactNode, ToastOptions] {
+  if (input !== null && typeof input === 'object' && !Array.isArray(input) && 'content' in input) {
+    const { content, duration, id } = input as { content: ReactNode } & ToastOptions;
+    return [content, { duration, id }];
+  }
+  return [input, {}];
+}
 
 export const Toast = {
-  info: (message: ReactNode, opts?: ToastOptions) => sonnerToast(message, opts),
-  success: (message: ReactNode, opts?: ToastOptions) => sonnerToast.success(message, opts),
-  error: (message: ReactNode, opts?: ToastOptions) => sonnerToast.error(message, opts),
-  warning: (message: ReactNode, opts?: ToastOptions) => sonnerToast.warning(message, opts),
+  info: (input: ToastInput) => {
+    const [msg, opts] = resolve(input);
+    return sonnerToast(msg, opts);
+  },
+  success: (input: ToastInput) => {
+    const [msg, opts] = resolve(input);
+    return sonnerToast.success(msg, opts);
+  },
+  error: (input: ToastInput) => {
+    const [msg, opts] = resolve(input);
+    return sonnerToast.error(msg, opts);
+  },
+  warning: (input: ToastInput) => {
+    const [msg, opts] = resolve(input);
+    return sonnerToast.warning(msg, opts);
+  },
   close: (id?: string | number) => sonnerToast.dismiss(id),
 };

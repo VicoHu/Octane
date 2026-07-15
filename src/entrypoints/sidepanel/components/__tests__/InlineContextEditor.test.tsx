@@ -2,14 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// Toast 涉及 portal + 全局副作用，partial mock 保留其余 Semi 组件真实渲染。
-vi.mock('@douyinfe/semi-ui', async (importActual) => {
-  const actual = await importActual<typeof import('@douyinfe/semi-ui')>();
-  return {
-    ...actual,
-    Toast: { ...actual.Toast, warning: vi.fn(), error: vi.fn(), success: vi.fn() },
-  };
-});
+// Toast 涉及 portal + 全局副作用，mock 为副作用边界。
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { warning: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn(), close: vi.fn() },
+}));
 // 副作用边界：createContext（IDB 写）、isUnlocked（派生 key 校验）
 vi.mock('@/services/ContextService', () => ({ createContext: vi.fn() }));
 vi.mock('@/services/UnlockSession', () => ({ isUnlocked: vi.fn() }));
@@ -18,7 +14,7 @@ vi.mock('@/services/CryptoService', () => ({}));
 import { InlineContextEditor } from '../InlineContextEditor';
 import { createContext } from '@/services/ContextService';
 import { isUnlocked } from '@/services/UnlockSession';
-import { Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@/components/ui/toast';
 
 const createContextMock = createContext as unknown as ReturnType<typeof vi.fn>;
 const isUnlockedMock = isUnlocked as unknown as ReturnType<typeof vi.fn>;

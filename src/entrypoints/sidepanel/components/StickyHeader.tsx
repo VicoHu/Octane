@@ -1,4 +1,4 @@
-import { IconPlus } from '@douyinfe/semi-icons';
+import { Plus } from 'lucide-react';
 import { useFavicon } from '@/hooks/useFavicon';
 import styles from './StickyHeader.module.css';
 
@@ -34,7 +34,7 @@ export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeade
         📌
       </button>
       <button className={styles.addBtn} onClick={onAdd} aria-label="添加书签" title="添加书签">
-        <IconPlus />
+        <Plus />
       </button>
     </div>
   );

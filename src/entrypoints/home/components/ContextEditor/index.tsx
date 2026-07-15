@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Input, Switch, Tabs, TabPane, Toast } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Toast } from '@/components/ui/toast';
 import { useCrypto } from '@/store/useCrypto';
 import { useBookmarks } from '@/store/useBookmarks';
 import { updateContext } from '@/services/ContextService';
@@ -100,7 +103,7 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
 
       <Input
         value={title}
-        onChange={handleTitleChange}
+        onChange={(e) => handleTitleChange(e.target.value)}
         placeholder="上下文标题"
         className={styles.titleInput}
       />
@@ -111,26 +114,30 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
         </span>
         <Switch
           checked={isEncrypted}
-          onChange={handleEncryptionToggle}
-          size="small"
+          onCheckedChange={handleEncryptionToggle}
+          size="sm"
         />
       </div>
 
-      <Tabs activeKey={tab} onChange={(key) => setTab(key as 'edit' | 'preview')}>
-        <TabPane tab="编辑" itemKey="edit">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as 'edit' | 'preview')}>
+        <TabsList>
+          <TabsTrigger value="edit">编辑</TabsTrigger>
+          <TabsTrigger value="preview">预览</TabsTrigger>
+        </TabsList>
+        <TabsContent value="edit">
           <textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
             placeholder="点击开始记录...（支持 Markdown）"
             className={styles.textarea}
           />
-        </TabPane>
-        <TabPane tab="预览" itemKey="preview">
+        </TabsContent>
+        <TabsContent value="preview">
           <div
             className={`markdown-body ${styles.previewBody}`}
             dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
           />
-        </TabPane>
+        </TabsContent>
       </Tabs>
     </div>
   );

@@ -74,7 +74,7 @@ describe('Content 骨架屏（T2）', () => {
   it('loading=true 且书签视图时渲染 Semi Skeleton 骨架', () => {
     bookmarksState.loading = true;
     const { container } = render(<Content openTabs={[]} />);
-    expect(container.querySelector('.semi-skeleton')).toBeTruthy();
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeTruthy();
   });
 });
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Spin } from '@douyinfe/semi-ui';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 // 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 background.ts）。
 declare const chrome: unknown;
@@ -104,7 +105,7 @@ export function ShortcutsSection() {
 
       {loading ? (
         <div style={{ padding: 24, textAlign: 'center' }}>
-          <Spin />
+          <Spinner />
         </div>
       ) : (
         <div>
@@ -140,7 +141,7 @@ export function ShortcutsSection() {
       )}
 
       <div style={{ marginTop: 16, textAlign: 'right' }}>
-        <Button theme="solid" onClick={openShortcuts}>
+        <Button onClick={openShortcuts}>
           前往自定义
         </Button>
       </div>

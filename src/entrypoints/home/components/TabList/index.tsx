@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Button, Tooltip } from '@douyinfe/semi-ui';
-import { IconMapPin, IconPlus, IconBookmark } from '@douyinfe/semi-icons';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { MapPin, Plus, Bookmark as BookmarkIcon } from 'lucide-react';
 import type { Bookmark } from '@/shared/types';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab } from '@/shared/tabs/matchUrl';
@@ -104,10 +105,13 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
         )}
         {/* 已收藏角标(favicon 角,镜像 BookmarkCard 的 contextBadge 思路) */}
         {saved && (
-          <Tooltip content="已在书签库">
-            <div className={styles.savedBadge} role="img" aria-label="已收藏">
-              <IconBookmark className={styles.savedBadgeIcon} />
-            </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={<div className={styles.savedBadge} role="img" aria-label="已收藏" />}
+            >
+              <BookmarkIcon className={styles.savedBadgeIcon} />
+            </TooltipTrigger>
+            <TooltipContent>已在书签库</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -119,25 +123,30 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
 
       <div className={styles.actions}>
         {tab.pinned && (
-          <Tooltip content="已固定标签">
-            <IconMapPin className={styles.pinIcon} aria-label="已固定" />
+          <Tooltip>
+            <TooltipTrigger render={<MapPin className={styles.pinIcon} aria-label="已固定" />} />
+            <TooltipContent>已固定标签</TooltipContent>
           </Tooltip>
         )}
-        <Tooltip content={saveHint || '收藏到当前分类'} spacing={6}>
-          <Button
-            theme="borderless"
-            type="tertiary"
-            size="small"
-            icon={<IconPlus />}
-            disabled={saveDisabled}
-            className={styles.saveBtn}
-            onClick={(e) => {
-              e.stopPropagation();
-              onSave();
-            }}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={saveDisabled}
+                className={styles.saveBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSave();
+                }}
+              />
+            }
           >
+            <Plus />
             存为书签
-          </Button>
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6}>{saveHint || '收藏到当前分类'}</TooltipContent>
         </Tooltip>
       </div>
     </div>

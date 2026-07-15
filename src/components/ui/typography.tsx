@@ -18,12 +18,23 @@ const textTypeClass: Record<TextType, string> = {
 function Text({
   type = 'default',
   size = 'normal',
+  strong = false,
   className,
   ...props
-}: React.HTMLAttributes<HTMLSpanElement> & { type?: TextType; size?: TextSize }) {
+}: React.HTMLAttributes<HTMLSpanElement> & {
+  type?: TextType;
+  size?: TextSize;
+  strong?: boolean;
+}) {
   return (
     <span
-      className={cn('text-sm', size === 'small' && 'text-xs', textTypeClass[type], className)}
+      className={cn(
+        'text-sm',
+        size === 'small' && 'text-xs',
+        strong && 'font-semibold',
+        textTypeClass[type],
+        className,
+      )}
       {...props}
     />
   );

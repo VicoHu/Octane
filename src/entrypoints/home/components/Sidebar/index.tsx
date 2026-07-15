@@ -1,6 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { Select, Button, Input, Modal, List, Toast } from '@douyinfe/semi-ui';
-import { IconPlus, IconDelete, IconSetting } from '@douyinfe/semi-icons';
+import React, { useState } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Toast } from '@/components/ui/toast';
+import { Plus, Trash2, Settings } from 'lucide-react';
 import {
   DndContext,
   PointerSensor,
@@ -130,11 +134,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
     setConfirmText('');
   };
 
-  const getPopupContainer = useCallback(
-    () => document.getElementById('sidebar-container') || document.body,
-    [],
-  );
-
   return (
     <div className={styles.sidebar}>
       {/* 品牌标题 */}
@@ -147,41 +146,51 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <div className={styles.sectionLabel}>工作区</div>
       <div className={styles.workspaceSelect}>
         <Select
-          value={currentWorkspaceId}
-          onChange={(val) => val && selectWorkspace(val as string)}
-          className={styles.select}
-          placeholder="选择工作区"
-          getPopupContainer={getPopupContainer}
-          optionList={workspaces.map((ws) => ({
-            value: ws.id,
-            label: `${ws.icon} ${ws.name}`,
-          }))}
-        />
-        <Button icon={<IconPlus />} onClick={() => setShowNewWorkspace(true)}></Button>
+          value={currentWorkspaceId ?? undefined}
+          onValueChange={(val) => val && selectWorkspace(val)}
+        >
+          <SelectTrigger className={styles.select}>
+            <SelectValue placeholder="选择工作区" />
+          </SelectTrigger>
+          <SelectContent>
+            {workspaces.map((ws) => (
+              <SelectItem key={ws.id} value={ws.id}>
+                {ws.icon} {ws.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" size="icon" onClick={() => setShowNewWorkspace(true)}>
+          <Plus />
+        </Button>
       </div>
-      <Button block size="small" theme="borderless" onClick={() => setShowManage(true)}>
+      <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowManage(true)}>
         管理
       </Button>
 
       {/* 常驻标签区：per-workspace 跨分类，挂在工作区切换下方、分类列表上方 */}
       {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} openTabs={openTabs} />}
 
-      <Modal
-        title="新建工作区"
-        visible={showNewWorkspace}
-        onOk={handleCreateWorkspace}
-        onCancel={() => setShowNewWorkspace(false)}
-      >
-        <Input
-          placeholder="工作区名称"
-          value={newWorkspaceName}
-          onChange={setNewWorkspaceName}
-          onEnterPress={handleCreateWorkspace}
-        />
-        <div style={{ marginTop: 12 }}>
-          <IconPicker value={newWorkspaceIcon} onChange={setNewWorkspaceIcon} />
-        </div>
-      </Modal>
+      <Dialog open={showNewWorkspace} onOpenChange={(o) => !o && setShowNewWorkspace(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新建工作区</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="工作区名称"
+            value={newWorkspaceName}
+            onChange={(e) => setNewWorkspaceName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateWorkspace(); }}
+          />
+          <div style={{ marginTop: 12 }}>
+            <IconPicker value={newWorkspaceIcon} onChange={setNewWorkspaceIcon} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewWorkspace(false)}>取消</Button>
+            <Button onClick={handleCreateWorkspace}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 分类 */}
       <div className={styles.sectionLabel}>分类</div>
@@ -201,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
               items={categories.map((c) => c.id)}
               strategy={verticalListSortingStrategy}
             >
-              <List size="small">
+              <ul className="flex flex-col gap-1">
                 {categories.map((cat) => (
                   <SortableCategory
                     key={cat.id}
@@ -216,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
                     }}
                   />
                 ))}
-              </List>
+              </ul>
             </SortableContext>
             <SortableOverlay tone="dark" invalid={invalid}>
               {activeCat && (
@@ -227,107 +236,109 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
             </SortableOverlay>
           </DndContext>
         ) : (
-          <List size="small">
+          <ul className="flex flex-col gap-1">
             {categories.map((cat) => (
-              <List.Item
+              <li
                 key={cat.id}
                 className={`${styles.cat} ${currentCategoryId === cat.id ? styles.catActive : ''}`}
                 onClick={() => useWorkspace.getState().selectCategory(cat.id)}
-                main={
-                  <span className={styles.categoryName}>
-                    {cat.icon} {cat.name}
-                  </span>
-                }
-                extra={
-                  <IconDelete
-                    className={styles.deleteIcon}
-                    aria-label={`删除分类 ${cat.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmText('');
-                      setDeleteTarget(cat);
-                    }}
-                  />
-                }
-              />
+              >
+                <span className={styles.categoryName}>
+                  {cat.icon} {cat.name}
+                </span>
+                <Trash2
+                  className={styles.deleteIcon}
+                  aria-label={`删除分类 ${cat.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmText('');
+                    setDeleteTarget(cat);
+                  }}
+                />
+              </li>
             ))}
-          </List>
+          </ul>
         )}
       </div>
 
       <div className={styles.bottomButton}>
-        <Button icon={<IconPlus />} block onClick={() => setShowNewCategory(true)}>
+        <Button variant="secondary" className="w-full" onClick={() => setShowNewCategory(true)}>
+          <Plus />
           添加分类
         </Button>
         {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}
         <Button
-          icon={<IconSetting />}
-          block
-          className={styles.settingsButton}
+          variant="secondary"
+          className={`w-full ${styles.settingsButton}`}
           aria-label="设置"
           onClick={() => setShowSettings(true)}
         >
+          <Settings />
           设置
         </Button>
       </div>
 
-      <Modal
-        title="新建分类"
-        visible={showNewCategory}
-        onOk={handleCreateCategory}
-        onCancel={() => setShowNewCategory(false)}
-      >
-        <Input
-          placeholder="分类名称"
-          value={newCategoryName}
-          onChange={setNewCategoryName}
-          onEnterPress={handleCreateCategory}
-        />
-        <div style={{ marginTop: 12 }}>
-          <IconPicker value={newCategoryIcon} onChange={setNewCategoryIcon} />
-        </div>
-      </Modal>
+      <Dialog open={showNewCategory} onOpenChange={(o) => !o && setShowNewCategory(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新建分类</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="分类名称"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateCategory(); }}
+          />
+          <div style={{ marginTop: 12 }}>
+            <IconPicker value={newCategoryIcon} onChange={setNewCategoryIcon} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewCategory(false)}>取消</Button>
+            <Button onClick={handleCreateCategory}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 删除分类二次确认：级联删除书签与上下文，要求输入短语解锁 */}
-      <Modal
-        title="删除分类"
-        visible={deleteTarget !== null}
-        onOk={handleConfirmDelete}
-        onCancel={cancelDelete}
-        okType="danger"
-        okText="删除"
-        okButtonProps={{ disabled: !canConfirmDelete }}
-        maskClosable={false}
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
-          <div style={{ color: "var(--semi-color-text-0)", lineHeight: 1.7 }}>
-            删除分类「{deleteTarget?.icon} {deleteTarget?.name}」将
-            <strong style={{ color: "var(--semi-color-danger)" }}>同时删除该分类下的所有书签及其上下文</strong>
-            ，且此操作<strong>不可恢复</strong>。
+      <Dialog open={deleteTarget !== null} onOpenChange={(o) => !o && cancelDelete()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除分类</DialogTitle>
+          </DialogHeader>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+            <div style={{ color: "var(--semi-color-text-0)", lineHeight: 1.7 }}>
+              删除分类「{deleteTarget?.icon} {deleteTarget?.name}」将
+              <strong style={{ color: "var(--semi-color-danger)" }}>同时删除该分类下的所有书签及其上下文</strong>
+              ，且此操作<strong>不可恢复</strong>。
+            </div>
+            <div style={{ color: "var(--semi-color-text-1)", fontSize: "var(--font-sm)" }}>
+              请输入下方短语以确认（可忽略空格）：
+            </div>
+            <code
+              style={{
+                padding: "6px 10px",
+                background: "var(--semi-color-fill-0)",
+                borderRadius: 4,
+                fontSize: "var(--font-sm)",
+                userSelect: "all",
+              }}
+            >
+              {expectedPhrase}
+            </code>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={expectedPhrase}
+              aria-label="确认删除短语"
+              autoFocus
+            />
           </div>
-          <div style={{ color: "var(--semi-color-text-1)", fontSize: "var(--font-sm)" }}>
-            请输入下方短语以确认（可忽略空格）：
-          </div>
-          <code
-            style={{
-              padding: "6px 10px",
-              background: "var(--semi-color-fill-0)",
-              borderRadius: 4,
-              fontSize: "var(--font-sm)",
-              userSelect: "all",
-            }}
-          >
-            {expectedPhrase}
-          </code>
-          <Input
-            value={confirmText}
-            onChange={setConfirmText}
-            placeholder={expectedPhrase}
-            aria-label="确认删除短语"
-            autoFocus
-          />
-        </div>
-      </Modal>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelDelete}>取消</Button>
+            <Button variant="destructive" disabled={!canConfirmDelete} onClick={handleConfirmDelete}>删除</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 工作区与分类管理：编辑名称与图标 */}
       <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
@@ -350,11 +361,11 @@ interface SortableCategoryProps {
 /**
  * SortableCategory —— 分类项的拖拽 wrapper(T6)。
  *
- * - D6:listeners 收敛到 grip GripButton(extra 区),List.Item onClick(selectCategory)保留。
+ * - D6:listeners 收敛到 grip GripButton(extra 区),li onClick(selectCategory)保留。
  * - 1D verticalListSortingStrategy:wrapper 承载 setNodeRef + translateY 让位。
  * - 深色面:overlay 浅描边(tone="dark" 在 Sidebar 层 SortableOverlay);grip 跟随 sidebar-text-muted。
- * - isDragging 原位 visibility:hidden 保留 List.Item 高度(measured rect 占位),DragOverlay 副本浮于指针。
- * - IconDelete data-no-dnd 防拖拽冒泡。
+ * - isDragging 原位 visibility:hidden 保留 li 高度(measured rect 占位),DragOverlay 副本浮于指针。
+ * - Trash2 data-no-dnd 防拖拽冒泡。
  */
 const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSelect, onDelete, disabled }) => {
   const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cat.id, disabled });
@@ -367,28 +378,25 @@ const SortableCategory: React.FC<SortableCategoryProps> = ({ cat, isActive, onSe
         transition,
       }}
     >
-      <List.Item
+      <li
         className={`${styles.cat} ${isActive ? styles.catActive : ''}${isDragging ? ` ${styles.dragGhost}` : ''}`}
         onClick={onSelect}
-        main={
-          <span className={styles.categoryName}>
-            {cat.icon} {cat.name}
+      >
+        <span className={styles.categoryName}>
+          {cat.icon} {cat.name}
+        </span>
+        <span className={styles.catExtra}>
+          <span className={styles.gripSlot}>
+            <GripButton listeners={listeners} />
           </span>
-        }
-        extra={
-          <span className={styles.catExtra}>
-            <span className={styles.gripSlot}>
-              <GripButton listeners={listeners} />
-            </span>
-            <IconDelete
-              className={styles.deleteIcon}
-              aria-label={`删除分类 ${cat.name}`}
-              data-no-dnd
-              onClick={onDelete}
-            />
-          </span>
-        }
-      />
+          <Trash2
+            className={styles.deleteIcon}
+            aria-label={`删除分类 ${cat.name}`}
+            data-no-dnd
+            onClick={onDelete}
+          />
+        </span>
+      </li>
     </div>
   );
 };

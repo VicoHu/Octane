@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { IconLock, IconPlus } from '@douyinfe/semi-icons';
+import { Lock, Plus } from 'lucide-react';
 import { useEncryptedContexts } from '../hooks/useEncryptedContexts';
 import { ContextCard } from './ContextCard';
 import { InlineContextEditor } from './InlineContextEditor';
@@ -28,7 +28,7 @@ export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: Bookmark
     <div className={styles.group} role="listitem" aria-label={bookmark.name}>
       <div className={styles.header}>
         <span className={styles.name}>{bookmark.name}</span>
-        {bookmark.hasEncryptedContext && <IconLock className={styles.lock} aria-label="含加密上下文" />}
+        {bookmark.hasEncryptedContext && <Lock className={styles.lock} aria-label="含加密上下文" />}
         {categoryName && (
           <span className={styles.chip} title={categoryName}>
             {categoryIcon ? `${categoryIcon} ` : ''}{categoryName}
@@ -41,7 +41,7 @@ export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: Bookmark
           aria-label="添加上下文"
           title="就地创建上下文"
         >
-          <IconPlus />
+          <Plus />
         </button>
       </div>
       {editing && (

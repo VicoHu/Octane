@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Modal, Input, Button, Toast } from '@douyinfe/semi-ui';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/store/useWorkspace';
 import { IconPicker } from '@/components/IconPicker';
 import { GripButton } from '../dnd/GripButton';
@@ -63,11 +66,11 @@ const EntityEditRow: React.FC<EntityEditRowProps> = ({ id, name, icon, onSave })
     <div className={styles.item}>
       <div className={styles.editRow}>
         {/* 编辑态 Input data-no-dnd:防拖拽时 Input 聚焦/输入冲突(D6 grip 收敛后额外保险) */}
-        <Input value={draftName} onChange={setDraftName} placeholder="名称" data-no-dnd />
+        <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="名称" data-no-dnd />
         <IconPicker value={draftIcon} onChange={setDraftIcon} />
         <div className={styles.editActions}>
-          <Button size="small" theme="solid" onClick={handleSave}>保存</Button>
-          <Button size="small" onClick={() => setEditing(false)}>取消</Button>
+          <Button size="sm" variant="default" onClick={handleSave}>保存</Button>
+          <Button size="sm" variant="outline" onClick={() => setEditing(false)}>取消</Button>
         </div>
       </div>
     </div>
@@ -169,15 +172,17 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
   };
 
   return (
-    <Modal
-      title="管理工作区与分类"
-      visible={visible}
-      onCancel={onCancel}
-      centered
-      size="medium"
-      footer={null}
-      bodyStyle={{ maxHeight: '70vh', overflow: 'auto' }}
+    <Dialog
+      open={visible}
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
     >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>管理工作区与分类</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[70vh] overflow-auto">
       <div className={styles.section}>工作区</div>
       {workspaces.length > 1 ? (
         <DndContext
@@ -222,12 +227,14 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
 
       <div className={styles.section}>分类（当前工作区）</div>
       {categories.length === 0 ? (
-        <div style={{ color: 'var(--semi-color-text-2)', fontSize: 'var(--font-xs)' }}>暂无分类</div>
+        <div className="text-xs text-muted-foreground">暂无分类</div>
       ) : (
         categories.map((c) => (
           <EntityEditRow key={c.id} id={c.id} name={c.name} icon={c.icon} onSave={updateCategory} />
         ))
       )}
-    </Modal>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };

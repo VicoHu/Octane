@@ -1,5 +1,9 @@
 import { useRef, type ChangeEvent } from 'react';
-import { Modal, Button, Banner, Spin, Typography } from '@douyinfe/semi-ui';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Spinner } from '@/components/ui/spinner';
+import { Typography } from '@/components/ui/typography';
 import { SelectionTree } from './SelectionTree';
 import { shareStats } from './shareSelection';
 import { useShare } from '@/store/useShare';
@@ -30,69 +34,81 @@ export function ShareImportModal({ visible, onClose }: ShareImportModalProps) {
     ? shareStats(data.workspaces, data.categories, data.bookmarks, selection)
     : { ws: 0, cat: 0, bm: 0 };
 
+  const close = () => { resetImport(); onClose(); };
+
   // footer 按 status 动态：success=关闭；previewing|importing=取消+合并导入（importing 时 loading）；其余=关闭
-  const footer =
-    status === 'success' ? (
-      <Button onClick={() => { resetImport(); onClose(); }}>关闭</Button>
-    ) : status === 'previewing' || status === 'importing' ? (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button onClick={() => { resetImport(); onClose(); }} disabled={status === 'importing'}>取消</Button>
-        <Button
-          theme="solid"
-          loading={status === 'importing'}
-          disabled={stats.ws === 0 && stats.cat === 0}
-          onClick={runImport}
-        >
-          合并导入{stats.ws > 0 ? ` ${stats.ws} 个工作区` : ''}
-        </Button>
-      </div>
-    ) : (
-      <Button onClick={() => { resetImport(); onClose(); }}>关闭</Button>
-    );
+  const importing = status === 'importing';
 
   return (
-    <Modal title="导入分享包" visible={visible} onCancel={() => { resetImport(); onClose(); }} maskClosable={false} width={560} footer={footer}>
-      <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={handlePick} />
+    <Dialog open={visible} onOpenChange={(o) => !o && close()} disablePointerDismissal>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>导入分享包</DialogTitle>
+        </DialogHeader>
+        <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={handlePick} />
 
-      {status === 'idle' && (
-        <Button onClick={() => fileRef.current?.click()}>选择分享包文件</Button>
-      )}
-      {status === 'parsing' && <Spin />}
-      {status === 'error' && errorMessage && (
-        <Typography.Text type="danger" role="alert">{errorMessage}</Typography.Text>
-      )}
-      {status === 'previewing' && data && (
-        <>
-          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-            来自分享 · 合并到你的库，<strong>不覆盖</strong>现有数据。
-          </Typography.Text>
-          {data.cryptoMetadata && (
-            <Banner type="warning" description="此分享包含加密笔记，需与发送方相同主密码才能查看。" style={{ marginBottom: 8 }} />
-          )}
-          {data.workspaces.length === 0 ? (
-            <Typography.Text type="tertiary">这个分享包是空的</Typography.Text>
+        {status === 'idle' && (
+          <Button variant="outline" onClick={() => fileRef.current?.click()}>选择分享包文件</Button>
+        )}
+        {status === 'parsing' && <Spinner />}
+        {status === 'error' && errorMessage && (
+          <Typography.Text type="danger" role="alert">{errorMessage}</Typography.Text>
+        )}
+        {status === 'previewing' && data && (
+          <>
+            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+              来自分享 · 合并到你的库，<strong>不覆盖</strong>现有数据。
+            </Typography.Text>
+            {data.cryptoMetadata && (
+              <Alert style={{ marginBottom: 8 }}>
+                <AlertDescription>此分享包含加密笔记，需与发送方相同主密码才能查看。</AlertDescription>
+              </Alert>
+            )}
+            {data.workspaces.length === 0 ? (
+              <Typography.Text type="tertiary">这个分享包是空的</Typography.Text>
+            ) : (
+              <SelectionTree
+                workspaces={data.workspaces}
+                categories={data.categories}
+                bookmarks={data.bookmarks}
+                value={selection}
+                onChange={setImportSelection}
+              />
+            )}
+          </>
+        )}
+        {status === 'success' && result && (
+          <>
+            <Typography.Text>
+              ✓ 已导入 {result.workspaces} 个工作区 · {result.categories} 个分类 · {result.bookmarks} 个书签
+            </Typography.Text>
+            {result.skippedEncrypted > 0 && (
+              <Alert style={{ marginTop: 8 }}>
+                <AlertDescription>{result.skippedEncrypted} 条加密笔记因本机加密设置不同未导入</AlertDescription>
+              </Alert>
+            )}
+          </>
+        )}
+        <DialogFooter>
+          {status === 'success' ? (
+            <Button variant="outline" onClick={close}>关闭</Button>
+          ) : status === 'previewing' || status === 'importing' ? (
+            <>
+              <Button variant="outline" onClick={close} disabled={importing}>取消</Button>
+              <Button
+                variant="default"
+                disabled={(stats.ws === 0 && stats.cat === 0) || importing}
+                onClick={runImport}
+              >
+                {importing && <Spinner />}
+                合并导入{stats.ws > 0 ? ` ${stats.ws} 个工作区` : ''}
+              </Button>
+            </>
           ) : (
-            <SelectionTree
-              workspaces={data.workspaces}
-              categories={data.categories}
-              bookmarks={data.bookmarks}
-              value={selection}
-              onChange={setImportSelection}
-            />
+            <Button variant="outline" onClick={close}>关闭</Button>
           )}
-        </>
-      )}
-      {status === 'success' && result && (
-        <>
-          <Typography.Text>
-            ✓ 已导入 {result.workspaces} 个工作区 · {result.categories} 个分类 · {result.bookmarks} 个书签
-          </Typography.Text>
-          {result.skippedEncrypted > 0 && (
-            <Banner type="warning" style={{ marginTop: 8 }}
-              description={`${result.skippedEncrypted} 条加密笔记因本机加密设置不同未导入`} />
-          )}
-        </>
-      )}
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,6 +1,19 @@
 import { useState } from 'react';
-import { Button, Popconfirm, Toast, Typography } from '@douyinfe/semi-ui';
-import { IconDelete } from '@douyinfe/semi-icons';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
+import { Typography } from '@/components/ui/typography';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Trash2 } from 'lucide-react';
 import { clearAllFavicons } from '@/services/FaviconService';
 
 /**
@@ -9,12 +22,12 @@ import { clearAllFavicons } from '@/services/FaviconService';
  * 只清空第三方高清 favicon 缓存。浏览器本地 favicon 仍会立即显示，
  * 外网站点随后在后台重新尝试 Icon Horse 高清升级。
  *
- * Popconfirm onConfirm 用 `void` 包装（不返回 Promise），避免 Semi Popconfirm
- * 进入异步 loading 模式后 overlay(z-index 1030) 遮挡 Toast(1010)——与 BookmarkCard
- * 删除确认同坑。loading 态走组件内 state + Button loading。
+ * AlertDialog 受控开关：确认后 fire-and-forget handleClear + 关闭，
+ * loading 态走组件内 state + Button disabled。
  */
 export function FaviconCacheSection() {
   const [loading, setLoading] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
 
   const handleClear = async (): Promise<void> => {
     setLoading(true);
@@ -34,23 +47,30 @@ export function FaviconCacheSection() {
       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
         仅清除第三方高清图标缓存。浏览器本地图标仍可立即显示，外网站点会在后台重新获取高清图标。
       </Typography.Text>
-      <Popconfirm
-        title="清空 favicon 缓存"
-        content="将删除第三方高清图标缓存；浏览器本地图标不受影响。"
-        onConfirm={() => {
-          void handleClear();
-        }}
-      >
-        <Button
-          theme="borderless"
-          type="danger"
-          icon={<IconDelete />}
-          loading={loading}
-          aria-label="清空 favicon 缓存"
-        >
+      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <AlertDialogTrigger render={<Button variant="destructive" disabled={loading} aria-label="清空 favicon 缓存" />}>
+          <Trash2 />
           清空缓存
-        </Button>
-      </Popconfirm>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>清空 favicon 缓存</AlertDialogTitle>
+            <AlertDialogDescription>将删除第三方高清图标缓存；浏览器本地图标不受影响。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                void handleClear();
+                setAlertOpen(false);
+              }}
+            >
+              确定
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

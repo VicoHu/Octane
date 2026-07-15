@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@/components/ui/toast';
 
 // Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock。
 vi.mock('lottie-web', () => ({
@@ -18,14 +18,10 @@ vi.mock('lottie-web', () => ({
   },
 }));
 
-// 仅 partial-mock Toast（项目测试规范：真实渲染 Semi，只 mock Toast 副作用边界）
-vi.mock('@douyinfe/semi-ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@douyinfe/semi-ui')>();
-  return {
-    ...actual,
-    Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
-  };
-});
+// 仅 mock Toast（项目测试规范：真实渲染 ui 组件，只 mock Toast 副作用边界）
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), close: vi.fn() },
+}));
 
 // mocks
 const store = vi.hoisted(() => ({

@@ -2,14 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-// Toast partial mock（保留其余 Semi 组件真实渲染，含 Modal/Select/Button）
-vi.mock('@douyinfe/semi-ui', async (importActual) => {
-  const actual = await importActual<typeof import('@douyinfe/semi-ui')>();
-  return {
-    ...actual,
-    Toast: { ...actual.Toast, success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-  };
-});
+// Toast mock 为副作用边界（其余 ui 组件真实渲染，含 Dialog/Select/Button）
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), close: vi.fn() },
+}));
 
 vi.mock('../hooks/useCurrentTabContext', () => ({
   useCurrentTabContext: vi.fn(),
@@ -46,7 +42,7 @@ vi.mock('@/services/PinnedTabService', () => ({
 }));
 
 import App from '../App';
-import { Toast } from '@douyinfe/semi-ui';
+import { Toast } from '@/components/ui/toast';
 import { useCurrentTabContext } from '../hooks/useCurrentTabContext';
 import { useHostBookmarks } from '../hooks/useHostBookmarks';
 import { useSourceMap } from '../hooks/useSourceMap';
@@ -146,8 +142,8 @@ describe('App — Pin 当前 Tab 图标按钮（empty 管理旁 + StickyHeader a
 
     await waitFor(() => expect(listWorkspaces).toHaveBeenCalled());
     expect(await screen.findByText(/选择目标工作区/)).toBeInTheDocument();
-    // Semi Modal 确定按钮 accessible name = confirm
-    await user.click(screen.getByRole('button', { name: 'confirm' }));
+    // Dialog 确认按钮 accessible name = 按钮文本「确定」
+    await user.click(screen.getByRole('button', { name: '确定' }));
 
     await waitFor(() => expect(PinnedTabService.createPinnedTab).toHaveBeenCalled());
     expect(PinnedTabService.createPinnedTab).toHaveBeenCalledWith('full-1', { name: 'T', url: 'https://t.com' });

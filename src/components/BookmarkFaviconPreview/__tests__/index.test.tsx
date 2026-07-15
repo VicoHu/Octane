@@ -6,11 +6,10 @@ import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import * as FaviconService from '@/services/FaviconService';
 import { resetDB } from '@/shared/db/database';
 
-// partial mock Toast（项目规范：仅 mock Toast，真实渲染其余 Semi 组件）
-vi.mock('@douyinfe/semi-ui', async () => {
-  const actual = await vi.importActual<typeof import('@douyinfe/semi-ui')>('@douyinfe/semi-ui');
-  return { ...actual, Toast: { error: vi.fn(), success: vi.fn() } };
-});
+// partial mock Toast（项目规范：仅 mock Toast 副作用边界，真实渲染其余 ui 组件）
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), warning: vi.fn(), close: vi.fn() },
+}));
 
 vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:mock', onError: vi.fn() })),
@@ -97,7 +96,7 @@ describe('BookmarkFaviconPreview', () => {
   it('刷新失败 → Toast.error 提示，预览保持原样', async () => {
     vi.mocked(useFavicon).mockReturnValue({ kind: 'third-party', src: 'blob:keep', onError: vi.fn() });
     vi.spyOn(FaviconService, 'refreshFavicon').mockResolvedValue(null);
-    const { Toast } = await import('@douyinfe/semi-ui');
+    const { Toast } = await import('@/components/ui/toast');
     render(<BookmarkFaviconPreview url="https://github.com" />);
     await userEvent.click(screen.getByRole('button', { name: '刷新 favicon' }));
     expect(vi.mocked(Toast.error)).toHaveBeenCalled();

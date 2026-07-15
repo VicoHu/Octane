@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { IconChevronLeft } from '@douyinfe/semi-icons';
-import { Typography } from '@douyinfe/semi-ui';
+import { ChevronLeft } from 'lucide-react';
+import { Typography } from '@/components/ui/typography';
 import styles from '../popup.module.css';
 
 interface SubPageHeaderProps {
@@ -20,7 +20,7 @@ export default function SubPageHeader({ title, onBack, right }: SubPageHeaderPro
         onClick={onBack}
         aria-label="返回"
       >
-        <IconChevronLeft />
+        <ChevronLeft />
       </button>
       <Typography.Text strong className={styles.subPageTitle}>
         {title}
