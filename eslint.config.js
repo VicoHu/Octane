@@ -14,6 +14,7 @@ export default tseslint.config(
       '.output/**',
       'dist/**',
       'node_modules/**',
+      '.worktrees/**', // 本地 git worktree 工作区，避免 lint 扫到临时副本
       'tests/stubs/**',
     ],
   },
