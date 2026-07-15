@@ -13,3 +13,7 @@ dist/
 __pycache__/
 web-ext.config.ts
 .gstack/
+
+# local agent workspaces
+.worktrees/
+.superpowers/
