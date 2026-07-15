@@ -56,21 +56,20 @@ export function EncryptionTtlSection() {
   };
 
   return (
-    <div
-      style={{
-        marginTop: 24,
-        paddingTop: 16,
-        borderTop: '1px solid var(--semi-color-border)',
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>加密上下文自动锁定</div>
-      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 13, marginBottom: 12 }}>
+    <div className="mt-6 border-t border-border pt-4">
+      <div className="mb-1 font-semibold">加密上下文自动锁定</div>
+      <div className="mb-3 text-sm text-muted-foreground">
         仅作用于 side panel。home 页解锁不联动 side panel。
       </div>
-      <Row label="失焦锁定" hint="side panel 失焦超过该时长自动锁回（短暂切窗不打扰，如 30/90 秒）">
+      <Row
+        inputId="ttl-grace"
+        label="自动锁定宽限期（秒）"
+        hint="side panel 失焦超过该时长自动锁回（短暂切窗不打扰，如 30/90 秒）"
+      >
         <Input
+          id="ttl-grace"
           type="number"
-          data-testid="ttl-grace"
+          className="w-28"
           value={grace}
           min={MIN_GRACE_SECONDS}
           max={MAX_GRACE_SECONDS}
@@ -78,10 +77,15 @@ export function EncryptionTtlSection() {
           disabled={!loaded}
         />
       </Row>
-      <Row label="硬上限" hint="解锁后最长时长，无论是否活跃必锁（防一直盯着永不锁）">
+      <Row
+        inputId="ttl-hardcap"
+        label="最长解锁时长（秒）"
+        hint="解锁后最长时长，无论是否活跃必锁（防一直盯着永不锁）"
+      >
         <Input
+          id="ttl-hardcap"
           type="number"
-          data-testid="ttl-hardcap"
+          className="w-28"
           value={hardCap}
           min={MIN_HARDCAP_SECONDS}
           max={MAX_HARD_CAP_SECONDS}
@@ -93,14 +97,12 @@ export function EncryptionTtlSection() {
   );
 }
 
-function Row({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
+function Row({ inputId, label, hint, children }: { inputId: string; label: string; hint: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-      <div style={{ width: 96 }}>
-        <div style={{ fontSize: 13 }}>{label}</div>
-      </div>
-      <div style={{ marginRight: 12 }}>{children}</div>
-      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, flex: 1 }}>{hint}</div>
+    <div className="mb-3 flex items-center gap-3">
+      <label htmlFor={inputId} className="w-40 text-sm">{label}</label>
+      {children}
+      <div className="min-w-0 flex-1 text-xs text-muted-foreground">{hint}</div>
     </div>
   );
 }

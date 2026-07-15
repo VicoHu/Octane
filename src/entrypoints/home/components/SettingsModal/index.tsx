@@ -10,6 +10,7 @@ import { BackupSyncTabs } from '@/components/backup/BackupSyncTabs';
 import { PasswordSection } from './sections/PasswordSection';
 import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
 import { FaviconCacheSection } from './sections/FaviconCacheSection';
+import styles from './index.module.css';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -25,33 +26,31 @@ interface SettingsModalProps {
 export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
   return (
     <Dialog open={visible} onOpenChange={(o) => !o && onCancel()}>
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className={styles.dialogContent}>
         <DialogHeader>
           <DialogTitle>系统设置</DialogTitle>
         </DialogHeader>
-        <div style={{ maxHeight: '70vh', overflow: 'auto', paddingBottom: 'var(--space-xl)' }}>
-          <Tabs defaultValue="shortcuts">
-            <TabsList>
-              <TabsTrigger value="shortcuts">快捷键</TabsTrigger>
-              <TabsTrigger value="backup">数据备份和同步</TabsTrigger>
-              <TabsTrigger value="maintenance">数据维护</TabsTrigger>
-              <TabsTrigger value="password">主密码</TabsTrigger>
-            </TabsList>
-            <TabsContent value="shortcuts">
-              <ShortcutsSection />
-            </TabsContent>
-            <TabsContent value="backup">
-              <BackupSyncTabs />
-            </TabsContent>
-            <TabsContent value="maintenance">
-              <FaviconCacheSection />
-            </TabsContent>
-            <TabsContent value="password">
-              <PasswordSection />
-              <EncryptionTtlSection />
-            </TabsContent>
-          </Tabs>
-        </div>
+        <Tabs defaultValue="shortcuts" orientation="vertical" className={styles.settingsTabs}>
+          <TabsList variant="line" aria-label="设置分类" className={styles.settingsNav}>
+            <TabsTrigger value="shortcuts">快捷键</TabsTrigger>
+            <TabsTrigger value="backup">数据备份和同步</TabsTrigger>
+            <TabsTrigger value="maintenance">数据维护</TabsTrigger>
+            <TabsTrigger value="password">主密码</TabsTrigger>
+          </TabsList>
+          <TabsContent value="shortcuts" className={styles.settingsContent}>
+            <ShortcutsSection />
+          </TabsContent>
+          <TabsContent value="backup" className={styles.settingsContent}>
+            <BackupSyncTabs />
+          </TabsContent>
+          <TabsContent value="maintenance" className={styles.settingsContent}>
+            <FaviconCacheSection />
+          </TabsContent>
+          <TabsContent value="password" className={styles.settingsContent}>
+            <PasswordSection />
+            <EncryptionTtlSection />
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

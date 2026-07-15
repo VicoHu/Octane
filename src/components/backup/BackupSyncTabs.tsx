@@ -12,8 +12,8 @@ import { ShareSection } from './ShareSection';
  */
 export function BackupSyncTabs() {
   return (
-    <Tabs defaultValue="local">
-      <TabsList>
+    <Tabs defaultValue="local" orientation="horizontal">
+      <TabsList variant="segmented" aria-label="备份方式" aria-orientation="horizontal">
         <TabsTrigger value="local">本地备份</TabsTrigger>
         <TabsTrigger value="cloud">云端同步</TabsTrigger>
         <TabsTrigger value="share">分享</TabsTrigger>

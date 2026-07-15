@@ -7,6 +7,7 @@ import { Typography } from '@/components/ui/typography';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Spinner } from '@/components/ui/spinner';
 import { useBackup } from '@/store/useBackup';
+import { Info } from 'lucide-react';
 import styles from './LocalBackupSection.module.css';
 
 /** 本地备份区：导出 + 导入（覆盖式，破坏性强确认）。popup/home 共享。 */
@@ -42,8 +43,9 @@ export function LocalBackupSection() {
 
   return (
     <div className={styles.backupSection}>
-      <Alert>
-        <AlertDescription>导出文件含加密笔记的密文（非明文）。在另一台设备恢复时，需使用相同的主密码解锁。</AlertDescription>
+      <Alert variant="info" role="note">
+        <Info aria-hidden="true" />
+        <AlertDescription>导出文件含加密笔记的密文（非明文）。在另一台设备恢复时，需要使用相同的主密码解锁。</AlertDescription>
       </Alert>
       <div className={styles.backupActions}>
         <Button variant="default" disabled={exporting} onClick={handleExport}>
