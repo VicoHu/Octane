@@ -80,7 +80,7 @@ const App: React.FC = () => {
     <>
       <UnlockModal />
       <div className="app-layout">
-        <aside className="app-sidebar semi-always-dark" id="sidebar-container">
+        <aside className="app-sidebar semi-always-dark dark" id="sidebar-container">
           <Sidebar openTabs={openTabs} />
         </aside>
         <main className="app-content">
