@@ -160,14 +160,16 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
                       <Button
                         type="button"
                         variant="ghost"
-                        className="h-auto flex-1 justify-start px-3 py-2"
+                        className="h-auto min-w-0 flex-1 justify-start overflow-hidden px-3 py-2"
                         aria-label={`编辑上下文 ${ctx.title || '无标题'}`}
                         onClick={() => setEditingContext(ctx)}
                       >
                         <div className={styles.contextInfo}>
                           <div className={styles.contextTitle}>
-                            {ctx.title || '无标题'}
-                            {ctx.isEncrypted && <Lock className={styles.contextLock} />}
+                            <span className="min-w-0 truncate">{ctx.title || '无标题'}</span>
+                            {ctx.isEncrypted && (
+                              <Lock className={`${styles.contextLock} shrink-0`} />
+                            )}
                           </div>
                           <div className={styles.contextTime}>
                             {new Date(ctx.updatedAt).toLocaleString()}
@@ -181,7 +183,7 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
                               variant="ghost"
                               size="icon-sm"
                               aria-label={`删除上下文 ${ctx.title || '无标题'}`}
-                              className={styles.deleteBtn}
+                              className={`${styles.deleteBtn} shrink-0`}
                             />
                           }
                         >

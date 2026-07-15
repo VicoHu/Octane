@@ -14,6 +14,7 @@ vi.mock('../../ContextEditor', () => ({ ContextEditor: () => null }));
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContextList } from '../../ContextList';
+import { getContexts } from '@/services/ContextService';
 import type { Bookmark } from '@/shared/types';
 
 const bookmark = {
@@ -23,6 +24,29 @@ const bookmark = {
 } as Bookmark;
 
 describe('ContextList（T6 Semi List 迁移）', () => {
+  it('长连续标题不会挤出右侧删除操作', async () => {
+    const longTitle = '这是一个没有任何空格且非常非常非常非常非常非常非常长的上下文标题';
+    vi.mocked(getContexts).mockResolvedValueOnce([
+      {
+        id: 'ctx-long',
+        title: longTitle,
+        isEncrypted: true,
+        updatedAt: 0,
+        type: 'note',
+        order: 0,
+        createdAt: 0,
+      } as never,
+    ]);
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    const mainAction = await screen.findByRole('button', { name: `编辑上下文 ${longTitle}` });
+    const deleteAction = screen.getByRole('button', { name: `删除上下文 ${longTitle}` });
+
+    expect(mainAction).toHaveClass('min-w-0', 'overflow-hidden');
+    expect(screen.getByText(longTitle)).toHaveClass('min-w-0', 'truncate');
+    expect(deleteAction).toHaveClass('shrink-0');
+  });
+
   it.each(['{Enter}', ' '])('聚焦上下文主操作后按 %s 进入编辑态', async (key) => {
     const user = userEvent.setup();
     render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);

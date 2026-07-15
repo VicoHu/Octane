@@ -41,6 +41,7 @@
 }
 
 .contextTitle {
+  min-width: 0;
   font-weight: 500;
   font-size: var(--font-md);
   display: flex;
