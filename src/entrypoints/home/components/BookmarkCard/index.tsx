@@ -64,7 +64,6 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
         }
       }}
       className={`${styles.card} ${hasOpenTab ? styles.cardHasOpenTab : ''} ${pulsing ? styles.pulsing : ''}`}
-      style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', padding: 'var(--space-lg)' }}
     >
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
       {grip && <div className={styles.gripSlot}>{grip}</div>}

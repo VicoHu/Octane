@@ -50,3 +50,33 @@
 .skeletonCard {
   padding: var(--space-lg);
 }
+
+/* 书签/标签页 切换：卡片式 segmented tab（原 Semi type=card，迁 shadcn 后用 module 还原视觉）。
+   shadcn 在 active trigger 上加 data-active。 */
+.tabsList {
+  display: inline-flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+}
+.tabsTrigger {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-xs) var(--space-lg);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-md);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.tabsTrigger:hover {
+  color: var(--text-primary);
+}
+.tabsTrigger[data-active] {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow);
+}

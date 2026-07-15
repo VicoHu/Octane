@@ -73,6 +73,8 @@
 }
 
 .categoryName {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-md);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -80,10 +82,17 @@
   line-height: 1.5;
 }
 
-/* 分类项基类：所有项 hover 中性微亮（mockup .cat:hover），active 由绿竖条区分 */
+/* 分类项基类：行布局(flex 行 + padding)原靠 Semi List.Item，迁 <li> 后须在 module 补回；
+   hover 中性微亮，active 由绿竖条区分 */
 .cat {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--sidebar-text-muted);
 }
 
 .cat:hover {

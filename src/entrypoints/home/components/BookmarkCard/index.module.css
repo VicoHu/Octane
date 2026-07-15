@@ -2,6 +2,19 @@
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  /* 视觉层：原靠 Semi Card，迁 shadcn 后须在 module 显式补回（DESIGN.md：卡片 card-bg 白底 + rounded md + 极轻影 hover 略升）*/
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--card-shadow);
+  transition: box-shadow var(--transition-normal);
+}
+.card:hover {
+  box-shadow: var(--card-hover-shadow);
 }
 
 .favicon {
