@@ -120,6 +120,7 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
         </span>
         <Switch
           aria-label="加密上下文"
+          className={styles.switchControl}
           checked={isEncrypted}
           onCheckedChange={handleEncryptionToggle}
           size="sm"
@@ -131,9 +132,13 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
         value={tab}
         onValueChange={(v) => setTab(v as 'edit' | 'preview')}
       >
-        <TabsList>
-          <TabsTrigger value="edit">编辑</TabsTrigger>
-          <TabsTrigger value="preview">预览</TabsTrigger>
+        <TabsList className={styles.tabsList}>
+          <TabsTrigger value="edit" className={styles.tabTrigger}>
+            编辑
+          </TabsTrigger>
+          <TabsTrigger value="preview" className={styles.tabTrigger}>
+            预览
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="edit" className={styles.tabContent}>
           <Textarea

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContextEditor } from '../index';
 import type { Context } from '@/shared/types';
+import styles from '../index.module.css';
 
 vi.mock('@/store/useCrypto', () => ({
   useCrypto: (selector: (state: { unlocked: boolean }) => unknown) => selector({ unlocked: true }),
@@ -25,6 +26,21 @@ const context = {
 } as Context;
 
 describe('ContextEditor — 上下文编辑', () => {
+  it('为移动端开关与标签页提供独立触控样式挂点', () => {
+    render(<ContextEditor context={context} onBack={vi.fn()} />);
+
+    expect(styles.switchControl).toBeDefined();
+    expect(styles.tabsList).toBeDefined();
+    expect(styles.tabTrigger).toBeDefined();
+    expect(screen.getByRole('switch', { name: '加密上下文' })).toHaveClass(
+      styles.switchControl!,
+    );
+    expect(screen.getByRole('tablist')).toHaveClass(styles.tabsList!);
+    for (const trigger of screen.getAllByRole('tab')) {
+      expect(trigger).toHaveClass(styles.tabTrigger!);
+    }
+  });
+
   it('显示标题、加密状态并可预览正文', async () => {
     const user = userEvent.setup();
     render(<ContextEditor context={context} onBack={vi.fn()} />);

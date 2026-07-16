@@ -143,14 +143,14 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
                 <Empty>
                   <EmptyDescription>{error}</EmptyDescription>
                 </Empty>
-                <Button variant="outline" onClick={loadContexts}>
+                <Button className={styles.listAction} variant="outline" onClick={loadContexts}>
                   重试
                 </Button>
               </div>
             ) : contexts.length === 0 ? (
               <Empty>
                 <EmptyDescription>暂无上下文</EmptyDescription>
-                <Button variant="default" onClick={handleCreate}>
+                <Button className={styles.listAction} variant="default" onClick={handleCreate}>
                   <Plus data-icon="inline-start" />
                   添加第一条上下文
                 </Button>

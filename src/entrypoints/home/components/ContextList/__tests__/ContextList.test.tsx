@@ -24,7 +24,7 @@ vi.mock('@/components/ui/toast', () => ({
   },
 }));
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContextList } from '../../ContextList';
 import { createContext, deleteContext, getContexts } from '@/services/ContextService';
@@ -46,6 +46,7 @@ function makeContext(overrides: Partial<Context> = {}): Context {
 }
 
 const defaultContext = makeContext();
+let mediaMobile = false;
 
 const bookmark = {
   id: 'b1', workspaceId: 'w1', categoryId: 'c1', name: '测试书签',
@@ -54,6 +55,7 @@ const bookmark = {
 } satisfies Bookmark;
 
 beforeEach(() => {
+  mediaMobile = false;
   vi.mocked(getContexts).mockReset().mockResolvedValue([defaultContext]);
   vi.mocked(createContext).mockReset();
   vi.mocked(deleteContext).mockReset().mockResolvedValue(undefined);
@@ -61,7 +63,9 @@ beforeEach(() => {
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({
-      matches: false,
+      get matches() {
+        return mediaMobile;
+      },
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
@@ -73,6 +77,57 @@ afterEach(() => {
 });
 
 describe('ContextList（T6 Semi List 迁移）', () => {
+  it('移动端抽屉共享真实列表与编辑器内容', async () => {
+    const user = userEvent.setup();
+    mediaMobile = true;
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('data-swipe-axis', 'y');
+    expect(dialog).toHaveClass('h-dvh', 'max-h-dvh');
+    await user.click(await screen.findByRole('button', { name: '编辑上下文 上下文一' }));
+
+    expect(screen.getByRole('textbox', { name: '上下文标题' })).toHaveValue('上下文一');
+    expect(screen.getByRole('textbox', { name: '上下文内容' })).toHaveValue('正文内容');
+  });
+
+  it('加载上下文时显示进度并在完成后显示列表', async () => {
+    let resolveContexts: (contexts: Context[]) => void = () => undefined;
+    vi.mocked(getContexts).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveContexts = resolve;
+      }),
+    );
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument();
+
+    act(() => resolveContexts([defaultContext]));
+
+    expect(await screen.findByText('上下文一')).toBeInTheDocument();
+  });
+
+  it('无上下文时显示空状态与首条新增操作', async () => {
+    vi.mocked(getContexts).mockResolvedValueOnce([]);
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    expect(await screen.findByText('暂无上下文')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '添加第一条上下文' })).toBeInTheDocument();
+  });
+
+  it('加载失败后可重试并显示列表', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getContexts)
+      .mockRejectedValueOnce(new Error('加载失败'))
+      .mockResolvedValueOnce([defaultContext]);
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    expect(await screen.findByText('加载上下文失败')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '重试' }));
+
+    expect(await screen.findByText('上下文一')).toBeInTheDocument();
+  });
+
   it('书签失效后不再渲染旧上下文内容', async () => {
     const { rerender } = render(
       <ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />,

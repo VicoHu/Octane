@@ -112,6 +112,11 @@
 }
 
 @media (max-width: 767px) {
+  .createButton,
+  .listAction {
+    min-height: 44px;
+  }
+
   .contextItem > button {
     min-height: 44px;
   }
