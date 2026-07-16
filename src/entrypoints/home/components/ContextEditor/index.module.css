@@ -108,6 +108,6 @@
 
   .textarea {
     min-height: 220px;
-    font-size: var(--font-md);
+    font-size: var(--font-lg);
   }
 }
