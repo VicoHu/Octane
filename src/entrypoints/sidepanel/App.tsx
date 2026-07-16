@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Pin } from 'lucide-react';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
@@ -134,11 +134,13 @@ function usePinCurrentTab(groups: WorkspaceGroup[]) {
             <SelectValue placeholder="选择工作区" />
           </SelectTrigger>
           <SelectContent>
-            {candidates.map((w) => (
-              <SelectItem key={w.id} value={w.id}>
-                {w.icon} {w.name}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              {candidates.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.icon} {w.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
         <DialogFooter>

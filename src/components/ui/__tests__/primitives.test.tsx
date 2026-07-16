@@ -26,21 +26,6 @@ describe('共享 UI 原语', () => {
     ).toHaveAttribute('data-variant', 'line');
   });
 
-  it('TabsList 支持 segmented 视觉变体', () => {
-    render(
-      <Tabs defaultValue="overview">
-        <TabsList aria-label="分段标签页" variant="segmented">
-          <TabsTrigger value="overview">概览</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview">概览内容</TabsContent>
-      </Tabs>,
-    );
-
-    expect(
-      screen.getByRole('tablist', { name: '分段标签页' }),
-    ).toHaveAttribute('data-variant', 'segmented');
-  });
-
   it('vertical Tabs 暴露垂直方向并可切换内容', async () => {
     const user = userEvent.setup();
     render(
@@ -66,7 +51,7 @@ describe('共享 UI 原语', () => {
     expect(screen.queryByText('通用设置')).not.toBeInTheDocument();
   });
 
-  it('纵向 Tabs 内嵌横向 segmented Tabs 时不继承外层方向选择器', () => {
+  it('纵向 Tabs 内嵌横向 Tabs 时不继承外层方向选择器', () => {
     render(
       <Tabs defaultValue="settings" orientation="vertical">
         <TabsList aria-label="外层标签页" variant="line">
@@ -77,7 +62,6 @@ describe('共享 UI 原语', () => {
             <TabsList
               aria-label="内层备份方式"
               aria-orientation="horizontal"
-              variant="segmented"
             >
               <TabsTrigger value="local">本地备份</TabsTrigger>
             </TabsList>
@@ -93,7 +77,7 @@ describe('共享 UI 原语', () => {
 
     expect(outerList).toHaveAttribute('aria-orientation', 'vertical');
     expect(innerList).toHaveAttribute('aria-orientation', 'horizontal');
-    expect(innerList).toHaveClass('data-[orientation=horizontal]:h-10');
+    expect(innerList).toHaveClass('data-[orientation=horizontal]:h-9');
     expect(innerList).not.toHaveClass(
       'group-data-[orientation=vertical]/tabs:h-fit',
     );
@@ -105,15 +89,14 @@ describe('共享 UI 原语', () => {
     );
   });
 
-  it('info Alert 以警报语义呈现正文', () => {
+  it('Alert 以警报语义呈现正文', () => {
     render(
-      <Alert variant="info">
+      <Alert variant="default">
         <AlertDescription>同步将在网络恢复后继续。</AlertDescription>
       </Alert>,
     );
 
     const alert = screen.getByRole('alert');
-    expect(alert).toHaveAttribute('data-variant', 'info');
     expect(alert).toHaveTextContent('同步将在网络恢复后继续。');
   });
 });

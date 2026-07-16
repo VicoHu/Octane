@@ -368,7 +368,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
 
       {/* 视图切换:卡片式 Tabs(书签 / 标签页)。默认书签,向后兼容 */}
       <Tabs value={activeView} onValueChange={(v) => setActiveView(v as View)}>
-        <TabsList variant="segmented" className={styles.tabsList}>
+        <TabsList className={styles.tabsList}>
           <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签</TabsTrigger>
           <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页({openTabs.length})</TabsTrigger>
         </TabsList>

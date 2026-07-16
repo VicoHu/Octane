@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -208,9 +208,11 @@ export function CloudBackupSection() {
                   <SelectValue placeholder="请选择" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(f.options ?? []).map((opt) => (
-                    <SelectItem key={opt} value={opt}>{optionLabel(f, opt)}</SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {(f.options ?? []).map((opt) => (
+                      <SelectItem key={opt} value={opt}>{optionLabel(f, opt)}</SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             ) : (

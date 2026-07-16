@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
   SelectContent,
+  SelectGroup,
   SelectItem,
 } from '@/components/ui/select';
 import type { Workspace, Category, Bookmark } from '@/shared/types';
@@ -162,11 +163,13 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
               <SelectValue placeholder="选择工作区" />
             </SelectTrigger>
             <SelectContent>
-              {workspaces.map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.icon} {w.name}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {workspaces.map((w) => (
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.icon} {w.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
 
@@ -179,11 +182,13 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
               <SelectValue placeholder="选择分类" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.icon} {c.name}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.icon} {c.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
 

@@ -43,7 +43,7 @@ export function LocalBackupSection() {
 
   return (
     <div className={styles.backupSection}>
-      <Alert variant="info" role="note">
+      <Alert variant="default" role="note">
         <Info aria-hidden="true" />
         <AlertDescription>导出文件含加密笔记的密文（非明文）。在另一台设备恢复时，需要使用相同的主密码解锁。</AlertDescription>
       </Alert>

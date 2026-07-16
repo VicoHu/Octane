@@ -32,6 +32,17 @@
   --color-ring: var(--ring);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   /* DESIGN.md 圆角阶 8/12/16：sm 8 / md 12 / lg 16 */
   --radius-sm: 0.5rem;
@@ -43,56 +54,79 @@
     'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* === 浅色内容区（DESIGN.md：content-bg #F8FAFC / card-bg #FFFFFF / primary #00B894 绿 accent）=== */
+/* === Vega neutral theme（base-vega 默认 neutral oklch；品牌绿 #00B894 适配待后续独立任务）=== */
 :root {
-  --background: #f8fafc; /* content-bg */
-  --foreground: #0f172a; /* text-primary */
-  --card: #ffffff; /* card-bg */
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #00b894; /* 品牌绿 accent（图标/描边/选中/主按钮底）*/
-  --primary-foreground: #2d3436; /* 绿底之上的炭灰字，on 绿 ≈4.9:1 达 AA（primary-on）*/
-  --secondary: #f1f5f9; /* surface-secondary */
-  --secondary-foreground: #475569; /* text-secondary */
-  --muted: #f1f5f9;
-  --text-muted: #64748b; /* 仅元信息；与 muted 表面色分离 */
-  --muted-foreground: var(--text-muted);
-  --accent: #f1f5f9; /* hover 中性 fill（绿色预算：hover 不用绿）*/
-  --accent-foreground: #0f172a;
-  --destructive: #ef4444; /* danger */
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0; /* border-color */
-  --input: #e2e8f0;
-  --ring: #00b894; /* focus ring */
-  --sidebar: #202829;
-  --sidebar-foreground: #ffffff;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --text-muted: oklch(0.556 0 0); /* 保留别名供历史业务引用 */
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* === 暗色：sidebar scope（DESIGN.md：sidebar-bg #202829 / surface #2D3436，禁 Semi 冷黑 #232429）=== */
+/* === 暗色：sidebar scope（Vega neutral dark；项目 sidebar 加 .dark class 取此块）=== */
 .dark {
-  --background: #202829; /* sidebar-bg */
-  --foreground: #ffffff;
-  --card: #2d3436; /* sidebar-surface */
-  --card-foreground: #ffffff;
-  --popover: #2d3436; /* Semi Modal/Popover 同款 elevated token */
-  --popover-foreground: #ffffff;
-  --primary: #00b894; /* 暗底用鲜绿 */
-  --primary-foreground: #042f2a; /* 深绿底上的深字达 AA（design-review 复核）*/
-  --secondary: #2d3436;
-  --secondary-foreground: #ffffff;
-  --muted: #2d3436;
-  --text-muted: #9ca3af;
-  --muted-foreground: var(--text-muted);
-  --accent: #2d3436;
-  --accent-foreground: #ffffff;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: rgba(255, 255, 255, 0.08); /* sidebar-border */
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: #00b894;
-  --sidebar: #202829;
-  --sidebar-foreground: #ffffff;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --text-muted: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
