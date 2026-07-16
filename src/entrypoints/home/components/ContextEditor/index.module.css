@@ -40,7 +40,7 @@
 .titleInput {
   flex: none;
   font-weight: 600;
-  font-size: var(--font-md);
+  font-size: var(--font-lg);
 }
 
 .encryptRow {
@@ -54,7 +54,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  font-size: var(--font-xs);
+  font-size: var(--font-sm);
 }
 
 .encryptActive {
@@ -67,6 +67,7 @@
 
 .tabs {
   min-height: 0;
+  overflow: hidden;
   flex: 1;
 }
 
@@ -78,7 +79,7 @@
 .textarea {
   width: 100%;
   height: 100%;
-  min-height: 280px;
+  min-height: 0;
   resize: none;
   font-size: var(--font-sm);
   line-height: 1.7;
@@ -107,7 +108,6 @@
   }
 
   .textarea {
-    min-height: 220px;
     font-size: var(--font-lg);
   }
 }
