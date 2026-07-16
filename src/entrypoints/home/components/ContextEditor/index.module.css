@@ -69,17 +69,6 @@
   position: relative;
 }
 
-.switchControl::after {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  content: '';
-  inset: auto;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
 .tabs {
   min-height: 0;
   overflow: hidden;
@@ -112,6 +101,17 @@
 }
 
 @media (max-width: 767px) {
+  .switchControl::after {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    content: '';
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
   .header {
     flex-wrap: wrap;
     align-items: flex-start;
