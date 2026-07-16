@@ -41,7 +41,10 @@
 .settingsNav {
   width: 200px;
   flex: 0 0 200px;
+  height: 100%;
+  align-self: stretch;
   align-items: stretch;
+  justify-content: flex-start;
   gap: var(--space-xs);
   padding: var(--space-xl) var(--space-lg);
   border-right: 1px solid var(--border);
