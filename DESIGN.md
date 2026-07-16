@@ -68,6 +68,12 @@ spacing:
   lg: 16px
   xl: 24px
   "2xl": 32px
+# 控件高度阶（shadcn default 档；声明性参考，尺寸硬编码于 src/components/ui/* cva，未做成 CSS 变量）
+control-height:
+  sm: 36px      # h-9：button sm / select sm
+  md: 40px      # h-10：button default / input / select trigger / tabs list（标准控件高）
+  lg: 44px      # h-11：button lg
+  switch: "24x44px"  # h-6 w-11 default
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
@@ -167,6 +173,7 @@ components:
 - **导航/列表选中**：左 3px `primary` 竖条 + 文字提亮 + 极轻中性底；hover 用中性 fill（**不用绿**）。（DESIGN.md schema 无 border-left 属性，落地时按此规则实现。）
 - **Modal**：`rounded lg`，主按钮同主按钮规范。
 - **图标**：功能图标统一 `lucide-react`（几何、24×24）；品牌区用单色线性图标，不用彩色 emoji。残留 Semi Form/Tree 内的 `@douyinfe/semi-icons` 待其迁移时再换。
+- **控件尺寸（shadcn default 档）**：标准控件高 `40px`(h-10) —— Button default / Input / Select trigger / Tabs list；小档 `36px`(h-9，Button sm / Select sm)；大档 `44px`(h-11，Button lg)；Switch default `24×44px`(h-6 w-11)。控件字号仍 `body 14px`（xs/sm 档 `12px`），与正文基准一致。2026-07-16 由 base-nova 紧凑档(32px) 上调而来，缓解迁移后拥挤小气；尺寸写在 `src/components/ui/*` 的 cva 里、未做成 CSS 变量，改档位只动封装层即全局生效。Checkbox/Tooltip/Avatar/Overlay 维持各自标准尺寸。
 
 ## Do's and Don'ts
 

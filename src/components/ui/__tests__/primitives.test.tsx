@@ -93,7 +93,7 @@ describe('共享 UI 原语', () => {
 
     expect(outerList).toHaveAttribute('aria-orientation', 'vertical');
     expect(innerList).toHaveAttribute('aria-orientation', 'horizontal');
-    expect(innerList).toHaveClass('data-[orientation=horizontal]:h-8');
+    expect(innerList).toHaveClass('data-[orientation=horizontal]:h-10');
     expect(innerList).not.toHaveClass(
       'group-data-[orientation=vertical]/tabs:h-fit',
     );
