@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useCrypto } from '@/store/useCrypto';
@@ -12,6 +12,8 @@ import { useOpenTabs } from './hooks/useOpenTabs';
 import '@/styles/global.css';
 import './App.css';
 import '@/styles/semi-theme-override.css';
+import { Button } from '@/components/ui/button';
+import { Home, Menu, Search, ExternalLink, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const loadWorkspaces = useWorkspace((s) => s.loadWorkspaces);
@@ -19,6 +21,7 @@ const App: React.FC = () => {
   const loadBookmarks = useBookmarks((s) => s.loadBookmarks);
   const checkStatus = useCrypto((s) => s.checkStatus);
   const openTabs = useOpenTabs();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     checkStatus();
@@ -79,13 +82,47 @@ const App: React.FC = () => {
   return (
     <>
       <UnlockModal />
+      <div className="app-frame">
       <div className="app-layout">
-        <aside className="app-sidebar semi-always-dark dark" id="sidebar-container">
+        <aside className="app-rail" aria-label="主导航">
+          <img className="app-rail-logo" src="/icons/icon-128.png" alt="Octane" />
+          <div className="app-rail-group">
+            <Button variant="ghost" size="icon" className="app-rail-button is-active" aria-label="主页">
+              <Home />
+            </Button>
+            <Button variant="ghost" size="icon" className="app-rail-button" aria-label="搜索">
+              <Search />
+            </Button>
+            <Button variant="ghost" size="icon" className="app-rail-button" aria-label="打开标签页">
+              <ExternalLink />
+            </Button>
+          </div>
+          <div className="app-rail-spacer" />
+          <div className="app-rail-avatar" aria-hidden="true" />
+        </aside>
+        <aside className={`app-sidebar${mobileNavOpen ? ' is-mobile-open' : ''}`} id="sidebar-container">
+          <div className="app-sidebar-mobile-header">
+            <span>导航</span>
+            <Button variant="ghost" size="icon-sm" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)}>
+              <X />
+            </Button>
+          </div>
           <Sidebar openTabs={openTabs} />
         </aside>
-        <main className="app-content">
+        {mobileNavOpen && <button className="app-mobile-backdrop" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)} />}
+        <main className="app-content" data-mobile-nav-open={mobileNavOpen}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="app-mobile-menu"
+            aria-label="打开导航"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu />
+          </Button>
           <Content openTabs={openTabs} />
         </main>
+      </div>
       </div>
     </>
   );

@@ -182,10 +182,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
           <Plus />
         </Button>
       </div>
-      <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowManage(true)}>
-        管理
-      </Button>
-
       {/* 常驻标签区：per-workspace 跨分类，挂在工作区切换下方、分类列表上方 */}
       {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} openTabs={openTabs} />}
 
@@ -294,20 +290,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       </div>
 
       <div className={styles.bottomButton}>
-        <Button variant="secondary" className="w-full" onClick={() => setShowNewCategory(true)}>
+        <Button variant="outline" className={styles.addCategoryButton} onClick={() => setShowNewCategory(true)}>
           <Plus />
           添加分类
         </Button>
-        {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}
-        <Button
-          variant="secondary"
-          className={`w-full ${styles.settingsButton}`}
-          aria-label="设置"
-          onClick={() => setShowSettings(true)}
-        >
-          <Settings />
-          设置
-        </Button>
+        <div className={styles.bottomActions}>
+          <Button variant="secondary" onClick={() => setShowManage(true)}>管理</Button>
+          {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}
+          <Button variant="secondary" aria-label="设置" onClick={() => setShowSettings(true)}>
+            <Settings />
+            设置
+          </Button>
+        </div>
       </div>
 
       <Dialog open={showNewCategory} onOpenChange={(o) => !o && setShowNewCategory(false)}>

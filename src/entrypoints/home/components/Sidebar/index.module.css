@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-lg);
+  padding: 20px 14px;
   gap: var(--space-sm);
 }
 
@@ -10,41 +10,44 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--sidebar-border);
-  margin-bottom: var(--space-md);
+  padding: 2px 8px 20px;
+  border-bottom: 0;
+  margin-bottom: 0;
 }
 
 .logo {
-  width: 28px;
-  height: 28px;
+  width: 0;
+  height: 0;
+  display: none;
   border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .title {
-  font-size: var(--font-lg);
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-left: 0.15rem;
-  color: #f1f5f9;
+  color: var(--sidebar-text);
 }
 
 .sectionLabel {
-  font-size: var(--font-xs);
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 800;
   color: var(--sidebar-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: var(--space-sm) var(--space-xs);
-  margin-top: var(--space-sm);
+  padding: 0 8px;
+  margin-top: 22px;
 }
+
+.header + .sectionLabel { display: none; }
 
 .workspaceSelect {
   display: flex;
   flex-direction: row;
-  gap: var(--space-xs);
+  gap: 6px;
 }
 
 .select {
@@ -60,7 +63,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-top: var(--space-xs);
+  margin-top: 2px;
 }
 
 .categoryList::-webkit-scrollbar {
@@ -101,18 +104,19 @@
   min-width: 0;
   height: auto;
   justify-content: flex-start;
-  padding: var(--space-xs) var(--space-sm);
+  min-height: 38px;
+  padding: 0 9px;
   color: inherit;
 }
 
 .cat:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--sidebar-hover-bg);
 }
 
 /* active 分类项：3px 绿左竖条 + 极轻中性底 + 字提亮（§12-J 设计债：弃 primary-light tint，
    守 §2.3 绿色预算——sidebar 唯一绿焦点是此竖条） */
 .catActive {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--sidebar-active-bg);
   color: var(--sidebar-text);
 }
 
@@ -120,8 +124,8 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 0;
+  bottom: 0;
   width: 3px;
   background: var(--primary);
   border-radius: 0 2px 2px 0;
@@ -158,13 +162,28 @@
 }
 
 .bottomButton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: var(--space-sm);
   padding-top: var(--space-md);
   border-top: 1px solid var(--sidebar-border);
 }
 
-.settingsButton {
-  margin-top: var(--space-xs);
+.addCategoryButton {
+  width: 100%;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.bottomActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bottomActions > button {
+  width: 100%;
 }
 
 /* === T6 分类拖拽 === */
