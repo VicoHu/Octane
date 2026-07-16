@@ -25,6 +25,18 @@ const context = {
 } as Context;
 
 describe('ContextEditor — 上下文编辑', () => {
+  it('显示标题、加密状态并可预览正文', async () => {
+    const user = userEvent.setup();
+    render(<ContextEditor context={context} onBack={vi.fn()} />);
+
+    expect(screen.getByRole('textbox', { name: '上下文标题' })).toHaveValue('测试上下文');
+    expect(screen.getByRole('switch', { name: '加密上下文' })).not.toBeChecked();
+
+    await user.click(screen.getByRole('tab', { name: '预览' }));
+
+    expect(screen.getByText('正文')).toBeInTheDocument();
+  });
+
   it('返回按钮可点击且正文可通过无障碍名称查询', async () => {
     const user = userEvent.setup();
     const onBack = vi.fn();

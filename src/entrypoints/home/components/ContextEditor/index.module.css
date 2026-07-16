@@ -1,13 +1,17 @@
 .editor {
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
 }
 
 .header {
   display: flex;
+  flex: none;
   justify-content: space-between;
   align-items: center;
+  gap: var(--space-md);
 }
 
 .backBtn {
@@ -34,6 +38,7 @@
 }
 
 .titleInput {
+  flex: none;
   font-weight: 600;
   font-size: var(--font-md);
 }
@@ -41,42 +46,68 @@
 .encryptRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-sm);
 }
 
 .encryptLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   font-size: var(--font-xs);
 }
 
 .encryptActive {
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 .encryptInactive {
   color: var(--text-muted);
 }
 
-.textarea {
-  width: 100%;
-  min-height: 350px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-  font-size: var(--font-md);
-  line-height: 1.6;
-  resize: vertical;
-  outline: none;
-  font-family: inherit;
-  color: var(--text-primary);
-  transition: border-color var(--transition-fast);
+.tabs {
+  min-height: 0;
+  flex: 1;
 }
 
-.textarea:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+.tabContent {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.textarea {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  resize: none;
+  font-size: var(--font-sm);
+  line-height: 1.7;
+}
+
+.previewScroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .previewBody {
-  min-height: 350px;
+  min-height: 100%;
   padding: var(--space-md);
+}
+
+@media (max-width: 767px) {
+  .header {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .backBtn,
+  .meta {
+    min-height: 44px;
+  }
+
+  .textarea {
+    min-height: 220px;
+    font-size: var(--font-md);
+  }
 }

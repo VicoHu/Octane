@@ -1,16 +1,29 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/services/ContextService', () => ({
   getContexts: vi.fn().mockResolvedValue([
-    { id: 'ctx1', title: '上下文一', isEncrypted: false, updatedAt: 0, type: 'note', order: 0, createdAt: 0 },
+    {
+      id: 'ctx1',
+      bookmarkId: 'b1',
+      title: '上下文一',
+      content: '正文内容',
+      isEncrypted: false,
+      updatedAt: 0,
+      type: 'note',
+      order: 0,
+      createdAt: 0,
+    },
   ]),
   createContext: vi.fn(),
   deleteContext: vi.fn().mockResolvedValue(undefined),
+  updateContext: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/store/useBookmarks', () => ({
   useBookmarks: (sel: (s: Record<string, unknown>) => unknown) => sel({ refreshBookmark: vi.fn() }),
 }));
+vi.mock('@/store/useCrypto', () => ({
+  useCrypto: (sel: (s: { unlocked: boolean }) => unknown) => sel({ unlocked: true }),
+}));
 vi.mock('@/hooks/useMediaQuery', () => ({ useMediaQuery: () => false }));
-vi.mock('../../ContextEditor', () => ({ ContextEditor: () => null }));
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -65,6 +78,16 @@ describe('ContextList（T6 Semi List 迁移）', () => {
     await user.keyboard(key);
 
     expect(screen.queryByRole('button', { name: '编辑上下文 上下文一' })).not.toBeInTheDocument();
+  });
+
+  it('点击列表项后显示真实上下文编辑器', async () => {
+    const user = userEvent.setup();
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    await user.click(await screen.findByRole('button', { name: '编辑上下文 上下文一' }));
+
+    expect(screen.getByRole('textbox', { name: '上下文标题' })).toHaveValue('上下文一');
+    expect(screen.getByRole('textbox', { name: '上下文内容' })).toHaveValue('正文内容');
   });
 
   it('点击删除按钮只打开确认框，不进入编辑态', async () => {

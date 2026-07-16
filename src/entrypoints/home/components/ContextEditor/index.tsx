@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, LockKeyhole } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -106,6 +106,7 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
       </div>
 
       <Input
+        aria-label="上下文标题"
         value={title}
         onChange={(e) => handleTitleChange(e.target.value)}
         placeholder="上下文标题"
@@ -114,21 +115,27 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
 
       <div className={styles.encryptRow}>
         <span className={`${styles.encryptLabel} ${isEncrypted ? styles.encryptActive : styles.encryptInactive}`}>
-          {isEncrypted ? '🔒 加密' : '普通'}
+          {isEncrypted && <LockKeyhole aria-hidden="true" />}
+          {isEncrypted ? '加密' : '普通'}
         </span>
         <Switch
+          aria-label="加密上下文"
           checked={isEncrypted}
           onCheckedChange={handleEncryptionToggle}
           size="sm"
         />
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'edit' | 'preview')}>
+      <Tabs
+        className={styles.tabs}
+        value={tab}
+        onValueChange={(v) => setTab(v as 'edit' | 'preview')}
+      >
         <TabsList>
           <TabsTrigger value="edit">编辑</TabsTrigger>
           <TabsTrigger value="preview">预览</TabsTrigger>
         </TabsList>
-        <TabsContent value="edit">
+        <TabsContent value="edit" className={styles.tabContent}>
           <Textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
@@ -137,11 +144,13 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
             className={styles.textarea}
           />
         </TabsContent>
-        <TabsContent value="preview">
-          <div
-            className={`markdown-body ${styles.previewBody}`}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-          />
+        <TabsContent value="preview" className={styles.tabContent}>
+          <div className={styles.previewScroll}>
+            <div
+              className={`markdown-body ${styles.previewBody}`}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
