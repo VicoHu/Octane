@@ -77,6 +77,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const [activeView, setActiveView] = useState<View>('bookmarks');
   // 从 tab 触发保存时携带的预填源(null=手动「添加书签」)
   const [saveFromTab, setSaveFromTab] = useState<OpenTab | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const currentCategory = categories.find((c) => c.id === currentCategoryId);
 
@@ -92,6 +93,17 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   useEffect(() => {
     if (currentWorkspaceId) void loadAllByWorkspace(currentWorkspaceId);
   }, [currentWorkspaceId, loadAllByWorkspace]);
+
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
 
   // 过滤书签
   const filteredBookmarks = query
@@ -320,9 +332,10 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     <div className={styles.content}>
       {/* 顶部操作栏 */}
       <div className={styles.toolbar}>
-        <h1 className={styles.title}>
-          {currentCategory?.icon} {currentCategory?.name ?? ''}
-        </h1>
+        <div className={styles.headingBlock}>
+          <h1 className={styles.title}>{currentCategory?.name ?? ''}</h1>
+          <p className={styles.subtitle}>你的 {currentCategory?.name ?? '书签'} 与灵感收藏</p>
+        </div>
 
         {/* tabs 视图:显式提示保存目标分类(防存错桶,Design 决议) */}
         {activeView === 'tabs' && (
@@ -334,7 +347,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         <div className={cn('relative', styles.searchInput)}>
           <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 opacity-50" />
           <Input
-            placeholder="搜索书签..."
+            ref={searchInputRef}
+            placeholder="搜索书签、分类或已打开页面..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pr-8 pl-8"
@@ -351,6 +365,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
               <X />
             </Button>
           )}
+          {!query && <kbd className={styles.searchShortcut}>⌘ K</kbd>}
         </div>
 
         <Button variant="default" onClick={openAddManual}>
@@ -367,12 +382,16 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
       )}
 
       {/* 视图切换:卡片式 Tabs(书签 / 标签页)。默认书签,向后兼容 */}
-      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as View)}>
+      <Tabs className={styles.tabsRoot} value={activeView} onValueChange={(v) => setActiveView(v as View)}>
         <TabsList className={styles.tabsList}>
-          <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签</TabsTrigger>
-          <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页({openTabs.length})</TabsTrigger>
+          <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签 {filteredBookmarks.length}</TabsTrigger>
+          <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页 {openTabs.length}</TabsTrigger>
         </TabsList>
-        <TabsContent value="bookmarks" className="pt-3">
+        <TabsContent value="bookmarks" className={styles.scrollPanel}>
+          <div className={styles.summaryRow}>
+            <strong>全部收藏</strong>
+            <span>拖拽排序 · 最近更新</span>
+          </div>
           {loading ? (
             <div className={styles.grid}>
               {[1, 2, 3].map((i) => (
@@ -452,7 +471,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           )}
         </TabsContent>
 
-        <TabsContent value="tabs">
+        <TabsContent value="tabs" className={styles.scrollPanel}>
           <TabList
             tabs={openTabs}
             bookmarks={allBookmarks}

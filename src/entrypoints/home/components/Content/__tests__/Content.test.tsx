@@ -84,7 +84,7 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
     render(<Content openTabs={[]} />);
     expect(screen.getAllByRole('tab')).toHaveLength(2);
     // jsdom 无 chrome → useOpenTabs 返回 [] → 标签页计数 0
-    expect(screen.getByRole('tab', { name: '标签页(0)' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '标签页 0' })).toBeInTheDocument();
     // 默认书签视图:不应出现 tabs 视图的空状态文案(keepDOM=false 仅渲染活动面板)
     expect(screen.queryByText('当前窗口没有其他标签页')).not.toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
   it('切到标签页视图:点击 标签页 tab → 渲染 TabList 空状态 + 保存至提示', async () => {
     const user = userEvent.setup();
     render(<Content openTabs={[]} />);
-    await user.click(screen.getByRole('tab', { name: '标签页(0)' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 0' }));
 
     expect(screen.getByText('当前窗口没有其他标签页')).toBeInTheDocument();
     expect(screen.getByText(/保存至/)).toBeInTheDocument();
@@ -101,10 +101,10 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
   it('切回书签视图:不再渲染 TabList', async () => {
     const user = userEvent.setup();
     render(<Content openTabs={[]} />);
-    await user.click(screen.getByRole('tab', { name: '标签页(0)' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 0' }));
     expect(screen.getByText('当前窗口没有其他标签页')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: '书签' }));
+    await user.click(screen.getByRole('tab', { name: '书签 0' }));
     expect(screen.queryByText('当前窗口没有其他标签页')).not.toBeInTheDocument();
   });
 });

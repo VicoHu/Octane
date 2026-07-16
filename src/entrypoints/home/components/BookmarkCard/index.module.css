@@ -6,12 +6,13 @@
   flex-direction: row;
   align-items: center;
   gap: var(--space-md);
-  min-height: 70px;
-  padding: 0 var(--space-lg);
+  height: 78px;
+  min-height: 78px;
+  padding: 0 14px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--card-shadow);
+  box-shadow: none;
   transition: box-shadow var(--transition-normal);
 }
 
@@ -37,7 +38,7 @@
   outline-offset: -2px;
 }
 .card:hover {
-  box-shadow: var(--card-hover-shadow);
+  box-shadow: var(--shadow-soft);
 }
 
 .favicon {
@@ -114,7 +115,7 @@
 }
 
 .name {
-  font-weight: 400;
+  font-weight: 700;
   font-size: var(--font-md);
   margin-bottom: 2px;
   overflow: hidden;
@@ -127,7 +128,7 @@
 .url {
   font-size: var(--font-xs);
   color: var(--text-muted);
-  margin-bottom: 0;
+  margin-top: 5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
