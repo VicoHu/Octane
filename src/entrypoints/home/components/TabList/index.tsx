@@ -6,6 +6,7 @@ import type { Bookmark } from '@/shared/types';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab } from '@/shared/tabs/matchUrl';
 import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
+import { cn } from '@/lib/utils';
 import styles from './index.module.css';
 
 interface TabListProps {
@@ -90,7 +91,7 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
       <Button
         type="button"
         variant="ghost"
-        className={styles.mainButton}
+        className={cn(styles.mainButton, 'justify-start text-left')}
         aria-label={`打开标签页 ${title}`}
         onClick={onTabClick}
       >
@@ -136,9 +137,8 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
             render={
               <Button
                 variant="ghost"
-                size="sm"
                 disabled={saveDisabled}
-                className={styles.saveBtn}
+                className={cn(styles.saveBtn, 'text-base')}
                 onClick={onSave}
               />
             }
