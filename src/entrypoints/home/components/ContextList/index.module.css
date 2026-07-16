@@ -1,37 +1,79 @@
-.titleRow {
+.listContainer {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.listHeader {
+  flex: none;
+  margin-bottom: var(--space-md);
+}
+
+.listHeading {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.recordCount {
+  margin: var(--space-xs) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-sm);
+}
+
+.listScroll {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.contextList {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: var(--space-sm);
+  list-style: none;
+}
+
+.contextItem {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  transition:
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
-.titleName {
-  font-weight: 600;
-  font-size: var(--font-md);
+.contextItem:hover {
+  background: var(--surface-secondary);
+  box-shadow: var(--shadow-soft);
 }
 
-.lockIcon {
-  color: var(--primary);
-}
-
-.footer {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.listContainer {
-  min-height: 200px;
+.contextAction:hover {
+  background: transparent;
 }
 
 .loading {
   display: flex;
+  min-height: 240px;
+  align-items: center;
   justify-content: center;
-  padding: var(--space-xl) 0;
 }
 
 .error {
   display: flex;
+  min-height: 240px;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: var(--space-md);
 }
 
@@ -42,16 +84,16 @@
 
 .contextTitle {
   min-width: 0;
+  color: var(--text-primary);
   font-weight: 500;
-  font-size: var(--font-md);
+  font-size: var(--font-sm);
   display: flex;
   align-items: center;
   gap: var(--space-xs);
 }
 
 .contextLock {
-  color: var(--primary);
-  font-size: var(--font-sm);
+  color: var(--primary-text);
 }
 
 .contextTime {
@@ -62,4 +104,18 @@
 
 .deleteBtn:hover {
   color: var(--danger);
+}
+
+.createButton {
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .contextItem > button {
+    min-height: 44px;
+  }
+
+  .deleteBtn {
+    min-width: 44px;
+  }
 }

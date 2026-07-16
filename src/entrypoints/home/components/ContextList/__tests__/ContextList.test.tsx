@@ -9,6 +9,7 @@ vi.mock('@/services/ContextService', () => ({
 vi.mock('@/store/useBookmarks', () => ({
   useBookmarks: (sel: (s: Record<string, unknown>) => unknown) => sel({ refreshBookmark: vi.fn() }),
 }));
+vi.mock('@/hooks/useMediaQuery', () => ({ useMediaQuery: () => false }));
 vi.mock('../../ContextEditor', () => ({ ContextEditor: () => null }));
 
 import { render, screen } from '@testing-library/react';
@@ -24,6 +25,14 @@ const bookmark = {
 } as Bookmark;
 
 describe('ContextList（T6 Semi List 迁移）', () => {
+  it('列表态显示内容标题、记录数与新增操作', async () => {
+    render(<ContextList bookmark={bookmark} visible={true} onClose={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: '上下文' })).toBeInTheDocument();
+    expect(screen.getByText('1 条记录')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '新增上下文' })).toBeInTheDocument();
+  });
+
   it('长连续标题不会挤出右侧删除操作', async () => {
     const longTitle = '这是一个没有任何空格且非常非常非常非常非常非常非常长的上下文标题';
     vi.mocked(getContexts).mockResolvedValueOnce([
