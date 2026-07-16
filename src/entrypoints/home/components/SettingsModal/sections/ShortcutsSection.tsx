@@ -83,7 +83,7 @@ export function ShortcutsSection() {
           borderRadius: 'var(--semi-border-radius-small)',
           padding: '10px 12px',
           marginBottom: 16,
-          fontSize: 12,
+          fontSize: 'var(--font-sm)',
           color: 'var(--semi-color-text-1)',
           lineHeight: 1.6,
         }}

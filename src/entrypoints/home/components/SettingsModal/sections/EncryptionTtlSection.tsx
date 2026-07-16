@@ -102,7 +102,7 @@ function Row({ inputId, label, hint, children }: { inputId: string; label: strin
     <div className="mb-3 flex items-center gap-3">
       <label htmlFor={inputId} className="w-40 text-sm">{label}</label>
       {children}
-      <div className="min-w-0 flex-1 text-xs text-muted-foreground">{hint}</div>
+      <div className="min-w-0 flex-1 text-sm text-muted-foreground">{hint}</div>
     </div>
   );
 }

@@ -14,7 +14,7 @@
   gap: 4px;
 }
 .fieldLabel {
-  font-size: 13px;
+  font-size: var(--font-sm);
   color: var(--semi-color-text-2);
 }
 .actions {
@@ -23,7 +23,7 @@
   flex-wrap: wrap;
 }
 .lastTime {
-  font-size: 13px;
+  font-size: var(--font-sm);
   color: var(--semi-color-text-2);
 }
 .confirmBody {

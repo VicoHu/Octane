@@ -44,7 +44,7 @@ export function FaviconCacheSection() {
   return (
     <section style={{ marginTop: 24 }}>
       <Typography.Title heading={5} style={{ marginBottom: 4 }}>favicon 缓存</Typography.Title>
-      <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
+      <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 12 }}>
         仅清除第三方高清图标缓存。浏览器本地图标仍可立即显示，外网站点会在后台重新获取高清图标。
       </Typography.Text>
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
