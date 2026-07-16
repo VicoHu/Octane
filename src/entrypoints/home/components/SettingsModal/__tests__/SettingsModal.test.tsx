@@ -46,13 +46,17 @@ describe('SettingsModal（系统设置中心）', () => {
     };
   });
 
-  it('渲染「系统设置」标题 + 四 menu 项', () => {
+  it('打开弹窗 → 显示设置说明、四个分类和默认分区标题', async () => {
     render(<SettingsModal visible={true} onCancel={() => {}} />);
-    expect(screen.getByText('系统设置')).toBeInTheDocument();
-    expect(screen.getByText('快捷键')).toBeInTheDocument();
-    expect(screen.getByText('数据备份和同步')).toBeInTheDocument();
-    expect(screen.getByText('数据维护')).toBeInTheDocument();
-    expect(screen.getByText('主密码')).toBeInTheDocument();
+    await screen.findByRole('button', { name: /前往自定义/ });
+
+    expect(screen.getByRole('heading', { name: '系统设置' })).toBeInTheDocument();
+    expect(screen.getByText('管理快捷键、数据与安全选项')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '快捷键' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '数据备份和同步' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '数据维护' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '主密码' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '快捷键', level: 2 })).toBeInTheDocument();
   });
 
   it('默认显示快捷键分区（「前往自定义」按钮可见）', async () => {
