@@ -64,23 +64,33 @@
 .content {
   display: flex;
   min-height: 0;
+  overflow: hidden;
   flex: 1;
   flex-direction: column;
   padding: var(--space-xl);
+  overscroll-behavior: contain;
 }
 
 .footer {
   flex: none;
   padding: var(--space-md) var(--space-xl);
-  padding-bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
 }
 
 @media (max-width: 767px) {
-  .header,
+  .header {
+    padding: var(--space-md);
+    padding-top: max(var(--space-lg), env(safe-area-inset-top));
+  }
+
   .content {
     padding: var(--space-md);
+  }
+
+  .mobileDrawer[data-has-footer='false'] .content {
+    padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom));
   }
 
   .header > button {

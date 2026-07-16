@@ -57,15 +57,24 @@ export function ContextPanelShell({
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="down">
-        <DrawerContent className={`${styles.mobileDrawer} h-dvh max-h-dvh rounded-none`}>
+      <Drawer
+        open={open}
+        onOpenChange={(nextOpen) => onOpenChange(nextOpen)}
+        swipeDirection="down"
+      >
+        <DrawerContent
+          data-has-footer={footer != null}
+          className={`${styles.mobileDrawer} h-dvh max-h-dvh data-[swipe-direction=down]:rounded-none`}
+        >
           <DrawerTitle className="sr-only">{accessibleTitle}</DrawerTitle>
           <PanelFrame
             title={title}
             encrypted={encrypted}
             footer={footer}
             closeControl={
-              <DrawerClose render={<Button variant="ghost" size="icon" aria-label="关闭" />}>
+              <DrawerClose
+                render={<Button variant="ghost" size="icon" aria-label="关闭上下文面板" />}
+              >
                 <X />
               </DrawerClose>
             }
@@ -78,11 +87,12 @@ export function ContextPanelShell({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={(nextOpen) => onOpenChange(nextOpen)}>
       <SheetContent
         side="right"
         showCloseButton={false}
-        className={`${styles.desktopSheet} w-screen max-w-[1000px] sm:max-w-[1000px]`}
+        data-has-footer={footer != null}
+        className={`${styles.desktopSheet} data-[side=right]:w-screen data-[side=right]:sm:max-w-[1000px]`}
       >
         <SheetTitle className="sr-only">{accessibleTitle}</SheetTitle>
         <PanelFrame
@@ -90,7 +100,9 @@ export function ContextPanelShell({
           encrypted={encrypted}
           footer={footer}
           closeControl={
-            <SheetClose render={<Button variant="ghost" size="icon" aria-label="关闭" />}>
+            <SheetClose
+              render={<Button variant="ghost" size="icon" aria-label="关闭上下文面板" />}
+            >
               <X />
             </SheetClose>
           }
