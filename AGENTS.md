@@ -93,14 +93,14 @@
 ## 页面 UI/UX 优化
 涉及前端 UI/UX 工作时，按场景选工具，避免无依据地手写样式：
 
-1. **Semi 组件选用与用法** → `semi-ui-skills` skill。本项目以 Semi Design 为组件基座，先查组件再动手。
+1. **shadcn/ui 组件选用与用法** → `shadcn` skill。本项目以 shadcn/ui（Base UI 底座）为组件基座（`src/components/ui/*`），先查/装组件再动手。> 注：Form（`Content`、`BookmarkOpsPanel`）与 Tree（`SelectionTree`）仍暂用 Semi，改这几处时用 `semi-ui-skills`。
 2. **单点 / 通用设计决策**（挑风格 / 配色 / 字体配对 / 图表选型，或任意页面的 UI/UX 优化）→ `ui-ux-pro-max` skill。基于数据库检索给推荐 + 配套 UX 规则，跨栈、不限页面类型。系统性代码 review 另用 `design-review` skill，不是它。
 3. **落地页 / 作品集 / 营销页 / 现有页面 redesign 的端到端设计落地** → `taste-skill`（install name `design-taste-frontend`，Anti-slop，读 brief 推断整体设计语言、调 VARIANCE / MOTION / DENSITY 三旋钮，产出连贯界面）。它偏整体方向落地（不是 `ui-ux-pro-max` 那种单点推荐）；默认栈 React + Tailwind v4，而本项目是 React + Semi Design（无 Tailwind），引入时样式需改用 Semi token；**明确不适用**于仪表盘、数据表格、多步产品 UI。
 
 判断原则：
-- 产品型 UI（newtab / sidepanel / 设置等）默认走 Semi + `semi-ui-skills`；需要设计决策时叠加 `ui-ux-pro-max`。
-- 落地页 / 作品集类页面才用 `taste-skill` 做整体设计落地（其 Tailwind 默认栈需替换为本项目 Semi token）；扩展内功能型 UI 不要用 `taste-skill`，挑配色 / 字体等单点决策用 `ui-ux-pro-max`。
-- 极简微调（改间距 / 颜色 token 等）可直接手动（以 `DESIGN.md` 为 token 真源），无需调用 skill（需要使用Semi Design 组件时，优先使用 `semi-ui-skills` skill）。
+- 产品型 UI（newtab / sidepanel / 设置等）默认走 shadcn/ui + `shadcn` skill；需要设计决策时叠加 `ui-ux-pro-max`。
+- 落地页 / 作品集类页面才用 `taste-skill` 做整体设计落地（默认 React + Tailwind v4，与本项目栈一致，token 对齐 `DESIGN.md`）；扩展内功能型 UI 不要用 `taste-skill`，挑配色 / 字体等单点决策用 `ui-ux-pro-max`。
+- 极简微调（改间距 / 颜色 token 等）可直接手动（以 `DESIGN.md` 为 token 真源），无需调用 skill（用 shadcn 组件时优先 `shadcn` skill；改残留 Semi 的 Form/Tree 时用 `semi-ui-skills`）。
 
 ### 设计规范文档
 
@@ -108,13 +108,14 @@
 |------|------|
 | `DESIGN.md` | 设计规范（token 单一真源，遵循 Google DESIGN.md alpha spec）。做任何视觉/UI 决策前必读；改主题只动 token |
 | `docs/design-guidelines.md` | 设计规范补充：完整理由、现状审视、设计债务清单、交付检查清单 |
-| `docs/semi-design-spec.md` | Semi-design DSM Token 参考手册：Semi 组件 token 机制（机制层，非项目决策） |
+| `docs/semi-design-spec.md` | Semi-design DSM Token 参考手册（仅残留 Semi Form/Tree 相关；主组件库已迁 shadcn/ui） |
+| `docs/superpowers/specs/2026-07-15-semi-to-shadcn-design.md` | Semi→shadcn 迁移设计：残留 Form/Tree 决策 + 执行期行为变化记录 |
 
 ## 测试规范
 写测试或改测试时，**必须**先读 [测试设计规范](docs/standards/testing.md)。核心：
-- 不整体 mock `@douyinfe/semi-ui`（真实渲染 Semi，仅 partial mock Toast）；lottie-web 由 `vitest.config.ts` 全局 alias 处理（见规范 §4.4.1），测试文件**不要**再 `vi.mock('lottie-web')`。
+- 不整体 mock UI 组件（真实渲染 `@/components/ui/*`）；Toast 命令式 API mock `@/components/ui/toast`（仅 mock Toast 方法）。残留 Semi Form/Tree 的测试同理不整体 mock `@douyinfe/semi-ui`。lottie-web 由 `vitest.config.ts` 全局 alias 处理（见规范 §4.4.1），测试文件**不要**再 `vi.mock('lottie-web')`。
 - query 用 `getByRole` / `getByText` / `getByPlaceholderText`，禁用只存在于 mock 里的私有 testid。
 - 交互用 `userEvent`（不用 `fireEvent`）；断言用 jest-dom matcher（`toBeInTheDocument()` 等，不用 `.toBeTruthy()`）。
 - mock 只命中副作用边界（chrome API / DB / 网络 / Toast / lottie），不 mock 被测对象。
 - 提交前 `pnpm run typecheck`（husky pre-push 自动跑）+ `pnpm run test` 必须双绿。
-- 写新组件测试前，参考 `tests/spike-semi-jsdom.test.tsx`（Semi 在 jsdom 真实渲染范本）和 `src/services/__tests__/CryptoService.test.ts`（逻辑层标杆）。
+- 写新组件测试前，参考 `tests/spike-semi-jsdom.test.tsx`（jsdom 真实渲染范本，Semi 时期遗留但模式仍适用 ui 组件）和 `src/services/__tests__/CryptoService.test.ts`（逻辑层标杆）。
