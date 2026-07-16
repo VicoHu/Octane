@@ -1,0 +1,94 @@
+.desktopSheet {
+  gap: 0;
+  padding: 0;
+  background: var(--content-bg);
+}
+
+.mobileDrawer {
+  --drawer-content-height: 100dvh;
+  --drawer-content-max-height: 100dvh;
+  background: var(--content-bg);
+}
+
+.frame {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.headingGroup {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: var(--space-xs);
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
+.titleRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.title {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-xl);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titleRow svg {
+  flex: none;
+  color: var(--primary-text);
+}
+
+.content {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: var(--space-xl);
+}
+
+.footer {
+  flex: none;
+  padding: var(--space-md) var(--space-xl);
+  padding-bottom: max(var(--space-md), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+@media (max-width: 767px) {
+  .header,
+  .content {
+    padding: var(--space-md);
+  }
+
+  .header > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .footer {
+    padding-inline: var(--space-md);
+  }
+}
