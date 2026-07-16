@@ -149,7 +149,7 @@ components:
 
 ## Layout
 
-深色侧栏（`--sidebar-width 260px`）+ 浅色内容区（`max-width 1400px` 居中）。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色经 tailwind `@theme` + shadcn 变量派生（`src/styles/tailwind-theme.css` 的 `:root`/`.dark`）；残留 Semi 组件的品牌色仍由 `semi-theme-override.css` 同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
+68px 深色品牌 Rail + 222px 浅色导航侧栏 + 浅色内容区（`max-width 1720px` 居中）。书签网格按视口断点使用 1/1/2/3/4/5 列：xs `<576px`、sm `≥576px`、md `≥768px`、lg `≥992px`、xl `≥1200px`、xxl `≥1600px`。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色经 tailwind `@theme` + shadcn 变量派生（`src/styles/tailwind-theme.css` 的 `:root`/`.dark`）；残留 Semi 组件的品牌色仍由 `semi-theme-override.css` 同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
 
 ## Elevation & Depth
 

@@ -200,7 +200,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
 
 - **骨架**：深色侧栏（Logo 炭灰族）+ 浅色内容区。此范式正确，保留。
 - 品牌色的 Semi token 覆盖须同时覆盖 `html body` 与 `html body .semi-always-dark`。
-- 布局：`--sidebar-width 260px`、内容区 `max-width 1400px` 居中；面向桌面宽屏，保证 1024/1440 无横滚。
+- 布局：68px 品牌 Rail + `--sidebar-width 222px` 导航侧栏，内容区 `max-width 1720px` 居中；书签网格按 xs/sm/md/lg/xl/xxl 显示 1/1/2/3/4/5 列。
 
 ---
 
