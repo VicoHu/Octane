@@ -32,11 +32,68 @@
   object-fit: cover;
 }
 
+.app-rail-workspaces {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.app-rail-workspace-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.app-rail-workspace-list::-webkit-scrollbar {
+  display: none;
+}
+
+.app-rail-workspace-button {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.app-rail-workspace-button.is-current {
+  background: var(--neutral);
+}
+
+.app-rail-workspace-button.is-current::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -11px;
+  width: 3px;
+  height: 24px;
+  background: var(--primary);
+  transform: translateY(-50%);
+}
+
+.app-rail-workspace-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.app-rail-workspace-create {
+  flex-shrink: 0;
+}
+
+.app-rail-separator {
+  width: 32px;
+  margin: 14px 0;
+}
+
 .app-rail-group {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 30px;
+  margin-top: 0;
 }
 
 .app-rail-button {

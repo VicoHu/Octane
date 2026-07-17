@@ -42,7 +42,9 @@
   margin-top: 22px;
 }
 
-.header + .sectionLabel { display: none; }
+.workspaceSection {
+  display: none;
+}
 
 .workspaceSelect {
   display: flex;
@@ -222,6 +224,14 @@
 @media (prefers-reduced-motion: reduce) {
   .gripSlot {
     transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspaceSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
   }
 }
 
