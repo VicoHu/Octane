@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '@douyinfe/semi-ui';
+import { Button } from '@/components/ui/button';
 import { useCrypto } from '@/store/useCrypto';
 import { ChangePasswordModal } from '../../ChangePasswordModal';
 
@@ -25,12 +25,12 @@ export function PasswordSection() {
 
   return (
     <div style={{ paddingTop: 8 }}>
-      <Button theme="solid" onClick={onClick}>
+      <Button onClick={onClick}>
         {label}
       </Button>
       {unlocked && passwordSet && (
         <Button
-          theme="borderless"
+          variant="ghost"
           style={{ marginLeft: 8 }}
           onClick={() => setShowChange(true)}
         >

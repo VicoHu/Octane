@@ -1,17 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
 vi.mock('@/services/cloud/providers', () => {
   const providers = {
     s3: { id: 's3', label: 'S3', configFields: [{ name: 'region', label: 'Region', type: 'text' as const, required: true }] },
@@ -43,7 +30,7 @@ vi.mock('../../ChangePasswordModal', () => ({
 }));
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import userEvent from '@testing-library/user-event';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { SettingsModal } from '../index';
 
 describe('SettingsModal（系统设置中心）', () => {
@@ -59,34 +46,51 @@ describe('SettingsModal（系统设置中心）', () => {
     };
   });
 
-  it('渲染「系统设置」标题 + 四 menu 项', () => {
+  it('打开弹窗 → 显示设置说明、四个分类和默认分区标题', async () => {
     render(<SettingsModal visible={true} onCancel={() => {}} />);
-    expect(screen.getByText('系统设置')).toBeInTheDocument();
-    expect(screen.getByText('快捷键')).toBeInTheDocument();
-    expect(screen.getByText('数据备份和同步')).toBeInTheDocument();
-    expect(screen.getByText('数据维护')).toBeInTheDocument();
-    expect(screen.getByText('主密码')).toBeInTheDocument();
+    await screen.findByRole('button', { name: /前往自定义/ });
+
+    expect(screen.getByRole('heading', { name: '系统设置' })).toBeInTheDocument();
+    expect(screen.getByText('管理快捷键、数据与安全选项')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '快捷键' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '数据备份和同步' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '数据维护' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '主密码' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '快捷键', level: 2 })).toBeInTheDocument();
   });
 
   it('默认显示快捷键分区（「前往自定义」按钮可见）', async () => {
     render(<SettingsModal visible={true} onCancel={() => {}} />);
-    expect(await screen.findByRole('button', { name: /前往自定义/ })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /前往自定义/ })).toBeInTheDocument();
   });
 
   it('点击「数据备份和同步」→ 显示备份区（导出/导入）', async () => {
+    const user = userEvent.setup();
     render(<SettingsModal visible={true} onCancel={() => {}} />);
     // 等快捷键分区渲染完（getAll 异步）
     await screen.findByRole('button', { name: /前往自定义/ });
-    fireEvent.click(screen.getByText('数据备份和同步'));
-    expect(await screen.findByText('导出数据')).toBeTruthy();
+    await user.click(screen.getByRole('tab', { name: '数据备份和同步' }));
+    expect(await screen.findByRole('button', { name: '导出数据' })).toBeInTheDocument();
   });
 
   it('点击「主密码」→ 切换到主密码分区', async () => {
+    const user = userEvent.setup();
     render(<SettingsModal visible={true} onCancel={() => {}} />);
     await screen.findByRole('button', { name: /前往自定义/ });
-    fireEvent.click(screen.getByText('主密码'));
+    await user.click(screen.getByRole('tab', { name: '主密码' }));
     // PasswordSection 默认未设 → 「设置主密码」按钮（验证主密码分区已接入）
-    expect(screen.getByRole('button', { name: '设置主密码' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '设置主密码' })).toBeInTheDocument();
+  });
+
+  it('设置分类为纵向导航，备份方式为横向导航且密文说明是静态注记', async () => {
+    const user = userEvent.setup();
+    render(<SettingsModal visible={true} onCancel={() => {}} />);
+
+    expect(screen.getByRole('tablist', { name: '设置分类' })).toHaveAttribute('aria-orientation', 'vertical');
+
+    await user.click(screen.getByRole('tab', { name: '数据备份和同步' }));
+    expect(screen.getByRole('tablist', { name: '备份方式' })).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(screen.getByRole('note')).toHaveTextContent('导出文件含加密笔记的密文');
   });
 
   it('「数据备份和同步」内含 3 个 card 子 tab,默认本地备份,可切到云端同步', async () => {

@@ -8,11 +8,10 @@ vi.mock('@/services/FaviconService', () => ({
 }));
 import { clearAllFavicons } from '@/services/FaviconService';
 
-// partial mock Toast（仅 Toast，其余 Semi 真实渲染）
-vi.mock('@douyinfe/semi-ui', async () => {
-  const actual = await vi.importActual<typeof import('@douyinfe/semi-ui')>('@douyinfe/semi-ui');
-  return { ...actual, Toast: { success: vi.fn(), error: vi.fn() } };
-});
+// mock Toast 副作用边界（仅 Toast，其余 ui 真实渲染）
+vi.mock('@/components/ui/toast', () => ({
+  Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), close: vi.fn() },
+}));
 
 describe('FaviconCacheSection', () => {
   beforeEach(() => {
@@ -35,7 +34,7 @@ describe('FaviconCacheSection', () => {
     const ok = await screen.findByRole('button', { name: '确定' });
     await user.click(ok);
     expect(clearAllFavicons).toHaveBeenCalledTimes(1);
-    const { Toast } = await import('@douyinfe/semi-ui');
+    const { Toast } = await import('@/components/ui/toast');
     expect(vi.mocked(Toast.success)).toHaveBeenCalledWith('已清空第三方 favicon 缓存，将在后台重新获取高清图标');
   });
 
@@ -46,7 +45,7 @@ describe('FaviconCacheSection', () => {
     await user.click(screen.getByRole('button', { name: '清空 favicon 缓存' }));
     const ok = await screen.findByRole('button', { name: '确定' });
     await user.click(ok);
-    const { Toast } = await import('@douyinfe/semi-ui');
+    const { Toast } = await import('@/components/ui/toast');
     await vi.waitFor(() => {
       expect(vi.mocked(Toast.error)).toHaveBeenCalledWith('清空失败，请重试');
     });

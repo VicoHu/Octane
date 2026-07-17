@@ -1,41 +1,10 @@
-/* === 全屏高斯模糊遮罩 === */
-.overlay {
-  position: fixed;
-  inset: 0;
-  /* 高于 Semi Modal 默认 zIndex(1000)：UnlockModal 常嵌套在设置 Modal 内触发，
-     需确保解锁/重设弹窗在最上层（Bug 修复：原 1000 与 SettingsModal 同层被压下）。 */
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-lg);
-  /* slate-900 半透明 + 品牌色微染，叠加高斯模糊让背景书签页不可读 */
-  background:
-    radial-gradient(circle at 50% 35%, rgba(0, 184, 148, 0.18), transparent 60%),
-    rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(24px) saturate(140%);
-  -webkit-backdrop-filter: blur(24px) saturate(140%);
-  animation: overlayIn var(--transition-normal);
-}
-
-/* === 居中玻璃卡片 === */
 .card {
   width: min(420px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: var(--radius-lg);
-  box-shadow:
-    0 24px 64px rgba(15, 23, 42, 0.32),
-    0 8px 24px rgba(15, 23, 42, 0.16);
-  padding: var(--space-2xl);
-  animation: cardIn 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* === 品牌头部（渐变图标徽章 + 标题） === */
 .header {
   display: flex;
   flex-direction: column;
@@ -50,41 +19,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-  box-shadow: 0 8px 20px rgba(0, 184, 148, 0.4);
+  border-radius: var(--radius-lg);
+  background: var(--primary);
   margin-bottom: var(--space-lg);
-  color: #fff;
+  color: var(--primary-on);
 }
 
 .badgeDanger {
-  background: linear-gradient(135deg, #f59e0b, var(--danger));
-  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
+  background: var(--danger);
+  color: var(--card-bg);
 }
 
-.title {
-  font-size: var(--font-2xl);
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-  margin-bottom: var(--space-xs);
-}
-
-.subtitle {
-  font-size: var(--font-md);
-  color: var(--text-secondary);
-  line-height: 1.55;
-  max-width: 320px;
-}
-
-/* === 表单 === */
 .field {
   margin-bottom: var(--space-md);
 }
 
 .hint {
   font-size: var(--font-xs);
-  color: var(--muted);
+  color: var(--text-muted);
   margin-top: var(--space-xs);
   margin-bottom: var(--space-md);
   text-align: center;
@@ -99,61 +51,18 @@
   margin-top: calc(-1 * var(--space-xs));
   margin-bottom: var(--space-md);
   padding: var(--space-sm) var(--space-md);
-  background: rgba(239, 68, 68, 0.08);
+  background: color-mix(in srgb, var(--danger) 8%, var(--card-bg));
   border-radius: var(--radius-sm);
-  animation: shake 320ms ease;
 }
 
 .warning {
-  display: flex;
-  gap: var(--space-sm);
-  padding: var(--space-md);
   margin-bottom: var(--space-lg);
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  border-radius: var(--radius-md);
-  font-size: var(--font-sm);
-  color: #92400e;
-  line-height: 1.55;
 }
 
 .warningIcon {
   flex-shrink: 0;
-  color: #d97706;
-  margin-top: 2px;
 }
 
 .submit {
-  margin-top: var(--space-sm);
-}
-
-/* === 动画 === */
-@keyframes overlayIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes cardIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .overlay,
-  .card,
-  .error {
-    animation: none;
-  }
+  margin-top: 0;
 }

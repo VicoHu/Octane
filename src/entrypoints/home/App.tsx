@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useCrypto } from '@/store/useCrypto';
 import { Sidebar } from './components/Sidebar';
 import { Content } from './components/Content';
+import { AppRail } from './components/AppRail';
 import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
@@ -12,6 +13,8 @@ import { useOpenTabs } from './hooks/useOpenTabs';
 import '@/styles/global.css';
 import './App.css';
 import '@/styles/semi-theme-override.css';
+import { Button } from '@/components/ui/button';
+import { Menu, X } from 'lucide-react';
 
 const App: React.FC = () => {
   const loadWorkspaces = useWorkspace((s) => s.loadWorkspaces);
@@ -19,6 +22,7 @@ const App: React.FC = () => {
   const loadBookmarks = useBookmarks((s) => s.loadBookmarks);
   const checkStatus = useCrypto((s) => s.checkStatus);
   const openTabs = useOpenTabs();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     checkStatus();
@@ -79,13 +83,32 @@ const App: React.FC = () => {
   return (
     <>
       <UnlockModal />
+      <div className="app-frame">
       <div className="app-layout">
-        <aside className="app-sidebar semi-always-dark" id="sidebar-container">
+        <AppRail />
+        <aside className={`app-sidebar${mobileNavOpen ? ' is-mobile-open' : ''}`} id="sidebar-container">
+          <div className="app-sidebar-mobile-header">
+            <span>导航</span>
+            <Button variant="ghost" size="icon-sm" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)}>
+              <X />
+            </Button>
+          </div>
           <Sidebar openTabs={openTabs} />
         </aside>
-        <main className="app-content">
+        {mobileNavOpen && <button className="app-mobile-backdrop" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)} />}
+        <main className="app-content" data-mobile-nav-open={mobileNavOpen}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="app-mobile-menu"
+            aria-label="打开导航"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu />
+          </Button>
           <Content openTabs={openTabs} />
         </main>
+      </div>
       </div>
     </>
   );

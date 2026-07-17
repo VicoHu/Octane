@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconLock, IconPlus } from '@douyinfe/semi-icons';
+import { Lock, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useEncryptedContexts } from '../hooks/useEncryptedContexts';
 import { ContextCard } from './ContextCard';
 import { InlineContextEditor } from './InlineContextEditor';
@@ -28,21 +29,23 @@ export function BookmarkGroup({ bookmark, categoryName, categoryIcon }: Bookmark
     <div className={styles.group} role="listitem" aria-label={bookmark.name}>
       <div className={styles.header}>
         <span className={styles.name}>{bookmark.name}</span>
-        {bookmark.hasEncryptedContext && <IconLock className={styles.lock} aria-label="含加密上下文" />}
+        {bookmark.hasEncryptedContext && <Lock className={styles.lock} aria-label="含加密上下文" />}
         {categoryName && (
           <span className={styles.chip} title={categoryName}>
             {categoryIcon ? `${categoryIcon} ` : ''}{categoryName}
           </span>
         )}
         <span className={styles.count}>{bookmark.contextCount} 条上下文</span>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           className={styles.addBtn}
           onClick={() => setEditing(true)}
           aria-label="添加上下文"
           title="就地创建上下文"
         >
-          <IconPlus />
-        </button>
+          <Plus />
+        </Button>
       </div>
       {editing && (
         <InlineContextEditor bookmarkId={bookmark.id} onDone={() => setEditing(false)} />

@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react';
-import { Avatar, List, Typography, Button, Dropdown } from '@douyinfe/semi-ui';
+import { Bookmark, Settings, ChevronRight, User, Home as HomeIcon } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Typography } from '@/components/ui/typography';
+import { Button } from '@/components/ui/button';
 import {
-  IconBookmark,
-  IconSetting,
-  IconChevronRight,
-  IconUser,
-  IconHome,
-} from '@douyinfe/semi-icons';
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { useUser } from '../hooks/useUser';
 import { focusOrCreateHomeTab } from '@/shared/tabs/focusOrCreateHomeTab';
 import type { View } from '../navigation';
 import styles from '../popup.module.css';
+import { cn } from '@/lib/utils';
 
 interface HomeViewProps {
   /** 切换到目标视图。 */
@@ -36,14 +39,14 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
   const features: Feature[] = [
     {
       key: 'save',
-      icon: <IconBookmark />,
+      icon: <Bookmark />,
       title: '保存当前页面',
       desc: '把这个网页加入书签',
       primary: true,
     },
     {
       onClick: () => void focusOrCreateHomeTab(),
-      icon: <IconHome />,
+      icon: <HomeIcon />,
       title: '打开书签主页',
       desc: '在固定标签页管理全部书签',
     },
@@ -55,8 +58,9 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
       <div className={styles.userCard}>
         {user ? (
           <>
-            <Avatar color="indigo" size="large" src={user.avatarUrl} alt={user.name}>
-              {user.name.slice(0, 1)}
+            <Avatar className="size-10">
+              <AvatarImage src={user.avatarUrl} alt={user.name} />
+              <AvatarFallback>{user.name.slice(0, 1)}</AvatarFallback>
             </Avatar>
             <div className={styles.userInfo}>
               <Typography.Text strong>{user.name}</Typography.Text>
@@ -67,8 +71,10 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
           </>
         ) : (
           <>
-            <Avatar color="grey" size="large" alt="未登录">
-              <IconUser />
+            <Avatar className="size-10">
+              <AvatarFallback>
+                <User />
+              </AvatarFallback>
             </Avatar>
             <div className={styles.userInfo}>
               <Typography.Text strong>Octane</Typography.Text>
@@ -76,60 +82,65 @@ export default function HomeView({ onNavigate }: HomeViewProps) {
                 登录后同步你的书签
               </Typography.Text>
             </div>
-            <Button size="small" theme="borderless" type="tertiary" aria-label="登录">
+            <Button size="sm" variant="ghost" aria-label="登录">
               登录
             </Button>
           </>
         )}
 
         {/* 右上角下拉：设置 / 退出 */}
-        <Dropdown
-          position="bottomRight"
-          render={
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={() => onNavigate('settings')}>设置</Dropdown.Item>
-              <Dropdown.Item disabled>退出登录</Dropdown.Item>
-            </Dropdown.Menu>
-          }
-        >
-          <Button
-            className={styles.userMenuTrigger}
-            icon={<IconSetting />}
-            theme="borderless"
-            type="tertiary"
-            aria-label="账户菜单"
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                className={styles.userMenuTrigger}
+                variant="ghost"
+                size="icon-sm"
+                aria-label="账户菜单"
+              >
+                <Settings />
+              </Button>
+            }
           />
-        </Dropdown>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onNavigate('settings')}>设置</DropdownMenuItem>
+            <DropdownMenuItem disabled>退出登录</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* 功能列表 */}
       <Typography.Text type="tertiary" size="small" className={styles.sectionLabel}>
         功能
       </Typography.Text>
-      <List className={styles.featureList} split>
+      <ul className={cn(styles.featureList, 'flex flex-col')}>
         {features.map((f) => (
-          <List.Item
-            key={f.key ?? 'action'}
-            className={f.primary ? styles.featureItemPrimary : styles.featureItem}
-            header={f.icon}
-            main={
-              <>
+          <li key={f.key ?? 'action'}>
+            <Button
+              variant="ghost"
+              className={cn(
+                'h-auto w-full justify-start gap-3 px-3 py-3 text-left whitespace-normal',
+                f.primary ? styles.featureItemPrimary : styles.featureItem,
+              )}
+              onClick={() => {
+                if (f.onClick) f.onClick();
+                else if (f.key) onNavigate(f.key);
+              }}
+            >
+              <span>{f.icon}</span>
+              <span className="flex flex-1 flex-col">
                 <Typography.Text strong={f.primary}>{f.title}</Typography.Text>
                 {f.desc && (
                   <Typography.Text type="tertiary" size="small">
                     {f.desc}
                   </Typography.Text>
                 )}
-              </>
-            }
-            extra={<IconChevronRight />}
-            onClick={() => {
-              if (f.onClick) f.onClick();
-              else if (f.key) onNavigate(f.key);
-            }}
-          />
+              </span>
+              <ChevronRight className="ml-auto" />
+            </Button>
+          </li>
         ))}
-      </List>
+      </ul>
     </div>
   );
 }

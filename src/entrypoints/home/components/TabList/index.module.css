@@ -6,16 +6,27 @@
   max-height: calc(100vh - var(--space-2xl) * 3);
   overflow-y: auto;
   padding-right: var(--space-xs);
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-left: 0;
+  list-style: none;
 }
 
 .card {
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md);
+  padding: 0;
   border-radius: var(--radius-md, 8px);
-  cursor: pointer;
   transition: background var(--transition-fast, 0.15s);
+}
+
+.mainButton {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
 }
 .card:hover {
   background: var(--semi-color-fill-0);
@@ -71,18 +82,24 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
 }
 .title {
-  font-size: var(--font-sm);
-  font-weight: 600;
+  width: 100%;
+  font-size: var(--font-md);
+  font-weight: 400;
+  line-height: 1.4;
   color: var(--text-primary, var(--semi-color-text-0));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .host {
+  width: 100%;
   font-size: var(--font-xs);
-  color: var(--muted, var(--semi-color-text-2));
+  line-height: 1.4;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

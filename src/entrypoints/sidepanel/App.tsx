@@ -1,5 +1,10 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Collapse, Modal, Select, Toast } from '@douyinfe/semi-ui';
+import { Pin } from 'lucide-react';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import { useCurrentTabContext } from './hooks/useCurrentTabContext';
 import { useHostBookmarks } from './hooks/useHostBookmarks';
 import { useSourceMap } from './hooks/useSourceMap';
@@ -119,28 +124,32 @@ function usePinCurrentTab(groups: WorkspaceGroup[]) {
   }, [pendingTab, selectedWs, candidates, doPin]);
 
   const pickerModal = (
-    <Modal
-      title="选择目标工作区"
-      visible={pickerOpen}
-      onOk={confirmPicker}
-      onCancel={() => setPickerOpen(false)}
-      okButtonProps={{ disabled: !selectedWs }}
-      // side panel 视口窄（Chrome side panel 最小 ~300px），用 calc(100vw - 32px) 自适应，
-      // 避免默认 460px 横向溢出（与 SidePanelUnlockModal 同处理）
-      width="calc(100vw - 32px)"
-    >
-      <Select
-        value={selectedWs}
-        onChange={(v) => setSelectedWs((Array.isArray(v) ? v[0] : v) ?? '')}
-        style={{ width: '100%' }}
-      >
-        {candidates.map((w) => (
-          <Select.Option key={w.id} value={w.id}>
-            {w.icon} {w.name}
-          </Select.Option>
-        ))}
-      </Select>
-    </Modal>
+    <Dialog open={pickerOpen} onOpenChange={(o) => !o && setPickerOpen(false)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>选择目标工作区</DialogTitle>
+        </DialogHeader>
+        <Select value={selectedWs} onValueChange={(v) => setSelectedWs(v ?? '')}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="选择工作区" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {candidates.map((w) => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.icon} {w.name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <DialogFooter>
+          <Button variant="default" disabled={!selectedWs} onClick={confirmPicker}>
+            确定
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 
   return { openPin, pickerModal };
@@ -149,15 +158,16 @@ function usePinCurrentTab(groups: WorkspaceGroup[]) {
 /** Pin 图标按钮（📌）—— empty 状态与 StickyHeader 复用同一形态 */
 function PinIconButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-lg"
       className={styles.pinBtn}
       onClick={onClick}
       aria-label="Pin 当前 Tab"
       title="Pin 当前 Tab"
     >
-      📌
-    </button>
+      <Pin />
+    </Button>
   );
 }
 
@@ -264,7 +274,9 @@ export default function App() {
     <div className={styles.empty}>
       <div className={styles.emptyText}>该页面暂无匹配书签</div>
       <div className={styles.emptyActions}>
-        <button className={styles.manageBtn} onClick={openHomeTab}>在 Octane 管理</button>
+        <Button variant="outline" size="sm" className={styles.manageBtn} onClick={openHomeTab}>
+          在 Octane 管理
+        </Button>
         <PinIconButton onClick={openPin} />
       </div>
     </div>
@@ -273,17 +285,18 @@ export default function App() {
       <StickyHeader hostname={hostname} matchCount={matched.length} onAdd={openHomeTab} onPin={openPin} />
       <div className={styles.list} role="list">
         {groups.length >= 2 ? (
-          <Collapse
-            activeKey={activeKeys}
-            motion={false}
-            onChange={(keys) => setExpandedIds(new Set(keys as string[]))}
+          <Accordion
+            multiple
+            value={activeKeys}
+            onValueChange={(val) => setExpandedIds(new Set(val))}
           >
             {groups.map((ws) => (
-              <Collapse.Panel header={wsHeader(ws)} itemKey={ws.workspaceId} key={ws.workspaceId}>
-                {renderBookmarkList(ws)}
-              </Collapse.Panel>
+              <AccordionItem value={ws.workspaceId} key={ws.workspaceId}>
+                <AccordionTrigger>{wsHeader(ws)}</AccordionTrigger>
+                <AccordionContent>{renderBookmarkList(ws)}</AccordionContent>
+              </AccordionItem>
             ))}
-          </Collapse>
+          </Accordion>
         ) : (
           groups.map((ws) => (
             <section key={ws.workspaceId} className={styles.wsSection}>

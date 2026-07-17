@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Input, Switch, Tabs, TabPane, Toast } from '@douyinfe/semi-ui';
+import { ChevronLeft, LockKeyhole } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Toast } from '@/components/ui/toast';
 import { useCrypto } from '@/store/useCrypto';
 import { useBookmarks } from '@/store/useBookmarks';
 import { updateContext } from '@/services/ContextService';
@@ -87,9 +93,10 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
     <div className={styles.editor}>
       {/* 顶部：返回按钮 + 标题输入 */}
       <div className={styles.header}>
-        <button className={styles.backBtn} onClick={handleBack}>
-          ← 返回
-        </button>
+        <Button variant="ghost" size="sm" className={styles.backBtn} onClick={handleBack}>
+          <ChevronLeft data-icon="inline-start" />
+          返回
+        </Button>
         <div className={styles.meta}>
           <span className={styles.typeTag}>笔记</span>
           <span className={styles.saveStatus}>
@@ -99,38 +106,57 @@ export const ContextEditor: React.FC<ContextEditorProps> = ({ context, onBack })
       </div>
 
       <Input
+        aria-label="上下文标题"
         value={title}
-        onChange={handleTitleChange}
+        onChange={(e) => handleTitleChange(e.target.value)}
         placeholder="上下文标题"
         className={styles.titleInput}
       />
 
       <div className={styles.encryptRow}>
         <span className={`${styles.encryptLabel} ${isEncrypted ? styles.encryptActive : styles.encryptInactive}`}>
-          {isEncrypted ? '🔒 加密' : '普通'}
+          {isEncrypted && <LockKeyhole aria-hidden="true" />}
+          {isEncrypted ? '加密' : '普通'}
         </span>
         <Switch
+          aria-label="加密上下文"
+          className={styles.switchControl}
           checked={isEncrypted}
-          onChange={handleEncryptionToggle}
-          size="small"
+          onCheckedChange={handleEncryptionToggle}
+          size="sm"
         />
       </div>
 
-      <Tabs activeKey={tab} onChange={(key) => setTab(key as 'edit' | 'preview')}>
-        <TabPane tab="编辑" itemKey="edit">
-          <textarea
+      <Tabs
+        className={styles.tabs}
+        value={tab}
+        onValueChange={(v) => setTab(v as 'edit' | 'preview')}
+      >
+        <TabsList className={styles.tabsList}>
+          <TabsTrigger value="edit" className={styles.tabTrigger}>
+            编辑
+          </TabsTrigger>
+          <TabsTrigger value="preview" className={styles.tabTrigger}>
+            预览
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="edit" className={styles.tabContent}>
+          <Textarea
             value={content}
             onChange={(e) => handleContentChange(e.target.value)}
             placeholder="点击开始记录...（支持 Markdown）"
+            aria-label="上下文内容"
             className={styles.textarea}
           />
-        </TabPane>
-        <TabPane tab="预览" itemKey="preview">
-          <div
-            className={`markdown-body ${styles.previewBody}`}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-          />
-        </TabPane>
+        </TabsContent>
+        <TabsContent value="preview" className={styles.tabContent}>
+          <div className={styles.previewScroll}>
+            <div
+              className={`markdown-body ${styles.previewBody}`}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+            />
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );

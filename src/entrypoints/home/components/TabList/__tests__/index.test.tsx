@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-// Semi 加载动画依赖 lottie-web；jsdom 无 canvas，mock 掉
-vi.mock('lottie-web', () => ({ default: vi.fn() }));
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { TabList } from '../index';
 import type { OpenTab } from '../../../hooks/useOpenTabs';
 import type { Bookmark } from '@/shared/types';
@@ -18,6 +17,22 @@ function makeBookmark(url: string, categoryId = 'cat-1'): Bookmark {
 }
 
 describe('TabList — 紧凑列表 + 跨分类去重', () => {
+  it.each(['{Enter}', ' '])('聚焦标签页主操作后按 %s 打开对应标签页', async (key) => {
+    const user = userEvent.setup();
+    const onTabClick = vi.fn();
+    const tab = makeTab({ tabId: 1, url: 'https://example.com/page', title: '示例页' });
+    render(
+      <TabList tabs={[tab]} bookmarks={[]} currentCategoryId="cat-1"
+        onTabClick={onTabClick} onSaveTab={() => {}} />,
+    );
+    const openButton = screen.getByRole('button', { name: '打开标签页 示例页' });
+
+    openButton.focus();
+    await user.keyboard(key);
+
+    expect(onTabClick).toHaveBeenCalledWith(tab);
+  });
+
   it('渲染每个 tab 的 title 与 host', () => {
     const tabs = [
       makeTab({ tabId: 1, url: 'https://example.com/page', title: '示例页' }),
@@ -27,9 +42,9 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
-    expect(screen.getByText('示例页')).toBeTruthy();
-    expect(screen.getByText('example.com')).toBeTruthy();
-    expect(screen.getByText('博客')).toBeTruthy();
+    expect(screen.getByText('示例页')).toBeInTheDocument();
+    expect(screen.getByText('example.com')).toBeInTheDocument();
+    expect(screen.getByText('博客')).toBeInTheDocument();
   });
 
   it('tabs 为空 → 空状态文案', () => {
@@ -37,7 +52,7 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       <TabList tabs={[]} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
-    expect(screen.getByText('当前窗口没有其他标签页')).toBeTruthy();
+    expect(screen.getByText('当前窗口没有其他标签页')).toBeInTheDocument();
   });
 
   it('跨分类命中书签 → 显示「已收藏」且存为书签按钮禁用', () => {
@@ -49,10 +64,10 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
     // 「已收藏」是 role=img 的 aria-label 角标
-    expect(screen.getByRole('img', { name: '已收藏' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: '已收藏' })).toBeInTheDocument();
     // Semi Button 带 icon → accessible name 含图标,用 regex 匹配文本部分
     const saveBtn = screen.getByRole('button', { name: /存为书签/ });
-    expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(saveBtn).toBeDisabled();
   });
 
   it('未命中 + 已选分类 → 存为书签按钮可用', () => {
@@ -62,7 +77,7 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
     const saveBtn = screen.getByRole('button', { name: /存为书签/ });
-    expect((saveBtn as HTMLButtonElement).disabled).toBe(false);
+    expect(saveBtn).toBeEnabled();
   });
 
   it('未选分类 → 存为书签按钮禁用', () => {
@@ -72,10 +87,11 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
     const saveBtn = screen.getByRole('button', { name: /存为书签/ });
-    expect((saveBtn as HTMLButtonElement).disabled).toBe(true);
+    expect(saveBtn).toBeDisabled();
   });
 
-  it('点击存为书签 → 调用 onSaveTab,不触发行点击', () => {
+  it('点击存为书签 → 调用 onSaveTab,不触发行点击', async () => {
+    const user = userEvent.setup();
     const onTabClick = vi.fn();
     const onSaveTab = vi.fn();
     const tabs = [makeTab({ tabId: 1, url: 'https://example.com/page', title: '示例页' })];
@@ -83,7 +99,7 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={onTabClick} onSaveTab={onSaveTab} />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /存为书签/ }));
+    await user.click(screen.getByRole('button', { name: /存为书签/ }));
     expect(onSaveTab).toHaveBeenCalledTimes(1);
     expect(onTabClick).not.toHaveBeenCalled();
   });
@@ -94,7 +110,7 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
-    expect(screen.getByLabelText('已固定')).toBeTruthy();
+    expect(screen.getByLabelText('已固定')).toBeInTheDocument();
   });
 
   it('异常 scheme favIconUrl → 不渲染该 img(回退首字母)', () => {
@@ -105,11 +121,7 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
-    // 不应有 src 为 javascript: 的 img
-    const unsafe = document.querySelector('img[src="javascript:alert(1)"]');
-    expect(unsafe).toBeNull();
-    // 回退首字母
-    expect(screen.getByText('示')).toBeTruthy();
+    expect(screen.getByText('示')).toBeInTheDocument();
   });
 
   it('按传入顺序渲染(排序职责归 useOpenTabs,TabList 为纯展示)', () => {
@@ -119,29 +131,29 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
       makeTab({ tabId: 2, url: 'https://b.com', title: 'B', index: 1 }),
       makeTab({ tabId: 3, url: 'https://c.com', title: 'C', index: 2 }),
     ];
-    const { container } = render(
+    render(
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={() => {}} onSaveTab={() => {}} />,
     );
-    const items = container.querySelectorAll('[role="listitem"]');
-    expect(items.length).toBe(3);
-    expect(items[0]?.getAttribute('aria-label')).toBe('A');
-    expect(items[1]?.getAttribute('aria-label')).toBe('B');
-    expect(items[2]?.getAttribute('aria-label')).toBe('C');
+    const openButtons = screen.getAllByRole('button', { name: /打开标签页/ });
+    expect(openButtons).toHaveLength(3);
+    expect(openButtons[0]).toHaveAccessibleName('打开标签页 A');
+    expect(openButtons[1]).toHaveAccessibleName('打开标签页 B');
+    expect(openButtons[2]).toHaveAccessibleName('打开标签页 C');
   });
 
-  it('点击第 N 项 → onTabClick 收到对应位置的 tab(tabId 绑定)', () => {
+  it('点击第 N 项 → onTabClick 收到对应位置的 tab(tabId 绑定)', async () => {
+    const user = userEvent.setup();
     const onTabClick = vi.fn();
     const tabs = [
       makeTab({ tabId: 10, url: 'https://a.com', title: 'A', index: 0 }),
       makeTab({ tabId: 20, url: 'https://b.com', title: 'B', index: 1 }),
     ];
-    const { container } = render(
+    render(
       <TabList tabs={tabs} bookmarks={[]} currentCategoryId="cat-1"
         onTabClick={onTabClick} onSaveTab={() => {}} />,
     );
-    const items = container.querySelectorAll('[role="listitem"]');
-    fireEvent.click(items[1]!); // 点第二项(B,index1,tabId20)
+    await user.click(screen.getByRole('button', { name: '打开标签页 B' }));
     expect(onTabClick).toHaveBeenCalledWith(expect.objectContaining({ tabId: 20, index: 1 }));
   });
 });

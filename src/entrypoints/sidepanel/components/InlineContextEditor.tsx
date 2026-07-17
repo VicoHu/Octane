@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { Input, TextArea, Switch, Button, Toast } from '@douyinfe/semi-ui';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
 import { isUnlocked } from '@/services/UnlockSession';
 import { useUnlockRequest } from '../unlockContext';
 import { createContext } from '@/services/ContextService';
@@ -59,34 +63,33 @@ export function InlineContextEditor({ bookmarkId, onDone }: InlineContextEditorP
     <div className={styles.editor}>
       <Input
         value={title}
-        onChange={setTitle}
+        onChange={(e) => setTitle(e.target.value)}
         placeholder="标题（可选）"
         aria-label="title"
       />
-      <TextArea
+      <Textarea
         value={content}
-        onChange={setContent}
+        onChange={(e) => setContent(e.target.value)}
         placeholder="从页面复制粘贴…（支持 Markdown）"
-        autosize={{ minRows: 3, maxRows: 8 }}
+        rows={3}
         aria-label="content"
       />
       <div className={styles.row}>
         <span className={styles.encrypt}>
-          <Switch checked={encrypted} onChange={handleEncryptToggle} aria-label="encrypt" />
+          <Switch checked={encrypted} onCheckedChange={handleEncryptToggle} aria-label="encrypt" />
           <span className={encrypted ? styles.encryptOn : styles.encryptOff}>
             {encrypted ? '🔒 加密' : '普通'}
           </span>
         </span>
         <span className={styles.actions}>
-          <Button disabled={saving || saved} onClick={onDone} aria-label="取消">取消</Button>
+          <Button variant="outline" disabled={saving || saved} onClick={onDone} aria-label="取消">取消</Button>
           <Button
-            theme="solid"
-            loading={saving}
+            variant="default"
             disabled={saving || saved || !content.trim()}
             onClick={handleSave}
             aria-label="保存"
           >
-            {saved ? '已保存 ✓' : '保存'}
+            {saving ? '保存中…' : saved ? '已保存 ✓' : '保存'}
           </Button>
         </span>
       </div>

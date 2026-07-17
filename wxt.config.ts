@@ -1,8 +1,12 @@
 import { defineConfig } from 'wxt';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-react'],
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
   manifest: {
     name: 'Octane',
     description: '不止存网址——给书签加上下文笔记，侧栏随当前网页自动联动；本地加密，自有云同步。',

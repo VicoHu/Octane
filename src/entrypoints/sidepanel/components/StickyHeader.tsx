@@ -1,4 +1,5 @@
-import { IconPlus } from '@douyinfe/semi-icons';
+import { Pin, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useFavicon } from '@/hooks/useFavicon';
 import styles from './StickyHeader.module.css';
 
@@ -30,12 +31,26 @@ export function StickyHeader({ hostname, matchCount, onAdd, onPin }: StickyHeade
         <div className={styles.hostname}>{hostname}</div>
         <div className={styles.count}>{matchCount} 个书签命中</div>
       </div>
-      <button className={styles.iconBtn} onClick={onPin} aria-label="Pin 当前 Tab" title="Pin 当前 Tab">
-        📌
-      </button>
-      <button className={styles.addBtn} onClick={onAdd} aria-label="添加书签" title="添加书签">
-        <IconPlus />
-      </button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        className={styles.iconBtn}
+        onClick={onPin}
+        aria-label="Pin 当前 Tab"
+        title="Pin 当前 Tab"
+      >
+        <Pin />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        className={styles.addBtn}
+        onClick={onAdd}
+        aria-label="添加书签"
+        title="添加书签"
+      >
+        <Plus />
+      </Button>
     </div>
   );
 }

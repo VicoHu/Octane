@@ -1,17 +1,18 @@
+@import './tailwind-theme.css';
+
 :root {
   /* === 布局 Token === */
-  --sidebar-width: 260px;
+  --sidebar-width: 222px;
   --header-height: 56px;
 
   /* === 浅色内容区 === */
-  --content-bg: #f8fafc;
-  --surface-secondary: #f1f5f9;
-  --card-bg: #ffffff;
+  --content-bg: var(--background);
+  --surface-secondary: var(--secondary);
+  --card-bg: var(--card);
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
 
   /* === 品牌色（提取自 Logo，详见 docs/brand-color-migration-guide.md）=== */
-  --primary: #00b894;          /* accent：图标/描边/浅底强调/渐变起点 */
   --primary-hover: #00a383;
   --primary-active: #008f72;
   --primary-light: rgba(0, 184, 148, 0.1);
@@ -19,20 +20,26 @@
   --primary-dark: #00755c;     /* solid 底（badge/button），配白字达 WCAG AA */
   --primary-text: #007d63;     /* 文字/链接，白底达 AA */
   --primary-focus: rgba(0, 184, 148, 0.35); /* focus ring（原 alpha 0.1 在白底过弱） */
-  --danger: #ef4444;
+
+  /* === 主操作：A 方案炭灰实色，品牌绿仅作图标与焦点信号 === */
+  --action-primary: #202829;
+  --action-primary-hover: #2b3634;
+  --action-primary-active: #17201e;
+  --action-primary-foreground: #f6f8f7;
+  --action-primary-icon: #55efc4;
+  --danger: var(--destructive);
 
   /* === 中性色 === */
   --neutral: #2d3436;          /* 炭灰锚定色(DESIGN.md neutral/primary-on/sidebar-surface 都是 #2D3436) */
   --neutral-rgb: 45, 52, 54;   /* 炭灰 alpha 变体基底:rgba(var(--neutral-rgb), X) */
-  --muted: #64748b;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --border-color: #e2e8f0;
+  --text-primary: var(--foreground);
+  --text-secondary: var(--secondary-foreground);
+  --border-color: var(--border);
 
   /* === 圆角 === */
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 
   /* === 间距 === */
   --space-xs: 4px;
@@ -44,11 +51,12 @@
 
   /* === 字号 === */
   --font-xs: 12px;
-  --font-sm: 13px;
+  --font-sm: 14px;
   --font-md: 14px;
   --font-lg: 16px;
   --font-xl: 20px;
   --font-2xl: 24px;
+  --font-3xl: 32px;
 
   /* === 过渡 === */
   --transition-fast: 150ms ease;
@@ -59,31 +67,23 @@
   --shadow-elevated: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
-/* === 暗色侧边栏 token（必须在 .semi-always-dark scope 定义：Semi 的 --semi-color-*
-   声明在 body 选择器而非 :root，:root 内 var(--semi-color-*) 解析为空 → --sidebar-*
-   invalid → sidebar 背景透明显白。放到 sidebar 元素上才能取到 dark 值）=== */
+/* === 暗色侧边栏业务 token：直接派生同一元素上的 shadcn dark scope === */
 .semi-always-dark {
-  --sidebar-bg: var(--semi-color-bg-1);
-  --sidebar-text: var(--semi-color-text-0);
-  --sidebar-text-muted: var(--semi-color-text-2);
-  --sidebar-active-bg: var(--semi-color-fill-2);
-  --sidebar-hover-bg: var(--semi-color-fill-1);
-  --sidebar-border: var(--semi-color-border);
-  /* 抬升面：常驻 chip 等需要从 sidebar-bg 微微凸出的卡片底（Semi Modal/Popover 同款 elevated token） */
-  --sidebar-surface: var(--semi-color-elevated);
-}
-
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  --sidebar-bg: var(--background);
+  --sidebar-text: var(--foreground);
+  --sidebar-text-muted: var(--muted-foreground);
+  --sidebar-active-bg: var(--card);
+  --sidebar-hover-bg: var(--accent);
+  --sidebar-border: var(--border);
+  --sidebar-surface: var(--popover);
 }
 
 html, body, #root {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+    'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   color: var(--text-primary);
   background: var(--content-bg);
@@ -104,8 +104,8 @@ html, body, #root {
 .markdown-body code {
   background: #f0f0f0;
   padding: 2px 4px;
-  border-radius: 3px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
 }
 .markdown-body pre {
   background: #f8f8f8;
@@ -134,4 +134,13 @@ html, body, #root {
 .markdown-body ul, .markdown-body ol {
   padding-left: 20px;
   margin-bottom: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -10,6 +10,7 @@ const appMocks = vi.hoisted(() => {
   return {
     openTabs,
     useOpenTabs: vi.fn(() => openTabs),
+    appRailSpy: vi.fn(),
     sidebarSpy: vi.fn(),
     contentSpy: vi.fn(),
   };
@@ -17,6 +18,9 @@ const appMocks = vi.hoisted(() => {
 
 // 隔离子组件依赖：仅验证 App 装配 + 广播分发，不测内部
 vi.mock('../hooks/useOpenTabs', () => ({ useOpenTabs: appMocks.useOpenTabs }));
+vi.mock('../components/AppRail', () => ({
+  AppRail: () => { appMocks.appRailSpy(); return null; },
+}));
 vi.mock('../components/Sidebar', () => ({
   Sidebar: (props: unknown) => { appMocks.sidebarSpy(props); return null; },
 }));
@@ -111,6 +115,11 @@ afterEach(() => {
 
 
 describe('App OpenTabs 装配', () => {
+  it('挂载工作区应用栏', () => {
+    render(<App />);
+    expect(appMocks.appRailSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('只查询一次，并把同一数组传给 Sidebar 与 Content', () => {
     render(<App />);
     expect(appMocks.useOpenTabs).toHaveBeenCalledTimes(1);

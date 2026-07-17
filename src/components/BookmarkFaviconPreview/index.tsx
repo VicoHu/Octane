@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type SyntheticEvent } from 'react';
-import { Button, Toast } from '@douyinfe/semi-ui';
-import { IconRefresh } from '@douyinfe/semi-icons';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
+import { Spinner } from '@/components/ui/spinner';
+import { RefreshCw } from 'lucide-react';
 import { useFavicon } from '@/hooks/useFavicon';
 import { invalidateFavicon, refreshFavicon, pickHostname } from '@/services/FaviconService';
 import styles from './index.module.css';
@@ -102,14 +104,14 @@ export function BookmarkFaviconPreview({ url }: BookmarkFaviconPreviewProps) {
         )}
       </div>
       <Button
-        theme="borderless"
-        type="tertiary"
-        icon={<IconRefresh />}
+        variant="ghost"
+        size="icon"
         aria-label="刷新 favicon"
-        loading={refreshing}
         disabled={!urlValid || refreshing}
         onClick={handleRefresh}
-      />
+      >
+        {refreshing ? <Spinner /> : <RefreshCw />}
+      </Button>
     </div>
   );
 }

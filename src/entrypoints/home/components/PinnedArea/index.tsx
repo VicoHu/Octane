@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Input, Toast } from '@douyinfe/semi-ui';
-import { IconPlus, IconClose } from '@douyinfe/semi-icons';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
+import { Plus, X } from 'lucide-react';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { useFavicon } from '@/hooks/useFavicon';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
@@ -168,33 +171,42 @@ export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
             );
           })
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           className={styles.addBtn}
           aria-label="添加常驻标签"
           disabled={atCap}
           onClick={handleAddClick}
         >
-          <IconPlus />
-        </button>
+          <Plus />
+        </Button>
       </div>
 
-      <Modal
-        title="添加常驻标签"
-        visible={modalOpen}
-        onOk={handleCreate}
-        onCancel={() => setModalOpen(false)}
-        okText="确定"
-        maskClosable={false}
+      <Dialog
+        open={modalOpen}
+        onOpenChange={(open) => {
+          if (!open) setModalOpen(false);
+        }}
+        disablePointerDismissal
       >
-        <div className={styles.modalForm}>
-          <Input placeholder="链接 URL" value={url} onChange={setUrl} aria-label="常驻标签 URL" />
-          <Input placeholder="名称" value={name} onChange={setName} aria-label="常驻标签名称" />
-          <div className={styles.previewRow}>
-            <BookmarkFaviconPreview url={url} />
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加常驻标签</DialogTitle>
+          </DialogHeader>
+          <div className={styles.modalForm}>
+            <Input placeholder="链接 URL" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="常驻标签 URL" />
+            <Input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} aria-label="常驻标签名称" />
+            <div className={styles.previewRow}>
+              <BookmarkFaviconPreview url={url} />
+            </div>
           </div>
-        </div>
-      </Modal>
+          <DialogFooter>
+            <Button variant="default" onClick={handleCreate}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -219,8 +231,10 @@ function PinChip({
   return (
     <div className={styles.chipWrap}>
       {grip && <span className={styles.gripSlot}>{grip}</span>}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         className={styles.chip}
         aria-label={`打开 ${pin.name}`}
         title={pin.name}
@@ -234,9 +248,11 @@ function PinChip({
           )}
         </div>
         <span className={styles.chipName}>{pin.name}</span>
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-xs"
         className={styles.deleteBtn}
         aria-label={`取消常驻 ${pin.name}`}
         data-no-dnd
@@ -245,8 +261,8 @@ function PinChip({
           onDelete();
         }}
       >
-        <IconClose />
-      </button>
+        <X />
+      </Button>
     </div>
   );
 }

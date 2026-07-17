@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Input } from '@douyinfe/semi-ui';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { isEmoji } from '@/shared/utils/emoji';
 import { PRESET_ICONS } from './preset';
 import styles from './index.module.css';
@@ -40,40 +41,42 @@ export const IconPicker: React.FC<IconPickerProps> = ({ value, onChange }) => {
     <div>
       {/* 当前选中预览 */}
       <div className={styles.preview}>
-        <span className={styles.previewIcon} data-testid="icon-preview">
+        <span className={styles.previewIcon}>
           {value}
         </span>
         <span>当前图标</span>
       </div>
 
       {/* 预设网格 */}
-      <div className={styles.grid} data-testid="icon-grid">
+      <div className={styles.grid}>
         {PRESET_ICONS.map((icon) => (
-          <button
+          <Button
             key={icon}
             type="button"
+            variant="ghost"
+            size="icon"
             className={`${styles.gridItem} ${icon === value ? styles.selected : ''}`}
             onClick={() => {
               setError(false);
               onChange(icon);
             }}
-            aria-label={`选择 ${icon}`}
+            aria-label={`选择图标 ${icon}`}
+            aria-pressed={icon === value}
           >
             {icon}
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* 自定义输入 */}
       <div className={styles.inputRow}>
         <Input
-          data-testid="icon-input"
           placeholder="或粘贴 / 输入自定义 emoji"
           maxLength={8}
-          onChange={handleInputChange}
+          onChange={(e) => handleInputChange(e.target.value)}
         />
         {error && (
-          <div className={styles.error} data-testid="icon-error">
+          <div className={styles.error}>
             仅支持单个 emoji 字符
           </div>
         )}

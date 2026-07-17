@@ -84,7 +84,7 @@ describe('SortableBookmarkCard — BookmarkCard grid 拖拽 wrapper(T4)', () => 
         </SortableContext>
       </DndContext>,
     );
-    await user.click(screen.getByText('书签1'));
+    await user.click(screen.getByRole('button', { name: '打开书签 书签1' }));
     expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }));
   });
 });

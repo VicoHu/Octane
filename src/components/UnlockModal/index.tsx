@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Input, Button, Toast } from '@douyinfe/semi-ui';
-import { IconLock, IconAlertTriangle } from '@douyinfe/semi-icons';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Toast } from '@/components/ui/toast';
+import { Lock, TriangleAlert } from 'lucide-react';
 import { useCrypto } from '@/store/useCrypto';
 import styles from './index.module.css';
 
@@ -54,22 +64,27 @@ export const UnlockModal: React.FC = () => {
     }
   }, [visible, mode]);
 
+  // 防双触发：Enter 连按时避免并发 setup/unlock/reset，防止 session 与密码元数据错乱
+  const submittingRef = useRef(false);
+
   const handleSubmit = async () => {
-    setError('');
-
-    // setup / reset 需要二次确认 + 长度校验
-    if (mode === 'setup' || mode === 'reset') {
-      if (password.length < 12) {
-        setError('密码至少 12 个字符');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError('两次密码不一致');
-        return;
-      }
-    }
-
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
+      setError('');
+
+      // setup / reset 需要二次确认 + 长度校验
+      if (mode === 'setup' || mode === 'reset') {
+        if (password.length < 12) {
+          setError('密码至少 12 个字符');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('两次密码不一致');
+          return;
+        }
+      }
+
       if (mode === 'reset') {
         await resetPassword(password);
         Toast.success('主密码已重设');
@@ -84,45 +99,48 @@ export const UnlockModal: React.FC = () => {
       setConfirmPassword('');
     } catch (e) {
       setError(mode === 'unlock' ? '密码错误' : (e as Error).message);
+    } finally {
+      submittingRef.current = false;
     }
   };
 
-  if (!visible) return null;
-
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="unlock-title"
-      onClick={(e) => {
-        if (canDismiss && e.target === e.currentTarget) closeUnlockModal();
+    <Dialog
+      open={visible}
+      disablePointerDismissal={!canDismiss}
+      onOpenChange={(open) => {
+        if (!open && canDismiss) closeUnlockModal();
       }}
     >
-      <div className={styles.card}>
-        <div className={styles.header}>
+      <DialogContent
+        showCloseButton={canDismiss}
+        className={styles.card}
+        aria-describedby="unlock-subtitle"
+      >
+        <DialogHeader className={styles.header}>
           <div className={`${styles.badge} ${mode === 'reset' ? styles.badgeDanger : ''}`}>
-            {mode === 'reset' ? <IconAlertTriangle size="large" /> : <IconLock size="large" />}
+            {mode === 'reset' ? <TriangleAlert size={20} /> : <Lock size={20} />}
           </div>
-          <h2 id="unlock-title" className={styles.title}>{copy.title}</h2>
-          <p className={styles.subtitle}>{copy.subtitle}</p>
-        </div>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription id="unlock-subtitle">{copy.subtitle}</DialogDescription>
+        </DialogHeader>
 
         {mode === 'reset' && (
-          <div className={styles.warning}>
-            <IconAlertTriangle className={styles.warningIcon} />
-            <span>所有已加密笔记将被清除且无法恢复，请确认后再继续。</span>
-          </div>
+          <Alert variant="destructive" className={styles.warning}>
+            <TriangleAlert className={styles.warningIcon} />
+            <AlertDescription>所有已加密笔记将被清除且无法恢复，请确认后再继续。</AlertDescription>
+          </Alert>
         )}
 
         <div className={styles.field}>
           <Input
-            mode="password"
+            type="password"
             placeholder="输入主密码"
             value={password}
-            onChange={setPassword}
-            onEnterPress={handleSubmit}
-            size="large"
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleSubmit();
+            }}
             autoFocus
           />
         </div>
@@ -130,12 +148,13 @@ export const UnlockModal: React.FC = () => {
         {(mode === 'setup' || mode === 'reset') && (
           <div className={styles.field}>
             <Input
-              mode="password"
+              type="password"
               placeholder="确认主密码"
               value={confirmPassword}
-              onChange={setConfirmPassword}
-              onEnterPress={handleSubmit}
-              size="large"
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleSubmit();
+              }}
             />
           </div>
         )}
@@ -146,23 +165,21 @@ export const UnlockModal: React.FC = () => {
 
         {error && (
           <div className={styles.error}>
-            <IconAlertTriangle size="small" />
+            <TriangleAlert className="size-4" />
             <span>{error}</span>
           </div>
         )}
 
         <Button
-          theme="solid"
-          type={mode === 'reset' ? 'danger' : 'primary'}
-          size="large"
-          block
-          loading={loading}
+          variant={mode === 'reset' ? 'destructive' : 'default'}
+          size="lg"
+          disabled={loading}
           onClick={handleSubmit}
-          className={styles.submit}
+          className={`${styles.submit} w-full`}
         >
           {copy.cta}
         </Button>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };

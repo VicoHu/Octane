@@ -8,9 +8,11 @@ import '@/styles/global.css';
 import './popup-reset.css';
 import '@/styles/semi-theme-override.css';
 import App from './App';
+import { Toaster } from '@/components/ui/sonner';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
+    <Toaster />
   </React.StrictMode>,
 );

@@ -7,9 +7,11 @@ import ReactDOM from 'react-dom/client';
 import '@/styles/global.css';
 import '@/styles/semi-theme-override.css';
 import App from './App';
+import { Toaster } from '@/components/ui/sonner';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
+    <Toaster />
   </React.StrictMode>,
 );

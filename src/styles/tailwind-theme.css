@@ -1,0 +1,139 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* class 策略暗色：根元素加 .dark 即生效（项目仅 sidebar scope 用） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* DESIGN.md token → tailwind @theme（供 tailwind 工具类引用，如 bg-primary / text-muted-foreground）。
+ * 值派生自下面的 shadcn CSS 变量，而 shadcn 变量的真值来自 DESIGN.md（见 :root / .dark）。 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-light: var(--primary-light);
+  --color-primary-text: var(--primary-text);
+  --color-action-primary: var(--action-primary);
+  --color-action-primary-hover: var(--action-primary-hover);
+  --color-action-primary-active: var(--action-primary-active);
+  --color-action-primary-foreground: var(--action-primary-foreground);
+  --color-action-primary-icon: var(--action-primary-icon);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* DESIGN.md 圆角阶 8/12/16：sm 8 / md 12 / lg 16 */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius: 0.5rem;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+    'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* === Octane theme：DESIGN.md 品牌 token 映射到 shadcn 变量 === */
+:root {
+  --background: #f6f8f7;
+  --foreground: #17201e;
+  --card: #ffffff;
+  --card-foreground: #17201e;
+  --popover: #ffffff;
+  --popover-foreground: #17201e;
+  --primary: #00b894;
+  --primary-foreground: #2d3436;
+  --secondary: #eef2f1;
+  --secondary-foreground: #4a5754;
+  --muted: #eef2f1;
+  --muted-foreground: #697672;
+  --text-muted: #697672; /* 保留别名供历史业务引用 */
+  --accent: #e9efed;
+  --accent-foreground: #17201e;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #dce4e1;
+  --input: #d8e0dd;
+  --ring: rgba(0, 184, 148, 0.35);
+  --chart-1: #00b894;
+  --chart-2: #007d63;
+  --chart-3: #2d3436;
+  --chart-4: #697672;
+  --chart-5: #a0aaa7;
+  --radius: 0.625rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #17201e;
+  --sidebar-primary: #00b894;
+  --sidebar-primary-foreground: #2d3436;
+  --sidebar-accent: #eef2f1;
+  --sidebar-accent-foreground: #17201e;
+  --sidebar-border: #dce4e1;
+  --sidebar-ring: rgba(0, 184, 148, 0.35);
+}
+
+/* === 暗色：sidebar scope（Vega neutral dark；项目 sidebar 加 .dark class 取此块）=== */
+.dark {
+  --background: #202829;
+  --foreground: #f6f8f7;
+  --card: #2b3634;
+  --card-foreground: #f6f8f7;
+  --popover: #2b3634;
+  --popover-foreground: #f6f8f7;
+  --primary: #00b894;
+  --primary-foreground: #202829;
+  --secondary: #34413e;
+  --secondary-foreground: #f6f8f7;
+  --muted: #34413e;
+  --muted-foreground: #aeb8b5;
+  --text-muted: #aeb8b5;
+  --accent: #34413e;
+  --accent-foreground: #f6f8f7;
+  --destructive: #f87171;
+  --destructive-foreground: #202829;
+  --border: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.18);
+  --ring: rgba(0, 184, 148, 0.45);
+  --sidebar: #2b3634;
+  --sidebar-foreground: #f6f8f7;
+  --sidebar-primary: #00b894;
+  --sidebar-primary-foreground: #202829;
+  --sidebar-accent: #34413e;
+  --sidebar-accent-foreground: #f6f8f7;
+  --sidebar-border: rgba(255, 255, 255, 0.14);
+  --sidebar-ring: rgba(0, 184, 148, 0.45);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

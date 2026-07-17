@@ -1,6 +1,6 @@
 import React from 'react';
-import { Button } from '@douyinfe/semi-ui';
-import { IconPlus } from '@douyinfe/semi-icons';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import styles from './index.module.css';
 
 interface EmptyStateProps {
@@ -14,7 +14,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ message, actionLabel, on
     <div className={styles.empty}>
       <div className={`${styles.message} ${!actionLabel ? styles.messageOnly : ''}`}>{message}</div>
       {actionLabel && onAction && (
-        <Button icon={<IconPlus />} onClick={onAction}>
+        <Button variant="default" onClick={onAction}>
+          <Plus data-icon="inline-start" />
           {actionLabel}
         </Button>
       )}

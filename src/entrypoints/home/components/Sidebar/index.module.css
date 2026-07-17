@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-lg);
+  padding: 20px 14px;
   gap: var(--space-sm);
 }
 
@@ -10,41 +10,84 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--sidebar-border);
-  margin-bottom: var(--space-md);
+  padding: 2px 8px 20px;
+  border-bottom: 0;
+  margin-bottom: 0;
 }
 
 .logo {
-  width: 28px;
-  height: 28px;
+  width: 0;
+  height: 0;
+  display: none;
   border-radius: var(--radius-sm);
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .title {
-  font-size: var(--font-lg);
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin-left: 0.15rem;
-  color: #f1f5f9;
+  color: var(--sidebar-text);
+}
+
+.currentWorkspace {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 0 8px 8px;
+}
+
+.currentWorkspaceLabel {
+  color: var(--sidebar-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.currentWorkspaceValue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--sidebar-text);
+}
+
+.currentWorkspaceIcon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.currentWorkspaceName {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-md);
+  font-weight: 600;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sectionLabel {
-  font-size: var(--font-xs);
-  font-weight: 500;
+  font-size: 10px;
+  font-weight: 800;
   color: var(--sidebar-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: var(--space-sm) var(--space-xs);
-  margin-top: var(--space-sm);
+  padding: 0 8px;
+  margin-top: 22px;
+}
+
+.workspaceSection {
+  display: none;
 }
 
 .workspaceSelect {
   display: flex;
   flex-direction: row;
-  gap: var(--space-xs);
+  gap: 6px;
 }
 
 .select {
@@ -60,7 +103,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-top: var(--space-xs);
+  margin-top: 2px;
 }
 
 .categoryList::-webkit-scrollbar {
@@ -73,27 +116,52 @@
 }
 
 .categoryName {
+  flex: 1;
+  min-width: 0;
   font-size: var(--font-md);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.5;
+  /* <button> UA 默认 text-align:center 会被 span 继承，导致分类名水平居中；显式靠左 */
+  text-align: left;
 }
 
-/* 分类项基类：所有项 hover 中性微亮（mockup .cat:hover），active 由绿竖条区分 */
+/* 分类项基类：行布局(flex 行 + padding)原靠 Semi List.Item，迁 <li> 后须在 module 补回；
+   hover 中性微亮，active 由绿竖条区分 */
 .cat {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0;
   border-radius: var(--radius-sm);
+  color: var(--sidebar-text-muted);
+}
+
+.categoryMain {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 0 9px;
+  color: inherit;
+}
+
+/* 整行统一承载 hover，避免 ghost Button 背景覆盖父级选中竖条 */
+.cat > .categoryMain:hover {
+  background: transparent;
 }
 
 .cat:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--sidebar-hover-bg);
 }
 
 /* active 分类项：3px 绿左竖条 + 极轻中性底 + 字提亮（§12-J 设计债：弃 primary-light tint，
    守 §2.3 绿色预算——sidebar 唯一绿焦点是此竖条） */
 .catActive {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--sidebar-active-bg);
   color: var(--sidebar-text);
 }
 
@@ -101,11 +169,11 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 0;
+  bottom: 0;
   width: 3px;
   background: var(--primary);
-  border-radius: 0 2px 2px 0;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 .emptyHint {
@@ -116,12 +184,15 @@
 }
 
 .deleteIcon {
-  font-size: var(--font-xs);
-  opacity: 0.5;
-  cursor: pointer;
+  opacity: 0;
   flex-shrink: 0;
   transition: opacity var(--transition-fast), color var(--transition-fast);
   color: var(--sidebar-text-muted);
+}
+
+.cat:hover .deleteIcon,
+.cat:focus-within .deleteIcon {
+  opacity: 0.5;
 }
 
 .deleteIcon:hover {
@@ -129,14 +200,35 @@
   color: var(--danger);
 }
 
+@media (pointer: coarse) {
+  .deleteIcon {
+    opacity: 0.5;
+  }
+}
+
 .bottomButton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-top: var(--space-sm);
   padding-top: var(--space-md);
   border-top: 1px solid var(--sidebar-border);
 }
 
-.settingsButton {
-  margin-top: var(--space-xs);
+.addCategoryButton {
+  width: 100%;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.bottomActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.bottomActions > button {
+  width: 100%;
 }
 
 /* === T6 分类拖拽 === */
@@ -175,6 +267,14 @@
 @media (prefers-reduced-motion: reduce) {
   .gripSlot {
     transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspaceSection {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
   }
 }
 

@@ -5,11 +5,19 @@
   border-bottom: 1px solid var(--semi-color-border);
 }
 
+.entityList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .itemDisplay {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  cursor: pointer;
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
   font-size: var(--font-sm);
   padding: var(--space-xs) 0;
 }
@@ -49,9 +57,7 @@
 
 /* === T8 workspace 拖拽 === */
 /* workspace 列表容器:插入线 absolute 定位锚 */
-.wsList {
-  position: relative;
-}
+.wsList { position: relative; }
 .sortableRow {
   display: flex;
   align-items: center;
@@ -83,6 +89,7 @@
 .rowInner {
   display: flex;
   align-items: center;
+  width: 100%;
 }
 .dragGhost {
   visibility: hidden;

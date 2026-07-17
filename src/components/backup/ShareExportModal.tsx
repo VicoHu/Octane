@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { Modal, Button, Checkbox, Banner, Typography, Spin } from '@douyinfe/semi-ui';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Typography } from '@/components/ui/typography';
+import { Spinner } from '@/components/ui/spinner';
 import { SelectionTree } from './SelectionTree';
 import { shareStats } from './shareSelection';
 import { useShare } from '@/store/useShare';
@@ -34,71 +39,76 @@ export function ShareExportModal({ visible, onClose }: ShareExportModalProps) {
     onClose();
   };
 
-  // footer 按 status 动态：success=关闭；其余=取消+导出分享包
-  const footer =
-    status === 'success' ? (
-      <Button onClick={() => { resetExport(); onClose(); }}>关闭</Button>
-    ) : (
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button onClick={handleClose} disabled={status === 'exporting'}>取消</Button>
-        <Button theme="solid" loading={status === 'exporting'} disabled={!hasSelection} onClick={runExport}>
-          导出分享包
-        </Button>
-      </div>
-    );
-
   return (
-    <Modal title="导出分享包" visible={visible} onCancel={handleClose} maskClosable={false} width={560} footer={footer}>
-      {status === 'success' ? (
-        <Typography.Text>
-          ✓ 已导出 {stats.ws} 个工作区 · {stats.cat} 个分类 · {stats.bm} 个书签
-        </Typography.Text>
-      ) : (
-        <>
-          <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-            勾选要分享的工作区或分类，生成分享包（合并导入到对方库，不覆盖）。
+    <Dialog open={visible} onOpenChange={(o) => !o && handleClose()} disablePointerDismissal>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader>
+          <DialogTitle>导出分享包</DialogTitle>
+        </DialogHeader>
+        {status === 'success' ? (
+          <Typography.Text>
+            ✓ 已导出 {stats.ws} 个工作区 · {stats.cat} 个分类 · {stats.bm} 个书签
           </Typography.Text>
-          {structure ? (
-            <SelectionTree
-              workspaces={structure.workspaces}
-              categories={structure.categories}
-              bookmarks={structure.bookmarks}
-              value={selection}
-              onChange={setExportSelection}
-            />
-          ) : (
-            <Spin />
-          )}
-
-          <div style={{ marginTop: 12 }}>
-            <Checkbox
-              checked={includeContexts}
-              onChange={(e) => toggleIncludeContexts(e.target.checked ?? false)}
-            >
-              包含上下文（含加密笔记）
-            </Checkbox>
-            {includeContexts && (
-              <Banner
-                type="warning"
-                description="含加密笔记，仅适合自己跨设备迁移（需相同主密码）。分享给他人请勿勾选。"
-                style={{ marginTop: 8 }}
+        ) : (
+          <>
+            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              勾选要分享的工作区或分类，生成分享包（合并导入到对方库，不覆盖）。
+            </Typography.Text>
+            {structure ? (
+              <SelectionTree
+                workspaces={structure.workspaces}
+                categories={structure.categories}
+                bookmarks={structure.bookmarks}
+                value={selection}
+                onChange={setExportSelection}
               />
+            ) : (
+              <Spinner />
             )}
-          </div>
 
-          {status === 'error' && (
-            <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 12 }}>
-              导出失败，请重试。
-            </Typography.Text>
-          )}
+            <div style={{ marginTop: 12 }}>
+              <label className="flex items-center gap-2">
+                <Checkbox checked={includeContexts} onCheckedChange={(c) => toggleIncludeContexts(c)} />
+                包含上下文（含加密笔记）
+              </label>
+              {includeContexts && (
+                <Alert style={{ marginTop: 8 }}>
+                  <AlertDescription>含加密笔记，仅适合自己跨设备迁移（需相同主密码）。分享给他人请勿勾选。</AlertDescription>
+                </Alert>
+              )}
+            </div>
 
-          {!hasSelection && (
-            <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 12 }}>
-              勾选至少一个工作区或分类
-            </Typography.Text>
+            {status === 'error' && (
+              <Typography.Text type="danger" role="alert" style={{ display: 'block', marginTop: 12 }}>
+                导出失败，请重试。
+              </Typography.Text>
+            )}
+
+            {!hasSelection && (
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 12 }}>
+                勾选至少一个工作区或分类
+              </Typography.Text>
+            )}
+          </>
+        )}
+        <DialogFooter>
+          {status === 'success' ? (
+            <Button variant="outline" onClick={() => { resetExport(); onClose(); }}>关闭</Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleClose} disabled={status === 'exporting'}>取消</Button>
+              <Button
+                variant="default"
+                disabled={!hasSelection || status === 'exporting'}
+                onClick={runExport}
+              >
+                {status === 'exporting' && <Spinner />}
+                导出分享包
+              </Button>
+            </>
           )}
-        </>
-      )}
-    </Modal>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

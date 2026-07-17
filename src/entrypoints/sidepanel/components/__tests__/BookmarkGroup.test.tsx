@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('../../hooks/useEncryptedContexts', () => ({
   useEncryptedContexts: vi.fn(),
@@ -37,32 +38,32 @@ describe('BookmarkGroup — 单书签内容区', () => {
   it('header 显示书签名 + 命中数', () => {
     mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.getByText('Google')).toBeTruthy();
-    expect(screen.getByText(/2 条上下文/)).toBeTruthy();
+    expect(screen.getByText('Google')).toBeInTheDocument();
+    expect(screen.getByText(/2 条上下文/)).toBeInTheDocument();
   });
 
   it('传入 categoryName → header 渲染分类 chip（R1 来源辨识）', () => {
     mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} categoryName="开发工具" categoryIcon="📁" />);
-    expect(screen.getByText(/开发工具/)).toBeTruthy();
+    expect(screen.getByText(/开发工具/)).toBeInTheDocument();
   });
 
   it('未传 categoryName → 不渲染 chip（向后兼容）', () => {
     mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.queryByText('开发工具')).toBeNull();
+    expect(screen.queryByText('开发工具')).not.toBeInTheDocument();
   });
 
   it('loading（无数据）→ 显示加载中', () => {
     mock.mockReturnValue({ contexts: [], error: null, loading: true });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.getByText('加载中…')).toBeTruthy();
+    expect(screen.getByText('加载中…')).toBeInTheDocument();
   });
 
   it('error 态 → 显示错误信息', () => {
     mock.mockReturnValue({ contexts: [], error: '解密失败', loading: false });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.getByText('解密失败')).toBeTruthy();
+    expect(screen.getByText('解密失败')).toBeInTheDocument();
   });
 
   it('contexts 态 → 渲染 ContextCard 列表（明文 + 密文占位都渲染）', () => {
@@ -75,16 +76,17 @@ describe('BookmarkGroup — 单书签内容区', () => {
       loading: false,
     });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.getByText('笔记A')).toBeTruthy();
+    expect(screen.getByText('笔记A')).toBeInTheDocument();
     // 密文占位由 ContextCard 渲染为「点击解锁」提示
-    expect(screen.getByText(/加密上下文，点击解锁/)).toBeTruthy();
+    expect(screen.getByText(/加密上下文，点击解锁/)).toBeInTheDocument();
   });
 
-  it('点击「+ 上下文」→ 展开就地创建编辑器', () => {
+  it('点击添加上下文按钮 → 展开就地创建编辑器', async () => {
+    const user = userEvent.setup();
     mock.mockReturnValue({ contexts: [], error: null, loading: false });
     render(<BookmarkGroup bookmark={makeBookmark()} />);
-    expect(screen.queryByText('editor-stub')).toBeNull();
-    fireEvent.click(screen.getByLabelText('添加上下文'));
-    expect(screen.getByText('editor-stub')).toBeTruthy();
+    expect(screen.queryByText('editor-stub')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '添加上下文' }));
+    expect(screen.getByText('editor-stub')).toBeInTheDocument();
   });
 });

@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Tabs, Input, Select, Button, Modal, Banner, Toast, Typography, Checkbox } from '@douyinfe/semi-ui';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Toast } from '@/components/ui/toast';
+import { Typography } from '@/components/ui/typography';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Spinner } from '@/components/ui/spinner';
 import { useBackup } from '@/store/useBackup';
 import { useCrypto } from '@/store/useCrypto';
 import { cloudProviders, getCloudProvider } from '@/services/cloud/providers';
@@ -168,20 +177,21 @@ export function CloudBackupSection() {
   return (
     <div className={styles.cloudSection}>
       {!unlocked && (
-        <Banner
-          type="warning"
-          description={
+        <Alert>
+          <AlertDescription>
             <span>
               云备份凭证由主密码加密，{passwordSet ? '请先解锁' : '请先设置'}主密码。
-              <Button size="small" theme="borderless" onClick={openUnlockModal}>{lockLabel}</Button>
+              <Button size="sm" variant="ghost" onClick={openUnlockModal}>{lockLabel}</Button>
             </span>
-          }
-        />
+          </AlertDescription>
+        </Alert>
       )}
-      <Tabs activeKey={tab} onChange={(k) => setTab(k as ProviderId)}>
-        {TABS.map((id) => (
-          <Tabs.TabPane key={id} itemKey={id} tab={cloudProviders[id].label} />
-        ))}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ProviderId)}>
+        <TabsList>
+          {TABS.map((id) => (
+            <TabsTrigger key={id} value={id}>{cloudProviders[id].label}</TabsTrigger>
+          ))}
+        </TabsList>
       </Tabs>
 
       <div className={styles.fieldGroup}>
@@ -190,25 +200,29 @@ export function CloudBackupSection() {
             <label htmlFor={`cloud-${tab}-${f.name}`} className={styles.fieldLabel}>{f.label}</label>
             {f.type === 'select' ? (
               <Select
-                id={`cloud-${tab}-${f.name}`}
-                disabled={disabled}
                 value={fieldVal(f.name) || undefined}
-                placeholder="请选择"
-                onChange={(v) => setField(f.name, v as string)}
-                style={{ width: '100%' }}
+                onValueChange={(v) => setField(f.name, v as string)}
+                disabled={disabled}
               >
-                {(f.options ?? []).map((opt) => (
-                  <Select.Option key={opt} value={opt}>{optionLabel(f, opt)}</Select.Option>
-                ))}
+                <SelectTrigger id={`cloud-${tab}-${f.name}`} className="w-full">
+                  <SelectValue placeholder="请选择" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {(f.options ?? []).map((opt) => (
+                      <SelectItem key={opt} value={opt}>{optionLabel(f, opt)}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
               </Select>
             ) : (
               <Input
                 id={`cloud-${tab}-${f.name}`}
-                mode={f.type === 'password' ? 'password' : undefined}
+                type={f.type === 'password' ? 'password' : 'text'}
                 disabled={disabled}
                 value={fieldVal(f.name)}
                 placeholder={placeholderOf(f)}
-                onChange={(v) => setField(f.name, v)}
+                onChange={(e) => setField(f.name, e.target.value)}
               />
             )}
           </div>
@@ -216,9 +230,12 @@ export function CloudBackupSection() {
       </div>
 
       <div className={styles.actions}>
-        <Button disabled={disabled} loading={busy} onClick={handleTest}>测试连接</Button>
-        <Button theme="solid" disabled={disabled} onClick={handleSave}>保存配置</Button>
-        <Button disabled={disabled} onClick={handleClear}>清除配置</Button>
+        <Button variant="outline" disabled={disabled} onClick={handleTest}>
+          {busy && <Spinner />}
+          测试连接
+        </Button>
+        <Button variant="default" disabled={disabled} onClick={handleSave}>保存配置</Button>
+        <Button variant="outline" disabled={disabled} onClick={handleClear}>清除配置</Button>
       </div>
 
       <Typography.Text type="tertiary" className={styles.lastTime}>
@@ -226,31 +243,36 @@ export function CloudBackupSection() {
       </Typography.Text>
 
       <div className={styles.actions}>
-        <Button theme="solid" disabled={disabled} loading={busy} onClick={handleUpload}>上传备份</Button>
-        <Button type="danger" disabled={disabled} onClick={handleRestoreClick}>从云恢复</Button>
+        <Button variant="default" disabled={disabled} onClick={handleUpload}>
+          {busy && <Spinner />}
+          上传备份
+        </Button>
+        <Button variant="destructive" disabled={disabled} onClick={handleRestoreClick}>从云恢复</Button>
       </div>
 
-      <Modal
-        title="确认覆盖全部数据"
-        visible={restoreData !== null}
-        onCancel={() => setRestoreData(null)}
-        maskClosable={false}
-        footer={
-          <Button theme="solid" type="danger" block disabled={!confirmed || busy} loading={busy} onClick={handleConfirmRestore}>
-            确认覆盖
-          </Button>
-        }
-      >
-        <div className={styles.confirmBody}>
-          <Typography.Text>
-            此操作将清除当前全部工作区、书签与上下文，并替换为云端备份内容，不可撤销。
-            {restoreData?.cryptoMetadata ? ' 云端备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
-          </Typography.Text>
-          <Checkbox checked={confirmed} onChange={(e) => setConfirmed(e.target.checked ?? false)}>
-            我了解此操作不可撤销
-          </Checkbox>
-        </div>
-      </Modal>
+      <Dialog open={restoreData !== null} onOpenChange={(o) => !o && !busy && setRestoreData(null)} disablePointerDismissal>
+        <DialogContent showCloseButton={!busy}>
+          <DialogHeader>
+            <DialogTitle>确认覆盖全部数据</DialogTitle>
+          </DialogHeader>
+          <div className={styles.confirmBody}>
+            <Typography.Text>
+              此操作将清除当前全部工作区、书签与上下文，并替换为云端备份内容，不可撤销。
+              {restoreData?.cryptoMetadata ? ' 云端备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
+            </Typography.Text>
+            <label className="flex items-center gap-2">
+              <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(c)} />
+              我了解此操作不可撤销
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="destructive" className="w-full" disabled={!confirmed || busy} onClick={handleConfirmRestore}>
+              {busy && <Spinner />}
+              确认覆盖
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

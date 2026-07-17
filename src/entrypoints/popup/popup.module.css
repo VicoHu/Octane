@@ -30,23 +30,7 @@
 }
 
 .backBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary, #475569);
-  border-radius: var(--radius-md, 8px);
-  cursor: pointer;
-  transition: background var(--transition-fast, 150ms ease);
-}
-
-.backBtn:hover {
-  background: var(--primary-light, rgba(0, 184, 148, 0.1));
-  color: var(--primary, #00b894);
+  flex-shrink: 0;
 }
 
 .subPageTitle {
@@ -111,7 +95,6 @@
 }
 
 .featureItem {
-  cursor: pointer;
   transition: background var(--transition-fast, 150ms ease);
 }
 
@@ -121,7 +104,6 @@
 
 /* 主操作行：indigo 左边框 + 浅底强调 */
 .featureItemPrimary {
-  cursor: pointer;
   border-left: 3px solid var(--primary, #00b894);
   background: var(--primary-light, rgba(0, 184, 148, 0.06));
   transition: background var(--transition-fast, 150ms ease);

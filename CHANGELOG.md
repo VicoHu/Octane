@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.13.0] - 2026-07-18
+
+### Added
+
+- **响应式移动端布局**：home 页全面适配移动端 / 窄屏——上下文面板抽屉化（ContextDrawer）、工作区切换应用栏（AppRail）、移动端触摸目标与字体 / 间距优化，小屏下也能顺畅管理书签。
+  - 新增 `useMediaQuery` hook + 响应式 Drawer 原语，桌面 / 移动两套布局自动切换；移动端上下文编辑器文字尺寸加大。
+
+### Changed
+
+- **组件库迁移：Semi Design → shadcn/ui（Base UI）**：整个 UI 层从 Semi Design 迁移到 shadcn/ui（基于 Base UI 底座）+ 14 个图标 + Toast（sonner）。统一设计 token 体系，视觉一致性、渲染性能与可维护性全面提升。
+  - 25 个 shadcn 原语接入（button / dialog / drawer / select / dropdown / popover / tabs / tooltip / accordion / alert-dialog / avatar / badge / card / checkbox / sheet / scroll-area / skeleton / switch / textarea / typography 等），可见控件统一为 shadcn 交互规范；残留 Semi 仅保留 Form（Content / BookmarkOpsPanel）与 Tree（SelectionTree）两处，待后续独立决策。
+- **接入 Tailwind v4**：通过 `@tailwindcss/vite` 函数式配置接入，`DESIGN.md` 设计 token 桥接到 shadcn CSS 变量（含暗色），采用 base-vega 样式系（neutral oklch 颜色）。
+- **home 页 UI 重构**：Sidebar（工作区 / 分类选择指示器、当前工作区身份强化）、BookmarkCard（密度与主操作语义）、ContextList / ContextEditor（对齐 home 布局）、SettingsModal（对齐 home 风格 + 两级导航）、TabList、PinnedArea、ManagePanel 等多处统一重设计。
+- **主操作按钮重设计**：primary action 按钮改为 charcoal 风格，强化视觉层次与点击意图。
+- **解锁流程统一**：home / sidepanel 解锁弹窗统一为共享 Dialog，sidepanel 空闲锁（grace 5min）+ 可配硬上限与 home 门联动。
+
+### Fixed
+
+- **加密弹窗提交防双触发**：修改主密码 / 解锁 / 重设时连按回车不再并发触发加密操作——此前连按可能导致部分加密笔记用新密钥重加密、而密码元数据仍指向旧密钥（永久无法解密、数据丢失）。修复后提交加 ref 防重入。
+- **分享导入并发防护**：合并导入进行中无法再关闭弹窗重开触发重复合并（避免重复工作区 / 交错写入）。
+- **云恢复并发防护**：恢复确认框在应用进行中无法关闭（避免中断失控）。
+- **备份标签切换保留状态**：本地 / 云端 / 分享 tab 切换不再丢失未保存的云凭证（TabsContent 显式 keepMounted）。
+- **失败反馈补全**：创建分类 / 删除分类 / 新建工作区失败时给出 Toast 错误提示（此前静默吞）；新增上下文按钮防双触发。
+- 多项 UI 修复：sidebar 选择指示器 hover 遮挡、workspace tooltip 过时刷新、Tabs 嵌套 orientation 样式隔离、Select 下拉圆角与内边距对齐、字体 / 字重跨组件一致性、bookmark 卡片主操作命中区与长标题溢出、settings 两级导航层级等。
+
+### 内部
+
+- Semi→shadcn 迁移三绿（typecheck + 858 tests / 108 files 全过）；ship 前 Claude + codex 双模型 review，加密 / 备份并发 race 两模型独立确认并修复。
+- 各 feature 均有独立 plan / spec（`docs/superpowers/`）。
+- 已知债：键盘拖拽 a11y 绑定 V1.1 跨容器拖拽一起做。
+
 ## [0.1.12] - 2026-07-14
 
 ### Added

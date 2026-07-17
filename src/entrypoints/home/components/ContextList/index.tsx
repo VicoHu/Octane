@@ -1,7 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SideSheet, Button, Popconfirm, Toast, Spin, Empty, List } from '@douyinfe/semi-ui';
-import { IconPlus, IconLock, IconDelete } from '@douyinfe/semi-icons';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
+import { Toast } from '@/components/ui/toast';
+import { Spinner } from '@/components/ui/spinner';
+import { Empty, EmptyDescription } from '@/components/ui/empty';
+import { Plus, Lock, Trash2 } from 'lucide-react';
 import { getContexts, createContext, deleteContext } from '@/services/ContextService';
+import { ContextPanelShell } from '../ContextPanelShell';
 import { ContextEditor } from '../ContextEditor';
 import { useBookmarks } from '@/store/useBookmarks';
 import type { Bookmark, Context } from '@/shared/types';
@@ -25,6 +39,7 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
   const [error, setError] = useState<string | null>(null);
   const [editingContext, setEditingContext] = useState<Context | null>(null);
   const [titleCounter, setTitleCounter] = useState(0);
+  const [creating, setCreating] = useState(false);
   const refreshBookmark = useBookmarks((s) => s.refreshBookmark);
 
   // 加载上下文列表
@@ -52,7 +67,8 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
 
   // 新增上下文
   const handleCreate = async () => {
-    if (!bookmark) return;
+    if (!bookmark || creating) return;
+    setCreating(true);
     try {
       const ctx = await createContext(
         bookmark.id,
@@ -65,6 +81,8 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
       setEditingContext(ctx);
     } catch (e) {
       Toast.error('创建失败：' + (e as Error).message);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -91,105 +109,114 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
     onClose();
   };
 
+  const listFooter =
+    !editingContext && bookmark ? (
+      <Button className={styles.createButton} variant="default" onClick={handleCreate} disabled={creating}>
+        {creating ? <Spinner /> : <Plus data-icon="inline-start" />}
+        新增上下文
+      </Button>
+    ) : undefined;
+
   return (
-    <SideSheet
-      title={
-        bookmark ? (
-          <div className={styles.titleRow}>
-            <span className={styles.titleName}>{bookmark.name}</span>
-            {bookmark.hasEncryptedContext && <IconLock className={styles.lockIcon} />}
-          </div>
-        ) : null
-      }
-      visible={visible && !!bookmark}
-      onCancel={handleClose}
-      width={500}
-      placement="right"
-      footer={editingContext ? null : (
-        bookmark ? (
-          <div className={styles.footer}>
-            <Button
-              theme="solid"
-              icon={<IconPlus />}
-              onClick={handleCreate}
-            >
-              新增上下文
-            </Button>
-          </div>
-        ) : null
-      )}
+    <ContextPanelShell
+      open={visible && !!bookmark}
+      title={bookmark?.name ?? ''}
+      encrypted={bookmark?.hasEncryptedContext}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+      footer={listFooter}
     >
-      {bookmark && (
-        editingContext ? (
-          <ContextEditor
-            context={editingContext}
-            onBack={handleEditorBack}
-          />
-        ) : (
-          <div className={styles.listContainer}>
+      {editingContext ? (
+        <ContextEditor context={editingContext} onBack={handleEditorBack} />
+      ) : (
+        <section className={styles.listContainer} aria-labelledby="context-list-heading">
+          <div className={styles.listHeader}>
+            <h3 id="context-list-heading" className={styles.listHeading}>
+              上下文
+            </h3>
+            <p className={styles.recordCount}>{contexts.length} 条记录</p>
+          </div>
+          <div className={styles.listScroll}>
             {loading ? (
               <div className={styles.loading}>
-                <Spin />
+                <Spinner />
               </div>
             ) : error ? (
               <div className={styles.error}>
-                <Empty description={error} />
-                <Button onClick={loadContexts}>重试</Button>
+                <Empty>
+                  <EmptyDescription>{error}</EmptyDescription>
+                </Empty>
+                <Button className={styles.listAction} variant="outline" onClick={loadContexts}>
+                  重试
+                </Button>
               </div>
             ) : contexts.length === 0 ? (
-              <Empty
-                description="暂无上下文"
-              >
-                <Button theme="solid" icon={<IconPlus />} onClick={handleCreate}>
+              <Empty>
+                <EmptyDescription>暂无上下文</EmptyDescription>
+                <Button className={styles.listAction} variant="default" onClick={handleCreate}>
+                  <Plus data-icon="inline-start" />
                   添加第一条上下文
                 </Button>
               </Empty>
             ) : (
-              <List size="small">
+              <ul className={styles.contextList}>
                 {contexts.map((ctx) => (
-                  <List.Item
-                    key={ctx.id}
-                    onClick={() => setEditingContext(ctx)}
-                    main={
+                  <li key={ctx.id} className={styles.contextItem}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className={`${styles.contextAction} h-auto min-w-0 flex-1 justify-start overflow-hidden px-3 py-2`}
+                      aria-label={`编辑上下文 ${ctx.title || '无标题'}`}
+                      onClick={() => setEditingContext(ctx)}
+                    >
                       <div className={styles.contextInfo}>
                         <div className={styles.contextTitle}>
-                          {ctx.title || '无标题'}
-                          {ctx.isEncrypted && <IconLock className={styles.contextLock} />}
+                          <span className="min-w-0 truncate">{ctx.title || '无标题'}</span>
+                          {ctx.isEncrypted && (
+                            <Lock className={`${styles.contextLock} shrink-0`} />
+                          )}
                         </div>
                         <div className={styles.contextTime}>
                           {new Date(ctx.updatedAt).toLocaleString()}
                         </div>
                       </div>
-                    }
-                    extra={
-                      <Popconfirm
-                        title="确认删除该上下文？"
-                        okType="danger"
-                        okText="删除"
-                        trigger="click"
-                        onConfirm={(e) => {
-                          e?.stopPropagation();
-                          handleDelete(ctx.id);
-                        }}
-                        onCancel={(e) => e?.stopPropagation()}
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`删除上下文 ${ctx.title || '无标题'}`}
+                            className={`${styles.deleteBtn} shrink-0`}
+                          />
+                        }
                       >
-                        <Button
-                          theme="borderless"
-                          size="small"
-                          icon={<IconDelete />}
-                          aria-label="删除"
-                          className={styles.deleteBtn}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </Popconfirm>
-                    }
-                  />
+                        <Trash2 />
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>确认删除该上下文？</AlertDialogTitle>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => handleDelete(ctx.id)}
+                          >
+                            删除
+                          </AlertDialogAction>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </li>
                 ))}
-              </List>
+              </ul>
             )}
           </div>
-        )
+        </section>
       )}
-    </SideSheet>
+    </ContextPanelShell>
   );
 };
