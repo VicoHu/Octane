@@ -32,6 +32,44 @@
   color: var(--sidebar-text);
 }
 
+.currentWorkspace {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 0 8px 8px;
+}
+
+.currentWorkspaceLabel {
+  color: var(--sidebar-text-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.currentWorkspaceValue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--sidebar-text);
+}
+
+.currentWorkspaceIcon {
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.currentWorkspaceName {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-md);
+  font-weight: 600;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .sectionLabel {
   font-size: 10px;
   font-weight: 800;

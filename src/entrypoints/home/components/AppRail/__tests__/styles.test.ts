@@ -41,6 +41,24 @@ describe('AppRail — 工作区导航样式', () => {
     );
   });
 
+  it('当前工作区使用品牌绿实底，且不依赖会被裁切的外置竖条', () => {
+    const currentWorkspace = ruleBody(appCss, '.app-rail-workspace-button.is-current');
+
+    expect(currentWorkspace).toContain('background: var(--primary);');
+    expect(currentWorkspace).toContain('color: var(--primary-foreground);');
+    expect(appCss).not.toContain('.app-rail-workspace-button.is-current::before');
+  });
+
+  it('当前工作区悬停时保持品牌绿选中态', () => {
+    const currentWorkspaceHover = ruleBody(
+      appCss,
+      '.app-rail-workspace-button.is-current:hover',
+    );
+
+    expect(currentWorkspaceHover).toContain('background: var(--primary);');
+    expect(currentWorkspaceHover).toContain('color: var(--primary-foreground);');
+  });
+
   it('工作区区块仅在 760px 以下恢复显示', () => {
     expect(ruleBody(sidebarCss, '.workspaceSection')).toContain('display: none;');
     expect(sidebarCss).toMatch(

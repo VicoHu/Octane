@@ -67,6 +67,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const [reordering, setReordering] = useState(false);
   // M5 非法落区:over=null(拖出 categoryList)→ overlay 降透明 .5
   const [invalid, setInvalid] = useState(false);
+  const currentWorkspace = currentWorkspaceId
+    ? workspaces.find((workspace) => workspace.id === currentWorkspaceId) ?? null
+    : null;
 
   const handleCatDragStart = (e: DragStartEvent) => setActiveCatId(String(e.active.id));
   const handleCatDragOver = (e: DragOverEvent) => {
@@ -130,6 +133,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
         <img className={styles.logo} src="/icons/icon-128.png" alt="Octane" />
         <div className={styles.title}>Octane</div>
       </div>
+
+      {currentWorkspace && (
+        <section className={styles.currentWorkspace} aria-label="当前工作区">
+          <div className={styles.currentWorkspaceLabel}>当前工作区</div>
+          <div className={styles.currentWorkspaceValue}>
+            <span className={styles.currentWorkspaceIcon} aria-hidden="true">
+              {currentWorkspace.icon}
+            </span>
+            <span className={styles.currentWorkspaceName}>{currentWorkspace.name}</span>
+          </div>
+        </section>
+      )}
 
       <div className={styles.workspaceSection}>
         {/* 工作区 */}

@@ -62,18 +62,8 @@
 }
 
 .app-rail-workspace-button.is-current {
-  background: var(--neutral);
-}
-
-.app-rail-workspace-button.is-current::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: -11px;
-  width: 3px;
-  height: 24px;
   background: var(--primary);
-  transform: translateY(-50%);
+  color: var(--primary-foreground);
 }
 
 .app-rail-workspace-icon {
@@ -111,6 +101,7 @@
 }
 
 .app-rail-button:hover { color: #f6f8f7; background: #2b3634; }
+.app-rail-workspace-button.is-current:hover { color: var(--primary-foreground); background: var(--primary); }
 .app-rail-button.is-active { color: #202829; background: var(--primary); }
 .app-rail-spacer { flex: 1; }
 .app-rail-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: #3b4744; border: 1px solid rgba(255,255,255,.18); }
