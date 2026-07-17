@@ -1,5 +1,5 @@
 /* === 本地备份区（popup/home 共享） === */
-.backupSection { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.backupSection { display: flex; flex-direction: column; gap: 12px; margin-top: 24px;}
 .backupActions { display: flex; gap: 8px; }
 .backupConfirmBody { display: flex; flex-direction: column; gap: 12px; }
 .backupError { color: var(--semi-color-danger); }
