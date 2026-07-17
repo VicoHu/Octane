@@ -20,6 +20,13 @@
   --primary-dark: #00755c;     /* solid 底（badge/button），配白字达 WCAG AA */
   --primary-text: #007d63;     /* 文字/链接，白底达 AA */
   --primary-focus: rgba(0, 184, 148, 0.35); /* focus ring（原 alpha 0.1 在白底过弱） */
+
+  /* === 主操作：A 方案炭灰实色，品牌绿仅作图标与焦点信号 === */
+  --action-primary: #202829;
+  --action-primary-hover: #2b3634;
+  --action-primary-active: #17201e;
+  --action-primary-foreground: #f6f8f7;
+  --action-primary-icon: #55efc4;
   --danger: var(--destructive);
 
   /* === 中性色 === */

@@ -19,6 +19,11 @@
   --color-primary-active: var(--primary-active);
   --color-primary-light: var(--primary-light);
   --color-primary-text: var(--primary-text);
+  --color-action-primary: var(--action-primary);
+  --color-action-primary-hover: var(--action-primary-hover);
+  --color-action-primary-active: var(--action-primary-active);
+  --color-action-primary-foreground: var(--action-primary-foreground);
+  --color-action-primary-icon: var(--action-primary-icon);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);

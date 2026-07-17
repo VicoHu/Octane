@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Plus } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import {
   Tabs,
   TabsContent,
@@ -11,6 +13,34 @@ import {
 } from '@/components/ui/tabs';
 
 describe('共享 UI 原语', () => {
+  it('默认按钮使用炭灰主操作语义且不影响描边按钮', () => {
+    render(
+      <>
+        <Button>
+          <Plus data-icon="inline-start" />
+          添加书签
+        </Button>
+        <Button variant="outline">取消</Button>
+      </>,
+    );
+
+    const primary = screen.getByRole('button', { name: '添加书签' });
+    const outline = screen.getByRole('button', { name: '取消' });
+
+    expect(primary).toHaveClass(
+      'bg-action-primary',
+      'text-action-primary-foreground',
+      'hover:bg-action-primary-hover',
+      'active:bg-action-primary-active',
+      '[&_svg]:text-action-primary-icon',
+    );
+    expect(primary).not.toHaveClass('bg-primary', 'text-primary-foreground');
+    expect(outline).not.toHaveClass(
+      'bg-action-primary',
+      'text-action-primary-foreground',
+    );
+  });
+
   it('TabsList 支持 line 视觉变体', () => {
     render(
       <Tabs defaultValue="overview">
