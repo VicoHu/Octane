@@ -40,7 +40,7 @@
 .titleInput {
   flex: none;
   font-weight: 600;
-  font-size: var(--font-lg);
+  font-size: var(--font-md);
 }
 
 .encryptRow {
