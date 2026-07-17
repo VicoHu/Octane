@@ -58,10 +58,10 @@ export function AppRail() {
           <Button variant="ghost" size="icon" className="app-rail-button is-active" aria-label="主页">
             <Home />
           </Button>
-          <Button variant="ghost" size="icon" className="app-rail-button" aria-label="搜索">
+          <Button variant="ghost" size="icon" className="app-rail-button" aria-label="搜索" disabled>
             <Search />
           </Button>
-          <Button variant="ghost" size="icon" className="app-rail-button" aria-label="打开标签页">
+          <Button variant="ghost" size="icon" className="app-rail-button" aria-label="打开标签页" disabled>
             <ExternalLink />
           </Button>
         </div>

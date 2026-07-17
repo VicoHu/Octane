@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/store/useWorkspace';
 
@@ -36,6 +37,8 @@ export function WorkspaceCreateButton({ className }: WorkspaceCreateButtonProps)
       setName('');
       setIcon('📁');
       setOpen(false);
+    } catch (e) {
+      Toast.error('创建失败：' + (e as Error).message);
     } finally {
       pendingRef.current = false;
       setPending(false);

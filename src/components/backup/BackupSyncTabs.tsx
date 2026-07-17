@@ -8,7 +8,7 @@ import { ShareSection } from './ShareSection';
  *
  * 顶部 card 类型：与外层左 line 形成 纵/横 区分；与 CloudBackupSection 内部 s3/webdav
  * 的 line 形成层级区分（子级功能=card，服务商=line）。
- * Base UI Tabs 默认 keepMounted=true（等价原 Semi keepDOM）：本地/云端/分享间切换保留各自状态（如云端表单输入）。
+ * 显式 keepMounted 保留各 tab 状态（等价原 Semi keepDOM）：Base UI Tabs.Panel 默认 keepMounted=false，切换会卸载 inactive 面板、丢失未保存输入（如云端凭证），故三个 TabsContent 均传 keepMounted。
  */
 export function BackupSyncTabs() {
   return (
@@ -18,13 +18,13 @@ export function BackupSyncTabs() {
         <TabsTrigger value="cloud">云端同步</TabsTrigger>
         <TabsTrigger value="share">分享</TabsTrigger>
       </TabsList>
-      <TabsContent value="local">
+      <TabsContent value="local" keepMounted>
         <LocalBackupSection />
       </TabsContent>
-      <TabsContent value="cloud">
+      <TabsContent value="cloud" keepMounted>
         <CloudBackupSection />
       </TabsContent>
-      <TabsContent value="share">
+      <TabsContent value="share" keepMounted>
         <ShareSection />
       </TabsContent>
     </Tabs>

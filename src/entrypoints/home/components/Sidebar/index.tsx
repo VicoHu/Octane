@@ -101,10 +101,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
 
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
-    await createCategory(newCategoryName.trim(), newCategoryIcon);
-    setNewCategoryName('');
-    setNewCategoryIcon('📂');
-    setShowNewCategory(false);
+    try {
+      await createCategory(newCategoryName.trim(), newCategoryIcon);
+      setNewCategoryName('');
+      setNewCategoryIcon('📂');
+      setShowNewCategory(false);
+    } catch (e) {
+      Toast.error('创建失败：' + (e as Error).message);
+    }
   };
 
   // 删除分类二次确认：要求输入完整短语才解锁删除按钮（去掉所有空白以容忍空格差异）
@@ -115,10 +119,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget || !canConfirmDelete) return;
-    await deleteCategory(deleteTarget.id);
-    setConfirmText('');
-    // Modal 由 visible={deleteTarget !== null} 控制，清空即关闭
-    setDeleteTarget(null);
+    try {
+      await deleteCategory(deleteTarget.id);
+      setConfirmText('');
+      // Modal 由 visible={deleteTarget !== null} 控制，清空即关闭
+      setDeleteTarget(null);
+    } catch (e) {
+      Toast.error('删除失败：' + (e as Error).message);
+    }
   };
 
   const cancelDelete = () => {

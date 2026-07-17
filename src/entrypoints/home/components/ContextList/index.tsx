@@ -39,6 +39,7 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
   const [error, setError] = useState<string | null>(null);
   const [editingContext, setEditingContext] = useState<Context | null>(null);
   const [titleCounter, setTitleCounter] = useState(0);
+  const [creating, setCreating] = useState(false);
   const refreshBookmark = useBookmarks((s) => s.refreshBookmark);
 
   // 加载上下文列表
@@ -66,7 +67,8 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
 
   // 新增上下文
   const handleCreate = async () => {
-    if (!bookmark) return;
+    if (!bookmark || creating) return;
+    setCreating(true);
     try {
       const ctx = await createContext(
         bookmark.id,
@@ -79,6 +81,8 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
       setEditingContext(ctx);
     } catch (e) {
       Toast.error('创建失败：' + (e as Error).message);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -107,8 +111,8 @@ export const ContextList: React.FC<ContextListProps> = ({ bookmark, visible, onC
 
   const listFooter =
     !editingContext && bookmark ? (
-      <Button className={styles.createButton} variant="default" onClick={handleCreate}>
-        <Plus data-icon="inline-start" />
+      <Button className={styles.createButton} variant="default" onClick={handleCreate} disabled={creating}>
+        {creating ? <Spinner /> : <Plus data-icon="inline-start" />}
         新增上下文
       </Button>
     ) : undefined;
