@@ -149,6 +149,11 @@
   color: inherit;
 }
 
+/* 整行统一承载 hover，避免 ghost Button 背景覆盖父级选中竖条 */
+.cat > .categoryMain:hover {
+  background: transparent;
+}
+
 .cat:hover {
   background: var(--sidebar-hover-bg);
 }

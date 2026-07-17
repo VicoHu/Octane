@@ -15,4 +15,12 @@ describe('Sidebar 分类选中态样式', () => {
       'border-radius: var(--radius-sm) 0 0 var(--radius-sm);',
     );
   });
+
+  it('分类主按钮 hover 保持透明，避免覆盖整行选中标识', () => {
+    const categoryMainHover = css.match(
+      /\.cat\s*>\s*\.categoryMain:hover\s*\{([^}]*)\}/,
+    )?.[1];
+
+    expect(categoryMainHover ?? '').toContain('background: transparent;');
+  });
 });
