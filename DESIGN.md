@@ -4,7 +4,7 @@ name: Octane
 description: Octane 浏览器扩展设计系统。品牌 DNA：克制双色 · 几何粗线 · 速度母题。基座为 shadcn/ui（Base UI），本文件是项目语义 token 的单一真源；shadcn CSS 变量（--background/--primary 等）与残留 Semi 的 --semi-* 均派生自此。
 colors:
   # 品牌绿族（accent，不是底色）
-  primary: "#00B894"            # Logo 速度线/书签飘带原色；accent：图标/描边/选中/按钮底
+  primary: "#00B894"            # Logo 速度线/书签飘带原色；accent：图标/描边/选中/状态
   primary-hover: "#00A383"      # hover
   primary-active: "#008F72"     # press
   primary-on: "#2D3436"         # 绿底之上的前景（文字/图标，炭灰，on 绿 ≈4.9:1 达 AA）
@@ -12,6 +12,12 @@ colors:
   primary-dark: "#00755C"       # 退路：需白字的深绿实色（白字 ≈4.7:1）
   primary-light: "rgba(0,184,148,.1)"   # 浅底强调
   primary-focus: "rgba(0,184,148,.35)"  # focus ring
+  # 主操作（A 方案：炭灰实色，品牌绿仅作图标与焦点信号）
+  action-primary: "#202829"
+  action-primary-hover: "#2B3634"
+  action-primary-active: "#17201E"
+  action-primary-foreground: "#F6F8F7"
+  action-primary-icon: "#55EFC4"
   # 中性 / 反馈
   neutral: "#2D3436"            # Logo 闭合圆环炭灰，深色锚定色
   text-primary: "#0F172A"       # 主文本
@@ -76,14 +82,15 @@ control-height:
   switch: "24x44px"  # h-6 w-11 default
 components:
   button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-on}"
+    backgroundColor: "{colors.action-primary}"
+    textColor: "{colors.action-primary-foreground}"
+    iconColor: "{colors.action-primary-icon}"
     typography: "{typography.body}"
     rounded: "{rounded.sm}"
   button-primary-hover:
-    backgroundColor: "{colors.primary-hover}"
+    backgroundColor: "{colors.action-primary-hover}"
   button-primary-active:
-    backgroundColor: "{colors.primary-active}"
+    backgroundColor: "{colors.action-primary-active}"
   button-secondary:
     textColor: "{colors.text-secondary}"
     typography: "{typography.body}"
@@ -122,12 +129,14 @@ components:
 
 ## Colors
 
-品牌绿是 accent，**不是底色**。核心纪律是「绿色预算」——每个功能区最多一个绿色焦点（一个主操作 / 一个选中指示），避免层级坍塌。
+品牌绿是 accent，**不是大面积底色**。核心纪律是「绿色预算」——每个功能区最多一个绿色焦点（主操作图标 / 一个选中指示），避免层级坍塌。
 
-- **primary `#00B894`**：accent，用于图标/描边/选中指示/主按钮底。
+- **primary `#00B894`**：accent，用于图标/描边/选中指示/状态控件。
 - **primary-on `#2D3436`**：绿底之上的前景（文字/图标，炭灰），on 绿 ≈4.9:1 达 AA，是绿底配色的首选。
 - **primary-text `#007D63`**：浅底上的绿字/链接，on 白 ≈5.6:1。
 - **primary-dark `#00755C`**：唯一退路，仅用于需白字的深绿实色场景（白字 ≈4.7:1）。
+- **action-primary `#202829`**：默认主操作底色；hover/active 走 `action-primary-hover` / `action-primary-active`。
+- **action-primary-foreground `#F6F8F7`**：主操作文字；图标使用 `action-primary-icon #55EFC4`。
 - **neutral `#2D3436`**：Logo 炭灰锚定色，侧栏抬升面。
 - **text-primary / text-secondary**：正文 / 次文本，浅底对比 ≥4.5:1。
 - **muted `#64748B`**：**仅**元信息/占位，贴 AA 下限，**不得用于长正文**。
@@ -166,7 +175,7 @@ components:
 
 ## Components
 
-- **主按钮**：`primary` 底 + `primary-on` 炭灰字（保真 + 达 AA），每区唯一；hover/active 走 `primary-hover` / `primary-active`。
+- **主按钮**：`action-primary` 炭灰底 + `action-primary-foreground` 浅色字；有图标时用 `action-primary-icon` 点亮，每区唯一。
 - **次按钮**：透明 ghost，`text-secondary`，hover 才显品牌色。
 - **卡片**：`card-bg` 白底，`rounded md`；favicon 回退用 `primary-dark` → 浅绿渐变（白字可读，唯一非扁平例外）。
 - **输入**：`rounded sm`，focus 用 `primary-focus` ring（白底可见）。
@@ -177,12 +186,12 @@ components:
 
 ## Do's and Don'ts
 
-- ✅ 绿按钮用 `primary` 底 + `primary-on` 炭灰字（保真 + 达 AA）。
-- ❌ 为达标把绿压暗成 `primary-dark` 当默认（按钮发暗、背离 Logo）。
+- ✅ 主按钮用 `action-primary` 炭灰底 + 浅色字，图标用 `action-primary-icon`。
+- ❌ 逐页覆写主按钮颜色，或把 `primary` 恢复为默认主按钮大面积底色。
 - ❌ `primary #00B894` 配白字（≈2.58:1 不及格）。
 - ✅ 浅底绿字用 `primary-text`。
 - ❌ 用 `primary` 做浅底文字。
-- ✅ 每区一个绿色焦点。
+- ✅ 每区一个主操作，绿色仅作图标、focus 或选中信号。
 - ❌ 侧栏按钮全刷绿（层级坍塌）。
 - ✅ 选中态用 3px 绿竖条 + 字重（颜色非唯一信息）。
 - ❌ 只靠 20% 绿底 tint 表示选中。

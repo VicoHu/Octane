@@ -28,15 +28,13 @@
 
 ## 2. 颜色体系（Color System）
 
-### 2.1 品牌绿：优先保真，其次达标
+### 2.1 品牌绿与主操作分工
 
-**规范判定**：品牌绿以 Logo 原色 `#00B894` 为准。实色按钮**首选保留 `#00B894` 底 + 炭灰 `#2D3436` 文字**（≈4.9:1，达 AA），因为它既过对比度、又忠于 Logo。
-
-> ⚠️ 现状把 solid 底压暗为 `#00755C` + 白字（≈4.7:1），虽过 AA 但**按钮绿明显发暗、背离 Logo**。这是保真度债务（见 §12-D）。仅在无法用炭灰字的深色语境，才退回 `#00755C`+白字。
+**规范判定**：品牌绿以 Logo 原色 `#00B894` 为准，但只作为图标、focus、选中指示和状态控件的 accent。默认主操作采用 A 方案炭灰实色，避免大面积高饱和绿造成视觉重量。
 
 | Token | 值 | 唯一用途 | 对比度 |
 |-------|-----|---------|--------|
-| `--primary` | `#00B894` | accent：图标/描边/选中指示/按钮底(配炭灰字) | — |
+| `--primary` | `#00B894` | accent：图标/描边/选中指示/状态控件 | — |
 | `--primary-hover` | `#00A383` | hover | — |
 | `--primary-active` | `#008F72` | press | — |
 | `--primary-on` | `#2D3436` | **绿底之上的前景**（文字/图标，炭灰） | on 绿 ≈4.9:1 ✓ |
@@ -46,6 +44,16 @@
 | `--primary-focus` | `rgba(0,184,148,.35)` | focus ring | — |
 
 > ⚠️ **禁止** `#00B894` 配**白字**（≈2.58:1 不及格）；绿底白字场景一律换炭灰字或用 `--primary-dark`。
+
+主操作 token：
+
+| Token | 值 | 用途 |
+|-------|-----|------|
+| `--action-primary` | `#202829` | 默认主操作底色 |
+| `--action-primary-hover` | `#2B3634` | 主操作 hover |
+| `--action-primary-active` | `#17201E` | 主操作 active |
+| `--action-primary-foreground` | `#F6F8F7` | 主操作文字 |
+| `--action-primary-icon` | `#55EFC4` | 主操作图标 |
 
 ### 2.2 中性 / 反馈色
 
@@ -65,11 +73,11 @@
 
 ### 2.3 「绿色预算」使用纪律（核心）
 
-品牌绿是 accent，不是底色。**每个功能区最多一个"绿色焦点"。**
+品牌绿是 accent，不是大面积底色。**每个功能区最多一个绿色焦点。**
 
 | 区域 | 绿的角色 | 规则 |
 |------|---------|------|
-| 内容区 | 唯一主操作按钮 | `#00B894` 底 + 炭灰字 |
+| 内容区 | 唯一主操作按钮 | `--action-primary` 炭灰底 + 浅色字；图标使用品牌浅绿 |
 | 侧栏 | 仅"当前选中分类"指示 | 3px 竖条 `--primary`，其余降中性 |
 | 反馈 | 成功用 Semi `success` | 语义色，勿与品牌绿混 |
 | 文字/链接 | `--primary-text` | 浅底可读 |
@@ -183,7 +191,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
 
 | 组件 | 规范判定 |
 |------|---------|
-| **主按钮** | `#00B894` 底 + **炭灰字**（`--primary-on`）；每区唯一 |
+| **主按钮** | `--action-primary` 炭灰底 + `--action-primary-foreground` 浅色字；图标用 `--action-primary-icon`；每区唯一 |
 | **次按钮** | 中性 ghost / borderless，hover 才显品牌色 |
 | **工具按钮** | 纯图标 / 最弱 borderless，`--semi-color-text-2` |
 | **卡片** | 圆角 `--radius-md`；favicon 回退渐变 `--primary-dark → #1ad6a8`（白字可读，唯一非扁平例外） |
@@ -208,7 +216,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
 
 | 项 | 标准 | 落地 |
 |----|------|------|
-| 文本对比 | ≥4.5:1 | 绿字 `--primary-text`；绿底炭灰字 `--primary-on`；退路白字用 `--primary-dark` |
+| 文本对比 | ≥4.5:1 | 主按钮用炭灰底 + 浅色字；绿字用 `--primary-text`；绿底状态控件用 `--primary-on` |
 | 绿 on 深底 | — | `#00B894` on `#1a1d21` ≈6.4:1 ✓；换炭灰底后**复核** muted 小字 |
 | focus | 可见 ring | `--primary-focus` |
 | 图标按钮 | `aria-label` | 必须 |
@@ -230,10 +238,10 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
 
 | ✅ Do | ❌ Don't |
 |-------|---------|
-| 绿按钮 `#00B894` 底 + 炭灰字（保真+达标） | 为达标把绿压暗成 `#00755C` 当默认 |
+| 主按钮用炭灰 `--action-primary` + 浅色字，图标用品牌浅绿 | 逐页覆写主按钮，或恢复大面积品牌绿底 |
 | `#00B894` 配白字时改用炭灰字 | `#00B894` 直接配白字（2.58:1） |
 | 浅底绿字用 `--primary-text` | 用 `--primary` 做浅底文字 |
-| 每区一个绿色焦点 | 侧栏按钮全刷绿 |
+| 每区一个主操作，绿色仅作图标/focus/选中信号 | 侧栏按钮全刷绿 |
 | 选中态 3px 绿竖条 + 字重 | 只靠 20% 绿底 tint |
 | 侧栏底锚 Logo 炭灰族 | 沿用 Semi 冷黑 `#232429` |
 | 圆角 8/12/16 拉开层级 | 6/8 两档难辨 |
@@ -265,7 +273,7 @@ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
 ## 13. 交付前检查清单
 
 - [ ] 语义 token 单一真源，Semi 派生对齐，无裸写
-- [ ] 主操作绿按钮为 `#00B894` 底 + 炭灰字，达 AA
+- [ ] 主操作为 `--action-primary` 炭灰底 + 浅色字，图标为 `--action-primary-icon`
 - [ ] 浅底绿字用 `--primary-text`；无 `#00B894` 配白字
 - [ ] 字号无 13px；主阅读文本 16px；圆角为 8/12/16
 - [ ] 行高走 token；字体栈含 CJK 回退
