@@ -1,5 +1,7 @@
 # Semi Design 设计规范（DSM Token 参考手册）
 
+> ⚠️ **适用范围（v0.1.13.0 起）**：主组件库已迁移到 **shadcn/ui（Base UI）+ Tailwind v4**。本文档仅适用于**残留的 Semi 组件**——`Form`（`Content` / `BookmarkOpsPanel`）与 `Tree`（`SelectionTree`）。新组件一律用 shadcn/ui，不要再引入 Semi。主设计 token 单一真源是 [`DESIGN.md`](../DESIGN.md)，残留 Semi 迁移决策见 `docs/superpowers/specs/2026-07-15-semi-to-shadcn-design.md`。
+
 > 本文档从 Semi DSM 使用教程提炼，专为 AI Agent 统一设计与编码使用。
 > 来源：[Semi DSM 使用教程](https://bytedance.larkoffice.com/wiki/M9uJwBYc9i9u7ik7e5BcKzgOnSd)
 > 官网：外网 https://semi.design/

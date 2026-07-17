@@ -11,9 +11,10 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 
 ## 功能
 
-- **书签管理** — CRUD 操作，支持分类、搜索、Favicon 自动获取（公网走 Google Favicon API；localhost / 内网地址回退源站 `/favicon.ico`，加载失败再回退书签首字母）
+- **书签管理** — CRUD 操作，支持分类、搜索、Favicon 自动获取（本地立即显示浏览器 favicon / 首字母，公网后台异步升级高清图标 via Icon Horse；localhost / 内网地址不请求第三方，保护隐私）
 - **工具栏 Popup 采集** — 任何网页一键收藏当前页（Hub 首页：用户卡 + 功能列表；保存书签 / 设置子页面，主操作「保存当前页面」视觉强调）
 - **Side Panel 联动** — 在任意 http(s) 页面左击扩展图标直达侧边栏，按当前页 hostname 自动匹配书签并展示其上下文（BroadcastChannel 跨上下文同步：在 NewTab 改动后 Side Panel 自动刷新）
+- **响应式移动端** — home 页自适应窄屏（上下文面板抽屉化、工作区应用栏、移动端触摸目标与字号优化），小屏也能顺畅管理
 - **上下文系统** — 每个书签可附加多个上下文条目（备忘、凭据等），支持 Markdown 实时预览 + 标题标记
 - **端到端加密** — AES-GCM-256 加密上下文字段，主密码通过 PBKDF2（600K 迭代）派生密钥
 - **会话级解锁** — 主密码输入一次，密钥缓存到 `chrome.storage.session`，浏览器关闭自动清除
@@ -22,7 +23,7 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 - **打开的标签页视图** — home 页 Content 加卡片式 Tabs（书签 / 标签页，默认书签）；标签页视图列出当前窗口所有打开的 tab（顺序与浏览器 tab 栏一致），点击直达对应 tab，可一键保存为书签到当前分类并引导添加上下文（save→context 漏斗）；已收藏的 tab 跨分类去重标注「已收藏」
 - **全文搜索** — 搜索书签名称、URL、描述（加密上下文内容不参与搜索）
 - **数据备份与同步** — 本地全量导入导出（JSON，覆盖式）+ 云备份恢复：S3 兼容存储（阿里云 OSS / 腾讯云 COS）与坚果云 WebDAV（凭证经主密码加密存储，策略模式可扩展其他服务商）
-- **系统设置中心** — Sidebar「设置」入口弹出统一设置 Modal（左 Nav 右详情：快捷键 / 数据备份 / 主密码），收纳所有设置项
+- **系统设置中心** — Sidebar「设置」入口弹出统一设置 Modal（左 Nav 右详情：快捷键 / 数据备份和同步 / 数据维护 / 主密码），收纳所有设置项
 - **全局快捷键** — `Alt+Shift+H` 打开首页、`Alt+Shift+S` 打开侧边栏（所有标签页生效）；按键可在 `chrome://extensions/shortcuts` 自定义
 
 ## 技术栈
@@ -31,7 +32,8 @@ Octane 是一个浏览器 NewTab 页面扩展（支持 Chrome / Firefox / Edge�
 |---|------|
 | 框架 | React 19 + TypeScript 6 |
 | 构建 | WXT（基于 Vite 8） |
-| UI | Semi Design |
+| UI | shadcn/ui（Base UI）+ Tailwind v4 |
+| 图标 | lucide-react |
 | 状态管理 | Zustand 5 |
 | 存储 | IndexedDB（via idb） |
 | 加密 | Web Crypto API（AES-GCM-256 + PBKDF2） |
@@ -68,24 +70,24 @@ octane/
 │   └── icons/                  # 扩展图标 (16/48/128px + SVG)
 ├── src/
 │   ├── entrypoints/
-│   │   ├── newtab/             # WXT 入口（index.html + main.tsx）
+│   │   ├── home/               # home 页 WXT 入口（index.html + main.tsx + 响应式布局）
+│   │   │   ├── App.tsx
+│   │   │   └── components/     # Sidebar / Content / BookmarkCard / ContextList /
+│   │   │                       # ContextEditor / TabList / PinnedArea / ManagePanel /
+│   │   │                       # AppRail（工作区栏）/ ContextPanelShell（响应式抽屉）/
+│   │   │                       # SettingsModal / WorkspaceCreateButton 等
 │   │   ├── popup/              # 工具栏 Popup（Hub 首页 + 保存书签/设置子页面）
-│   │   └── sidepanel/          # Side Panel（hostname 联动书签 + 上下文预览）
-│   ├── newtab/                 # 新标签页
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── Sidebar/        # 侧边栏（工作区 + 分类列表）
-│   │   │   ├── Content/        # 主内容区（搜索栏 + 卡片网格 + 标签页视图切换）
-│   │   │   ├── BookmarkCard/   # 书签卡片
-│   │   │   ├── TabList/        # 打开的标签页视图（紧凑列表 + 跨分类去重 + 存为书签）
-│   │   │   ├── ContextList/    # 上下文列表（列表/编辑视图切换）
-│   │   │   ├── ContextEditor/  # 上下文编辑器（Markdown + 预览 + 标题）
-│   │   │   ├── UnlockModal/    # 主密码输入弹窗
-│   │   │   ├── SettingsModal/   # 系统设置中心 Modal（快捷键 / 数据备份 / 主密码）
-│   │   │   └── EmptyState/     # 空状态组件
-│   │   └── hooks/              # NewTab hooks（useOpenTabs：已打开 tab 监听）
+│   │   ├── sidepanel/          # Side Panel（hostname 联动书签 + 上下文预览）
+│   │   └── background.ts       # MV3 service worker（跨上下文消息路由）
 │   ├── components/
-│   │   └── backup/             # 共享备份组件（本地导入导出 + 云备份，popup/newtab 复用）
+│   │   ├── ui/                 # shadcn/ui 原语（Base UI 封装，全项目组件基座）
+│   │   ├── backup/             # 共享备份组件（本地导入导出 + 云备份 + 分享包导入导出，popup/home 复用）
+│   │   ├── IconPicker/         # 工作区/分类图标选择
+│   │   ├── UnlockModal/        # 主密码解锁弹窗（home/popup 共享）
+│   │   └── BookmarkFaviconPreview/
+│   ├── hooks/                  # 通用 hooks（useMediaQuery 响应式等）
+│   ├── lib/                    # cn 等工具函数
+│   ├── styles/                 # 全局样式 + tailwind-theme.css（DESIGN.md token → shadcn 变量）
 │   ├── services/               # 业务服务层
 │   ├── store/                  # Zustand 状态管理
 │   └── shared/
@@ -93,8 +95,7 @@ octane/
 │       ├── tabs/               # Tab 操作（URL 匹配、聚焦、pinned home tab 唤起）
 │       ├── types/              # TypeScript 类型定义
 │       └── utils/              # 工具函数（Markdown 渲染）
-├── tests/                      # 集成测试
-├── wxt.config.ts               # WXT 配置（manifest、React 模块）
+├── wxt.config.ts               # WXT 配置（manifest、React + Tailwind vite 插件）
 └── vitest.config.ts            # 测试配置（WxtVitest 插件）
 ```
 

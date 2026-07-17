@@ -95,7 +95,7 @@
 
 1. **shadcn/ui 组件选用与用法** → `shadcn` skill。本项目以 shadcn/ui（Base UI 底座）为组件基座（`src/components/ui/*`），先查/装组件再动手。> 注：Form（`Content`、`BookmarkOpsPanel`）与 Tree（`SelectionTree`）仍暂用 Semi，改这几处时用 `semi-ui-skills`。
 2. **单点 / 通用设计决策**（挑风格 / 配色 / 字体配对 / 图表选型，或任意页面的 UI/UX 优化）→ `ui-ux-pro-max` skill。基于数据库检索给推荐 + 配套 UX 规则，跨栈、不限页面类型。系统性代码 review 另用 `design-review` skill，不是它。
-3. **落地页 / 作品集 / 营销页 / 现有页面 redesign 的端到端设计落地** → `taste-skill`（install name `design-taste-frontend`，Anti-slop，读 brief 推断整体设计语言、调 VARIANCE / MOTION / DENSITY 三旋钮，产出连贯界面）。它偏整体方向落地（不是 `ui-ux-pro-max` 那种单点推荐）；默认栈 React + Tailwind v4，而本项目是 React + Semi Design（无 Tailwind），引入时样式需改用 Semi token；**明确不适用**于仪表盘、数据表格、多步产品 UI。
+3. **落地页 / 作品集 / 营销页 / 现有页面 redesign 的端到端设计落地** → `taste-skill`（install name `design-taste-frontend`，Anti-slop，读 brief 推断整体设计语言、调 VARIANCE / MOTION / DENSITY 三旋钮，产出连贯界面）。它偏整体方向落地（不是 `ui-ux-pro-max` 那种单点推荐）；默认栈 React + Tailwind v4，与本项目栈一致（v0.1.13.0 起 shadcn/ui + Tailwind v4），token 对齐 `DESIGN.md`；**明确不适用**于仪表盘、数据表格、多步产品 UI。
 
 判断原则：
 - 产品型 UI（newtab / sidepanel / 设置等）默认走 shadcn/ui + `shadcn` skill；需要设计决策时叠加 `ui-ux-pro-max`。
