@@ -45,3 +45,7 @@
 
 ## App Rail 移动端适配
 - **移动端展示方案**：当前 `<=760px` 隐藏 app-rail，并在 Sidebar 保留工作区 Select 与新建入口。后续需设计 app-rail 在移动端的展示、展开与触控交互，再移除该回退入口。相关：`src/entrypoints/home/components/AppRail`、`src/entrypoints/home/components/Sidebar`、`src/entrypoints/home/App.css`。
+
+## 0.1.13.0 — AppRail 占位按钮待接线
+
+- **搜索 / 打开标签页按钮**：AppRail 左栏「搜索」「打开标签页」按钮本期为占位（disabled，ship 前 review 发现为死按钮）。后续需接线：搜索 → 聚焦 / 打开搜索入口；打开标签页 → 对应 home「标签页」视图（0.1.6.0）或 chrome.tabs 列表。相关：`src/entrypoints/home/components/AppRail/index.tsx`。
