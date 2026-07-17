@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ExternalLink, Home, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -16,7 +15,6 @@ export function AppRail() {
   const workspaces = useWorkspace((state) => state.workspaces);
   const currentWorkspaceId = useWorkspace((state) => state.currentWorkspaceId);
   const selectWorkspace = useWorkspace((state) => state.selectWorkspace);
-  const [openTooltipId, setOpenTooltipId] = useState<string | null>(null);
 
   return (
     <aside className="app-rail dark" aria-label="主导航">
@@ -28,11 +26,7 @@ export function AppRail() {
               const isCurrent = workspace.id === currentWorkspaceId;
 
               return (
-                <Tooltip
-                  key={workspace.id}
-                  open={openTooltipId === workspace.id}
-                  onOpenChange={(open) => setOpenTooltipId(open ? workspace.id : null)}
-                >
+                <Tooltip key={workspace.id}>
                   <TooltipTrigger
                     render={
                       <Button
