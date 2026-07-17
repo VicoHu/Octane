@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -64,22 +64,27 @@ export const UnlockModal: React.FC = () => {
     }
   }, [visible, mode]);
 
+  // 防双触发：Enter 连按时避免并发 setup/unlock/reset，防止 session 与密码元数据错乱
+  const submittingRef = useRef(false);
+
   const handleSubmit = async () => {
-    setError('');
-
-    // setup / reset 需要二次确认 + 长度校验
-    if (mode === 'setup' || mode === 'reset') {
-      if (password.length < 12) {
-        setError('密码至少 12 个字符');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError('两次密码不一致');
-        return;
-      }
-    }
-
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
+      setError('');
+
+      // setup / reset 需要二次确认 + 长度校验
+      if (mode === 'setup' || mode === 'reset') {
+        if (password.length < 12) {
+          setError('密码至少 12 个字符');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError('两次密码不一致');
+          return;
+        }
+      }
+
       if (mode === 'reset') {
         await resetPassword(password);
         Toast.success('主密码已重设');
@@ -94,6 +99,8 @@ export const UnlockModal: React.FC = () => {
       setConfirmPassword('');
     } catch (e) {
       setError(mode === 'unlock' ? '密码错误' : (e as Error).message);
+    } finally {
+      submittingRef.current = false;
     }
   };
 

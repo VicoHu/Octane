@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,9 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  // 防双触发：Enter 连按或弹窗关闭重开时，避免并发 reencryptAllContexts 导致
+  // 部分 context 用新密钥而 cryptoMetadata 仍指向旧密钥（永久无法解密，数据丢失）
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
@@ -32,25 +35,29 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
   }, [visible]);
 
   const handleSubmit = async () => {
-    setError('');
-    if (newPassword.length < 12) {
-      setError('新密码至少 12 个字符');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('两次新密码不一致');
-      return;
-    }
-    if (newPassword === oldPassword) {
-      setError('新密码不能与旧密码相同');
-      return;
-    }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
+      setError('');
+      if (newPassword.length < 12) {
+        setError('新密码至少 12 个字符');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setError('两次新密码不一致');
+        return;
+      }
+      if (newPassword === oldPassword) {
+        setError('新密码不能与旧密码相同');
+        return;
+      }
       await changePassword(oldPassword, newPassword);
       Toast.success('主密码已修改，加密笔记已同步');
       onClose();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      submittingRef.current = false;
     }
   };
 

@@ -230,7 +230,7 @@ export function CloudBackupSection() {
       </div>
 
       <div className={styles.actions}>
-        <Button variant="outline" disabled={disabled || busy} onClick={handleTest}>
+        <Button variant="outline" disabled={disabled} onClick={handleTest}>
           {busy && <Spinner />}
           测试连接
         </Button>
@@ -243,15 +243,15 @@ export function CloudBackupSection() {
       </Typography.Text>
 
       <div className={styles.actions}>
-        <Button variant="default" disabled={disabled || busy} onClick={handleUpload}>
+        <Button variant="default" disabled={disabled} onClick={handleUpload}>
           {busy && <Spinner />}
           上传备份
         </Button>
         <Button variant="destructive" disabled={disabled} onClick={handleRestoreClick}>从云恢复</Button>
       </div>
 
-      <Dialog open={restoreData !== null} onOpenChange={(o) => !o && setRestoreData(null)} disablePointerDismissal>
-        <DialogContent>
+      <Dialog open={restoreData !== null} onOpenChange={(o) => !o && !busy && setRestoreData(null)} disablePointerDismissal>
+        <DialogContent showCloseButton={!busy}>
           <DialogHeader>
             <DialogTitle>确认覆盖全部数据</DialogTitle>
           </DialogHeader>

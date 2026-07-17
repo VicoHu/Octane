@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,15 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // 防双触发：Enter 连按时避免并发 unlock（session 广播与状态错乱）
+  const submittingRef = useRef(false);
 
   const handleSubmit = async () => {
-    setError('');
-    setLoading(true);
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
+      setError('');
+      setLoading(true);
       const ok = await unlock('sidepanel', password);
       if (ok) {
         Toast.success('已解锁');
@@ -42,6 +46,7 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
       setError((e as Error).message || '解锁失败');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 

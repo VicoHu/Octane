@@ -40,8 +40,8 @@ export function ShareImportModal({ visible, onClose }: ShareImportModalProps) {
   const importing = status === 'importing';
 
   return (
-    <Dialog open={visible} onOpenChange={(o) => !o && close()} disablePointerDismissal>
-      <DialogContent className="sm:max-w-[560px]">
+    <Dialog open={visible} onOpenChange={(o) => !o && !importing && close()} disablePointerDismissal>
+      <DialogContent className="sm:max-w-[560px]" showCloseButton={!importing}>
         <DialogHeader>
           <DialogTitle>导入分享包</DialogTitle>
         </DialogHeader>
