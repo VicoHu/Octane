@@ -46,6 +46,5 @@ describe('AppRail — 工作区导航样式', () => {
     expect(sidebarCss).toMatch(
       /@media\s*\(max-width:\s*760px\)[\s\S]*\.workspaceSection\s*\{[^}]*display:\s*flex;/,
     );
-    expect(sidebarCss).toMatch(/\.header\s*\+\s*\.sectionLabel\s*\{[^}]*display:\s*none;/);
   });
 });

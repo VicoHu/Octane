@@ -46,8 +46,6 @@
   display: none;
 }
 
-.header + .sectionLabel { display: none; }
-
 .workspaceSelect {
   display: flex;
   flex-direction: row;

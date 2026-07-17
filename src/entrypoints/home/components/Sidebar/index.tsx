@@ -27,6 +27,7 @@ import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '../ManagePanel';
 import { SettingsModal } from '../SettingsModal';
 import { PinnedArea } from '../PinnedArea';
+import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
@@ -45,15 +46,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const selectWorkspace = useWorkspace((s) => s.selectWorkspace);
   const createCategory = useWorkspace((s) => s.createCategory);
   const deleteCategory = useWorkspace((s) => s.deleteCategory);
-  const createWorkspace = useWorkspace((s) => s.createWorkspace);
   const reorderCategories = useWorkspace((s) => s.reorderCategories);
 
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('📂');
-  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [newWorkspaceIcon, setNewWorkspaceIcon] = useState('📁');
   const [showManage, setShowManage] = useState(false);
   // 待删除的分类（非 null 时显示二次确认 Modal）；确认短语输入
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
@@ -107,14 +104,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
     setShowNewCategory(false);
   };
 
-  const handleCreateWorkspace = async () => {
-    if (!newWorkspaceName.trim()) return;
-    await createWorkspace(newWorkspaceName.trim(), newWorkspaceIcon);
-    setNewWorkspaceName('');
-    setNewWorkspaceIcon('📁');
-    setShowNewWorkspace(false);
-  };
-
   // 删除分类二次确认：要求输入完整短语才解锁删除按钮（去掉所有空白以容忍空格差异）
   const expectedPhrase = deleteTarget ? `我确认删除${deleteTarget.name} 分类` : '';
   const normalize = (s: string) => s.replace(/\s+/g, '');
@@ -142,69 +131,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
         <div className={styles.title}>Octane</div>
       </div>
 
-      {/* 工作区 */}
-      <div className={styles.sectionLabel}>工作区</div>
-      <div className={styles.workspaceSelect}>
-        <Select
-          value={currentWorkspaceId}
-          onValueChange={(val) => val && selectWorkspace(val)}
-        >
-          <SelectTrigger className={styles.select}>
-            <SelectValue>
-              {(value: string | null) => {
-                const ws = workspaces.find((w) => w.id === value);
-                if (!ws) return '选择工作区';
-                return (
-                  <span className="flex items-center gap-1.5">
-                    <span aria-hidden="true">{ws.icon}</span>
-                    <span className="truncate">{ws.name}</span>
-                  </span>
-                );
-              }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {workspaces.map((ws) => (
-                <SelectItem key={ws.id} value={ws.id}>
-                  {ws.icon} {ws.name}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="新建工作区"
-          onClick={() => setShowNewWorkspace(true)}
-        >
-          <Plus />
-        </Button>
+      <div className={styles.workspaceSection}>
+        {/* 工作区 */}
+        <div className={styles.sectionLabel}>工作区</div>
+        <div className={styles.workspaceSelect}>
+          <Select
+            value={currentWorkspaceId}
+            onValueChange={(val) => val && selectWorkspace(val)}
+          >
+            <SelectTrigger className={styles.select}>
+              <SelectValue>
+                {(value: string | null) => {
+                  const ws = workspaces.find((w) => w.id === value);
+                  if (!ws) return '选择工作区';
+                  return (
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden="true">{ws.icon}</span>
+                      <span className="truncate">{ws.name}</span>
+                    </span>
+                  );
+                }}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {workspaces.map((ws) => (
+                  <SelectItem key={ws.id} value={ws.id}>
+                    {ws.icon} {ws.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <WorkspaceCreateButton />
+        </div>
       </div>
       {/* 常驻标签区：per-workspace 跨分类，挂在工作区切换下方、分类列表上方 */}
       {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} openTabs={openTabs} />}
-
-      <Dialog open={showNewWorkspace} onOpenChange={(o) => !o && setShowNewWorkspace(false)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新建工作区</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="工作区名称"
-            value={newWorkspaceName}
-            onChange={(e) => setNewWorkspaceName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleCreateWorkspace(); }}
-          />
-          <div style={{ marginTop: 12 }}>
-            <IconPicker value={newWorkspaceIcon} onChange={setNewWorkspaceIcon} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewWorkspace(false)}>取消</Button>
-            <Button onClick={handleCreateWorkspace}>确定</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 分类 */}
       <div className={styles.sectionLabel}>分类</div>
