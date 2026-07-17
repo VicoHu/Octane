@@ -23,8 +23,22 @@ describe('AppRail — 工作区导航样式', () => {
   });
 
   it('保持 Logo 和头像尺寸不变', () => {
-    expect(ruleBody(appCss, '.app-rail-logo')).toMatch(/width:\s*36px;[\s\S]*height:\s*36px;/);
-    expect(ruleBody(appCss, '.app-rail-avatar')).toMatch(/width:\s*32px;[\s\S]*height:\s*32px;/);
+    const logo = ruleBody(appCss, '.app-rail-logo');
+    const avatar = ruleBody(appCss, '.app-rail-avatar');
+
+    expect(logo).toMatch(/width:\s*36px;[\s\S]*height:\s*36px;/);
+    expect(logo).toContain('flex-shrink: 0;');
+    expect(avatar).toMatch(/width:\s*32px;[\s\S]*height:\s*32px;/);
+    expect(avatar).toContain('flex-shrink: 0;');
+  });
+
+  it('固定导航项不收缩且新旧 rail 分别保持正确间距', () => {
+    expect(ruleBody(appCss, '.app-rail-separator')).toContain('flex-shrink: 0;');
+    expect(ruleBody(appCss, '.app-rail-group')).toContain('flex-shrink: 0;');
+    expect(ruleBody(appCss, '.app-rail-group')).toContain('margin-top: 30px;');
+    expect(appCss).toMatch(
+      /\.app-rail-separator\s*\+\s*\.app-rail-group\s*\{[^}]*margin-top:\s*0;/,
+    );
   });
 
   it('工作区区块仅在 760px 以下恢复显示', () => {
@@ -32,5 +46,6 @@ describe('AppRail — 工作区导航样式', () => {
     expect(sidebarCss).toMatch(
       /@media\s*\(max-width:\s*760px\)[\s\S]*\.workspaceSection\s*\{[^}]*display:\s*flex;/,
     );
+    expect(sidebarCss).toMatch(/\.header\s*\+\s*\.sectionLabel\s*\{[^}]*display:\s*none;/);
   });
 });

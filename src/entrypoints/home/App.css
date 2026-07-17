@@ -28,6 +28,7 @@
 .app-rail-logo {
   width: 36px;
   height: 36px;
+  flex-shrink: 0;
   border-radius: 10px;
   object-fit: cover;
 }
@@ -86,13 +87,19 @@
 
 .app-rail-separator {
   width: 32px;
+  flex-shrink: 0;
   margin: 14px 0;
 }
 
 .app-rail-group {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 10px;
+  margin-top: 30px;
+}
+
+.app-rail-separator + .app-rail-group {
   margin-top: 0;
 }
 
@@ -106,7 +113,7 @@
 .app-rail-button:hover { color: #f6f8f7; background: #2b3634; }
 .app-rail-button.is-active { color: #202829; background: var(--primary); }
 .app-rail-spacer { flex: 1; }
-.app-rail-avatar { width: 32px; height: 32px; border-radius: 50%; background: #3b4744; border: 1px solid rgba(255,255,255,.18); }
+.app-rail-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: #3b4744; border: 1px solid rgba(255,255,255,.18); }
 
 .app-sidebar {
   width: 222px;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { IconPicker } from '@/components/IconPicker';
 import { Button } from '@/components/ui/button';
@@ -22,15 +22,24 @@ export function WorkspaceCreateButton({ className }: WorkspaceCreateButtonProps)
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📁');
+  const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
 
   const handleCreate = async () => {
     const trimmedName = name.trim();
-    if (!trimmedName) return;
+    if (!trimmedName || pendingRef.current) return;
 
-    await createWorkspace(trimmedName, icon);
-    setName('');
-    setIcon('📁');
-    setOpen(false);
+    pendingRef.current = true;
+    setPending(true);
+    try {
+      await createWorkspace(trimmedName, icon);
+      setName('');
+      setIcon('📁');
+      setOpen(false);
+    } finally {
+      pendingRef.current = false;
+      setPending(false);
+    }
   };
 
   return (
@@ -62,7 +71,7 @@ export function WorkspaceCreateButton({ className }: WorkspaceCreateButtonProps)
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
-            <Button onClick={() => void handleCreate()}>确定</Button>
+            <Button disabled={pending} onClick={() => void handleCreate()}>确定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
