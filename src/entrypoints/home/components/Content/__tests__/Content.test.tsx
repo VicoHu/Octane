@@ -14,11 +14,18 @@ vi.mock('@/components/ui/toast', () => ({
 
 // 可控 useBookmarks 状态(测试间重置)
 let bookmarksState: Record<string, unknown>;
+let pinnedTabsState: Record<string, unknown>;
 vi.mock('@/store/useBookmarks', () => ({
   useBookmarks: (sel: (s: Record<string, unknown>) => unknown) => sel(bookmarksState),
 }));
 vi.mock('@/store/useSearch', () => ({
   useSearch: (sel: (s: Record<string, unknown>) => unknown) => sel({ query: '', setQuery: vi.fn() }),
+}));
+vi.mock('@/store/usePinnedTabs', () => ({
+  usePinnedTabs: (sel: (s: Record<string, unknown>) => unknown) => sel(pinnedTabsState),
+}));
+vi.mock('@/hooks/useFavicon', () => ({
+  useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:test', onError: vi.fn() })),
 }));
 
 import { Content } from '../../Content';
@@ -43,6 +50,15 @@ beforeEach(() => {
     currentWorkspaceId: 'w1',
     workspaces: [],
   });
+  pinnedTabsState = {
+    pinnedTabs: [],
+    loading: false,
+    loadPinnedTabs: vi.fn(),
+    createPinnedTab: vi.fn(async (_ws: string, data: { name: string; url: string }) =>
+      ({ id: 'p1', workspaceId: _ws, name: data.name, url: data.url, order: 0, createdAt: 0 }) as never),
+    deletePinnedTab: vi.fn(),
+    reorderPinnedTabs: vi.fn(),
+  };
 
 });
 
@@ -122,5 +138,20 @@ describe('Content 添加书签反馈', () => {
     render(toast.content);
 
     expect(screen.getByRole('button', { name: '添加上下文' })).toBeInTheDocument();
+  });
+});
+
+describe('Content 存为常驻标签', () => {
+  it('标签页视图点「存为常驻标签」→ 弹 Dialog 预填 tab.url/title', async () => {
+    const user = userEvent.setup();
+    const openTabs: OpenTab[] = [{
+      url: 'https://github.com', tabId: 1, lastAccessed: 0, title: 'GitHub',
+    }];
+    render(<Content openTabs={openTabs} />);
+    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    await user.click(screen.getByRole('button', { name: '存为常驻标签' }));
+
+    expect(screen.getByPlaceholderText(/url|链接/i)).toHaveValue('https://github.com');
+    expect(screen.getByPlaceholderText(/名称/)).toHaveValue('GitHub');
   });
 });
