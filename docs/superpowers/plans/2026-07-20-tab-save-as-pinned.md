@@ -226,7 +226,7 @@ describe('AddPinnedTabDialog', () => {
     expect(screen.getByRole('button', { name: /确定/i })).toBeDisabled();
   });
 
-  it('open 由 false→true → 用最新 initialUrl/initialName 重置(防上次残留)', () => {
+  it('open 由 false→true → 用最新 initialUrl/initialName 重置(防上次残留)', async () => {
     const { rerender } = render(
       <AddPinnedTabDialog open={false} onOpenChange={() => {}} workspaceId="ws-1"
         initialUrl="https://a.com" initialName="A" />,
@@ -236,7 +236,8 @@ describe('AddPinnedTabDialog', () => {
       <AddPinnedTabDialog open onOpenChange={() => {}} workspaceId="ws-1"
         initialUrl="https://b.com" initialName="B" />,
     );
-    expect(screen.getByPlaceholderText(/url|链接/i)).toHaveValue('https://b.com');
+    // 预填靠 useEffect([open]);effect 异步,用 waitFor 等待重置生效
+    await waitFor(() => expect(screen.getByPlaceholderText(/url|链接/i)).toHaveValue('https://b.com'));
     expect(screen.getByPlaceholderText(/名称/)).toHaveValue('B');
   });
 });
@@ -510,7 +511,8 @@ describe('TabList — 存为常驻标签', () => {
         onTabClick={() => {}} onSaveTab={() => {}}
         pinnedTabs={pinnedTabs} onPinTab={() => {}} />,
     );
-    expect(screen.getByRole('button', { name: /存为常驻标签|已常驻/ })).toBeDisabled();
+    // 按钮用 aria-label=pinHint 提供 accessible name(icon-only)
+    expect(screen.getByRole('button', { name: '已常驻' })).toBeDisabled();
   });
 
   it('未命中且未满 → 按钮可用', () => {
@@ -520,7 +522,7 @@ describe('TabList — 存为常驻标签', () => {
         onTabClick={() => {}} onSaveTab={() => {}}
         pinnedTabs={[]} onPinTab={() => {}} />,
     );
-    expect(screen.getByRole('button', { name: /存为常驻标签/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '存为常驻标签' })).toBeEnabled();
   });
 
   it('cap 满(8) → 按钮禁用', () => {
@@ -543,7 +545,7 @@ describe('TabList — 存为常驻标签', () => {
         onTabClick={() => {}} onSaveTab={() => {}}
         pinnedTabs={[]} onPinTab={onPinTab} />,
     );
-    await user.click(screen.getByRole('button', { name: /存为常驻标签/ }));
+    await user.click(screen.getByRole('button', { name: '存为常驻标签' }));
     expect(onPinTab).toHaveBeenCalledWith(tab);
   });
 });
@@ -616,6 +618,7 @@ import { normalizePinnedTabUrl, PINNED_TAB_CAP } from '@/services/PinnedTabServi
                 disabled={pinDisabled}
                 className={cn(styles.saveBtn, 'text-base')}
                 onClick={onPin}
+                aria-label={pinHint}
               />
             }
           >
@@ -751,7 +754,7 @@ import { AddPinnedTabDialog } from '../AddPinnedTabDialog';
       <AddPinnedTabDialog
         open={pinDialogOpen}
         onOpenChange={setPinDialogOpen}
-        workspaceId={currentWorkspaceId}
+        workspaceId={currentWorkspaceId ?? ''}
         initialUrl={pinFromTab?.url ?? ''}
         initialName={pinFromTab?.title ?? ''}
       />
