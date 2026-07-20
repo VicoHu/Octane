@@ -17,10 +17,10 @@ function generateId(): string {
  * - 去 hash（客户端锚点，不改变目标页面）
  * 无效 URL（new URL 抛错）回退原串比较。
  */
-function normalizeUrl(raw: string): string {
+export function normalizePinnedTabUrl(raw: string): string {
   try {
     const u = new URL(raw);
-    return `${u.protocol.toLowerCase()}://${u.hostname.toLowerCase()}${u.pathname || '/'}${u.search}`;
+    return `${u.protocol.toLowerCase()}//${u.hostname.toLowerCase()}${u.pathname || '/'}${u.search}`;
   } catch {
     return raw;
   }
@@ -70,8 +70,8 @@ export async function createPinnedTab(
   const store = tx.objectStore('pinnedTabs');
   const existing = await store.index('by-workspaceId').getAll(workspaceId);
 
-  const targetUrl = normalizeUrl(data.url);
-  if (existing.some((p) => normalizeUrl(p.url) === targetUrl)) {
+  const targetUrl = normalizePinnedTabUrl(data.url);
+  if (existing.some((p) => normalizePinnedTabUrl(p.url) === targetUrl)) {
     throw new Error('该 URL 已是该工作区的常驻标签');
   }
   if (existing.length >= PINNED_TAB_CAP) {
