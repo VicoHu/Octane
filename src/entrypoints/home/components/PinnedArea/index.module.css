@@ -181,16 +181,6 @@
   cursor: not-allowed;
 }
 
-.modalForm {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.previewRow {
-  margin-top: var(--space-xs);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .chip,
   .deleteBtn,

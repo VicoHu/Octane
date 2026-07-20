@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
 import { Plus, X } from 'lucide-react';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { useFavicon } from '@/hooks/useFavicon';
-import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import { PINNED_TAB_CAP } from '@/services/PinnedTabService';
+import { AddPinnedTabDialog } from '../AddPinnedTabDialog';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
 import dndStyles from '../dnd/dnd.module.css';
@@ -50,7 +48,6 @@ interface PinnedAreaProps {
 export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
   const pinnedTabs = usePinnedTabs((s) => s.pinnedTabs);
   const loadPinnedTabs = usePinnedTabs((s) => s.loadPinnedTabs);
-  const createPinnedTab = usePinnedTabs((s) => s.createPinnedTab);
   const deletePinnedTab = usePinnedTabs((s) => s.deletePinnedTab);
   const reorderPinnedTabs = usePinnedTabs((s) => s.reorderPinnedTabs);
 
@@ -58,9 +55,7 @@ export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
     loadPinnedTabs(workspaceId);
   }, [workspaceId, loadPinnedTabs]);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [url, setUrl] = useState('');
-  const [name, setName] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
 
   // === T7 chip 拖拽 ===
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
@@ -111,23 +106,7 @@ export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
       Toast.warning(`该工作区常驻标签已满 (${PINNED_TAB_CAP}/${PINNED_TAB_CAP})`);
       return;
     }
-    setUrl('');
-    setName('');
-    setModalOpen(true);
-  };
-
-  const handleCreate = async () => {
-    const u = url.trim();
-    const n = name.trim();
-    if (!u || !n) return;
-    try {
-      await createPinnedTab(workspaceId, { url: u, name: n });
-      Toast.success(`已常驻「${n}」`);
-      setModalOpen(false);
-    } catch (e) {
-      // cap/dedup 错误：Toast 提示，不抛到 UI（store 已保持切片不变）
-      Toast.warning((e as Error).message);
-    }
+    setAddOpen(true);
   };
 
   return (
@@ -184,29 +163,13 @@ export function PinnedArea({ workspaceId, openTabs }: PinnedAreaProps) {
         </Button>
       </div>
 
-      <Dialog
-        open={modalOpen}
-        onOpenChange={(open) => {
-          if (!open) setModalOpen(false);
-        }}
-        disablePointerDismissal
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加常驻标签</DialogTitle>
-          </DialogHeader>
-          <div className={styles.modalForm}>
-            <Input placeholder="链接 URL" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="常驻标签 URL" />
-            <Input placeholder="名称" value={name} onChange={(e) => setName(e.target.value)} aria-label="常驻标签名称" />
-            <div className={styles.previewRow}>
-              <BookmarkFaviconPreview url={url} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="default" onClick={handleCreate}>确定</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddPinnedTabDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        workspaceId={workspaceId}
+        initialUrl=""
+        initialName=""
+      />
     </div>
   );
 }
