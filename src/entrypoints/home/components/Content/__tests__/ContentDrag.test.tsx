@@ -4,6 +4,7 @@ import type { Bookmark } from '@/shared/types';
 
 // 可控状态(测试间重置)
 let bookmarksState: Record<string, unknown>;
+let pinnedTabsState: Record<string, unknown>;
 let searchState: { query: string; setQuery: (v: string) => void };
 
 vi.mock('@/store/useBookmarks', () => ({
@@ -11,6 +12,9 @@ vi.mock('@/store/useBookmarks', () => ({
 }));
 vi.mock('@/store/useSearch', () => ({
   useSearch: (sel: (s: { query: string; setQuery: (v: string) => void }) => unknown) => sel(searchState),
+}));
+vi.mock('@/store/usePinnedTabs', () => ({
+  usePinnedTabs: (sel: (s: Record<string, unknown>) => unknown) => sel(pinnedTabsState),
 }));
 vi.mock('@/hooks/useFavicon', () => ({ useFavicon: vi.fn(() => null) }));
 vi.mock('../../hooks/useOpenTabs', () => ({ useOpenTabs: () => [] }));
@@ -52,6 +56,14 @@ beforeEach(() => {
     createBookmark: vi.fn(),
     refreshBookmark: vi.fn(),
     reorderBookmarks: vi.fn(),
+  };
+  pinnedTabsState = {
+    pinnedTabs: [],
+    loading: false,
+    loadPinnedTabs: vi.fn(),
+    createPinnedTab: vi.fn(),
+    deletePinnedTab: vi.fn(),
+    reorderPinnedTabs: vi.fn(),
   };
   useWorkspace.setState({
     categories: [{ id: 'c1', workspaceId: 'w1', name: '工作', icon: '💼', order: 0, createdAt: 0 }],
