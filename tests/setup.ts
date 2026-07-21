@@ -30,6 +30,30 @@ if (!('IntersectionObserver' in globalThis)) {
     IntersectionObserverPolyfill;
 }
 
+// jsdom 无 chrome 扩展 API；Sidebar / usePendingUpdate 等组件读取 chrome.runtime.getManifest
+// 与 chrome.storage.onChanged。补全最小 polyfill，让不专门 mock chrome 的组件测试能渲染。
+// 专门测 chrome 副作用的测试用 installChromeStorageLocal（@/test/storageMock）覆盖。
+// WXT fake-browser 注入 chrome，但 runtime.getManifest 是未实现 stub（抛 not implemented），
+// storage.onChanged 也未实现。Sidebar（版本号）/ usePendingUpdate 依赖它们。
+// 在每个 test 前覆盖为可用实现（vitest 全局 beforeEach FIFO：fake-browser reset 先，
+// 本 setup 的 beforeEach 后，故覆盖 reset）。测试自建 chrome mock 覆盖时自行补全。
+beforeEach(() => {
+  const c = (globalThis as Record<string, unknown>).chrome as
+    | { runtime?: Record<string, unknown>; storage?: Record<string, unknown> }
+    | undefined;
+  if (c?.runtime) c.runtime.getManifest = () => ({ version: '0.0.0' });
+  if (c?.storage) {
+    c.storage.onChanged = { addListener: () => {}, removeListener: () => {} };
+    // usePendingUpdate → readPendingUpdate 读 storage.local.get；fake-browser 未实现，提供空实现。
+    // 测 storage 副作用的测试用 installChromeStorageLocal 覆盖。
+    c.storage.local = {
+      get: async () => ({}),
+      set: async () => {},
+      remove: async () => {},
+    };
+  }
+});
+
 afterEach(() => {
   cleanup();
 });
