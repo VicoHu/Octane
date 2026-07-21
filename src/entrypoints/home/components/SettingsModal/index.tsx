@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,18 +12,28 @@ import { BackupSyncTabs } from '@/components/backup/BackupSyncTabs';
 import { PasswordSection } from './sections/PasswordSection';
 import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
 import { FaviconCacheSection } from './sections/FaviconCacheSection';
+import { AboutSection } from './sections/AboutSection';
 import styles from './index.module.css';
 
 interface SettingsModalProps {
   visible: boolean;
   onCancel: () => void;
+  /** 打开时默认激活的 Tab（sidebar 版本标记点击时传 'about'）。 */
+  initialTab?: string;
 }
 
 /**
  * 系统设置中心：左侧分类导航 + 右侧设置详情。
- * 四分区：快捷键 / 数据备份和同步 / 数据维护 / 主密码。
+ * 五分区：快捷键 / 数据备份和同步 / 数据维护 / 主密码 / 关于。
  */
-export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
+export function SettingsModal({ visible, onCancel, initialTab = 'shortcuts' }: SettingsModalProps) {
+  const [tab, setTab] = useState(initialTab);
+
+  // 每次打开按 initialTab 重置（支持 sidebar 标记点击直跳「关于」）
+  useEffect(() => {
+    if (visible) setTab(initialTab);
+  }, [visible, initialTab]);
+
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className={styles.dialogContent}>
@@ -32,12 +43,13 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
             管理快捷键、数据与安全选项
           </DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="shortcuts" orientation="vertical" className={styles.settingsTabs}>
+        <Tabs value={tab} onValueChange={setTab} orientation="vertical" className={styles.settingsTabs}>
           <TabsList variant="line" aria-label="设置分类" className={styles.settingsNav}>
             <TabsTrigger value="shortcuts">快捷键</TabsTrigger>
             <TabsTrigger value="backup">数据备份和同步</TabsTrigger>
             <TabsTrigger value="maintenance">数据维护</TabsTrigger>
             <TabsTrigger value="password">主密码</TabsTrigger>
+            <TabsTrigger value="about">关于</TabsTrigger>
           </TabsList>
           <TabsContent value="shortcuts" className={styles.settingsContent}>
             <header className={styles.sectionHeader}>
@@ -67,6 +79,13 @@ export function SettingsModal({ visible, onCancel }: SettingsModalProps) {
             </header>
             <PasswordSection />
             <EncryptionTtlSection />
+          </TabsContent>
+          <TabsContent value="about" className={styles.settingsContent}>
+            <header className={styles.sectionHeader}>
+              <h2>关于</h2>
+              <p>版本信息、开源仓库与更新。</p>
+            </header>
+            <AboutSection />
           </TabsContent>
         </Tabs>
       </DialogContent>
