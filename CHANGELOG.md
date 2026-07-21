@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.1.13.1] - 2026-07-22
+
+### Added
+
+- **关于与更新提示**：设置中心加「关于」分区——一眼看到当前版本号、分发渠道（Chrome 商店 / Edge / 手动安装）、作者与开源仓库链接；sidebar「Octane」旁常驻版本号，Chrome 检测到商店有新版时弹出小标记并按你的安装渠道引导更新（`onUpdateAvailable` 被动感知，零新增权限、零隐私增量）。渠道识别用 `chrome.runtime.id`（CWS 已上架 / Edge 待补 / 手动安装 fallback）。
+
 ## [0.1.13.0] - 2026-07-18
 
 ### Added

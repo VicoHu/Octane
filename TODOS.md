@@ -49,3 +49,7 @@
 ## 0.1.13.0 — AppRail 占位按钮待接线
 
 - **搜索 / 打开标签页按钮**：AppRail 左栏「搜索」「打开标签页」按钮本期为占位（disabled，ship 前 review 发现为死按钮）。后续需接线：搜索 → 聚焦 / 打开搜索入口；打开标签页 → 对应 home「标签页」视图（0.1.6.0）或 chrome.tabs 列表。相关：`src/entrypoints/home/components/AppRail/index.tsx`。
+
+## 待确认 — 插件 License
+
+- **仓库 License 待确认**：仓库根暂无 LICENSE 文件。「关于」Tab 是否显示 License 项、显示何值，待确认仓库实际 License 类型后决定（可能需补 LICENSE 文件）。来源：关于 Tab + 新版本检测特性设计（2026-07-22，`docs/superpowers/specs/2026-07-22-about-tab-update-check-design.md`）。

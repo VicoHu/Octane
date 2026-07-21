@@ -26,6 +26,7 @@ import type { Category } from '@/shared/types';
 import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '../ManagePanel';
 import { SettingsModal } from '../SettingsModal';
+import { usePendingUpdate } from '../../hooks/usePendingUpdate';
 import { PinnedArea } from '../PinnedArea';
 import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 import type { OpenTab } from '../../hooks/useOpenTabs';
@@ -33,6 +34,12 @@ import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
 import dndStyles from '../dnd/dnd.module.css';
 import styles from './index.module.css';
+
+// 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 ShortcutsSection.tsx）。
+declare const chrome: unknown;
+interface ChromeLike {
+  runtime: { getManifest(): { version: string } };
+}
 
 interface SidebarProps {
   openTabs: OpenTab[];
@@ -57,6 +64,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const [confirmText, setConfirmText] = useState('');
   // 系统设置中心（统一收纳快捷键 / 数据备份 / 主密码，见 SettingsModal）
   const [showSettings, setShowSettings] = useState(false);
+
+  const { version: pendingVersion } = usePendingUpdate();
+  const appVersion = (chrome as unknown as ChromeLike).runtime.getManifest().version;
+  // sidebar 版本标记点击 → 打开设置「关于」Tab
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'about' | undefined>(undefined);
 
   // === T6 分类拖拽排序 ===
   // activationConstraint distance:8 兜底(grip listener)
@@ -140,6 +152,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <div className={styles.header}>
         <img className={styles.logo} src="/icons/icon-128.png" alt="Octane" />
         <div className={styles.title}>Octane</div>
+        <span className={styles.version}>v{appVersion}</span>
+        {pendingVersion && (
+          <button
+            type="button"
+            className={styles.updateBadge}
+            aria-label={`新版本 v${pendingVersion} 可用，点击查看`}
+            title={`新版本 v${pendingVersion} 可用，点击查看`}
+            onClick={() => {
+              setSettingsInitialTab('about');
+              setShowSettings(true);
+            }}
+          >
+            ↑
+          </button>
+        )}
       </div>
 
       {currentWorkspace && (
@@ -356,7 +383,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <ManagePanel visible={showManage} onCancel={() => setShowManage(false)} />
 
       {/* 系统设置中心 */}
-      <SettingsModal visible={showSettings} onCancel={() => setShowSettings(false)} />
+      <SettingsModal
+        visible={showSettings}
+        initialTab={settingsInitialTab}
+        onCancel={() => {
+          setShowSettings(false);
+          // 复位一次性打开参数：避免 ↑ badge 设过 'about' 后，底部「设置」按钮永远卡在关于 Tab
+          setSettingsInitialTab(undefined);
+        }}
+      />
     </div>
   );
 };

@@ -45,10 +45,16 @@ beforeEach(() => {
     currentWorkspaceId: null,
     currentCategoryId: null,
   });
-  // ShortcutsSection 读 chrome.commands.getAll
+  // ShortcutsSection 读 chrome.commands.getAll；Sidebar 读 runtime.getManifest（版本号）
+  // + usePendingUpdate 读 storage.onChanged
   (globalThis as any).chrome = {
     commands: { getAll: vi.fn(async () => [] as any[]) },
     tabs: { create: vi.fn(async () => undefined) },
+    runtime: { getManifest: () => ({ version: '0.1.13.0' }) },
+    storage: {
+      onChanged: { addListener: () => {}, removeListener: () => {} },
+      local: { get: async () => ({}), set: async () => {}, remove: async () => {} },
+    },
   };
 });
 
