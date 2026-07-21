@@ -31,6 +31,9 @@ const store = vi.hoisted(() => ({
   uploadCloudBackup: vi.fn(),
   restoreFromCloud: vi.fn(),
   applyCloudRestore: vi.fn(),
+  listCloudBackups: vi.fn(),
+  restoreCloudVersion: vi.fn(),
+  deleteCloudBackup: vi.fn(),
 }));
 vi.mock('@/store/useBackup', () => ({
   useBackup: { getState: () => store },
@@ -197,5 +200,92 @@ describe('CloudBackupSection', () => {
     await userEvent.click(screen.getByText('我了解此操作不可撤销'));
     await userEvent.click(btn('确认覆盖'));
     await waitFor(() => expect(store.applyCloudRestore).toHaveBeenCalledWith(okData));
+  });
+
+  describe('版本历史 Dialog', () => {
+    const version = {
+      id: 'octane-backup-d1-1784622432000-aaaaaaaa',
+      key: 'k1',
+      device: 'd1',
+      timestamp: 1784622432000,
+      size: 2048,
+    };
+
+    it('点击「历史版本」→ listCloudBackups → 列表（时间倒序 + 大小格式化 + 恢复/删除按钮）', async () => {
+      store.listCloudBackups.mockResolvedValue([
+        version,
+        { ...version, id: 'octane-backup-d1-1784622000000-bbbbbbbb', timestamp: 1784622000000, size: 1024 },
+      ]);
+      render(<CloudBackupSection />);
+      await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
+      await userEvent.click(btn('历史版本'));
+      await waitFor(() => expect(store.listCloudBackups).toHaveBeenCalledWith('s3'));
+      // 最新版本时间在前
+      await waitFor(() =>
+        expect(screen.getByText(new Date(1784622432000).toLocaleString())).toBeTruthy(),
+      );
+      expect(screen.getByText('2.0 KB')).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: '恢复' })).toHaveLength(2);
+      expect(screen.getAllByRole('button', { name: '删除' })).toHaveLength(2);
+    });
+
+    it('空列表 → 显示「暂无历史版本」', async () => {
+      store.listCloudBackups.mockResolvedValue([]);
+      render(<CloudBackupSection />);
+      await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
+      await userEvent.click(btn('历史版本'));
+      await waitFor(() => expect(screen.getByText('暂无历史版本')).toBeTruthy());
+    });
+
+    it('加载失败 → 显示错误 + 重试成功', async () => {
+      store.listCloudBackups
+        .mockRejectedValueOnce(new Error('网络错误'))
+        .mockResolvedValueOnce([]);
+      render(<CloudBackupSection />);
+      await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
+      await userEvent.click(btn('历史版本'));
+      await waitFor(() => expect(screen.getByText(/网络错误/)).toBeTruthy());
+      await userEvent.click(btn('重试'));
+      await waitFor(() => expect(store.listCloudBackups).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(screen.getByText('暂无历史版本')).toBeTruthy());
+    });
+
+    it('恢复指定版本 → restoreCloudVersion → 复用破坏性确认 Dialog', async () => {
+      store.listCloudBackups.mockResolvedValue([version]);
+      store.restoreCloudVersion.mockResolvedValue(okData);
+      render(<CloudBackupSection />);
+      await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
+      await userEvent.click(btn('历史版本'));
+      await waitFor(() =>
+        expect(store.listCloudBackups).toHaveBeenCalledWith('s3'),
+      );
+      const restoreBtns = await screen.findAllByRole('button', { name: '恢复' });
+      await userEvent.click(restoreBtns[0]!);
+      await waitFor(() =>
+        expect(store.restoreCloudVersion).toHaveBeenCalledWith(
+          's3',
+          'octane-backup-d1-1784622432000-aaaaaaaa',
+        ),
+      );
+      await waitFor(() => expect(screen.getByText('确认覆盖全部数据')).toBeTruthy());
+    });
+
+    it('删除指定版本 → deleteCloudBackup + 刷新列表', async () => {
+      store.listCloudBackups.mockResolvedValueOnce([version]).mockResolvedValueOnce([]);
+      store.deleteCloudBackup.mockResolvedValue(undefined);
+      render(<CloudBackupSection />);
+      await waitFor(() => expect(screen.getByText('上传备份')).toBeTruthy());
+      await userEvent.click(btn('历史版本'));
+      const deleteBtns = await screen.findAllByRole('button', { name: '删除' });
+      await userEvent.click(deleteBtns[0]!);
+      await waitFor(() =>
+        expect(store.deleteCloudBackup).toHaveBeenCalledWith(
+          's3',
+          'octane-backup-d1-1784622432000-aaaaaaaa',
+        ),
+      );
+      await waitFor(() => expect(screen.getByText('暂无历史版本')).toBeTruthy());
+      await waitFor(() => expect(Toast.success).toHaveBeenCalled());
+    });
   });
 });

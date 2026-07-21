@@ -19,6 +19,8 @@ const cloud = vi.hoisted(() => ({
   testConnection: vi.fn(),
   uploadBackup: vi.fn(),
   downloadBackup: vi.fn(),
+  listBackups: vi.fn(),
+  deleteBackup: vi.fn(),
 }));
 vi.mock('@/services/CloudStorageService', () => cloud);
 
@@ -39,6 +41,8 @@ beforeEach(() => {
   cloud.testConnection.mockReset();
   cloud.uploadBackup.mockReset();
   cloud.downloadBackup.mockReset();
+  cloud.listBackups.mockReset();
+  cloud.deleteBackup.mockReset();
 });
 
 describe('useBackup', () => {
@@ -147,5 +151,42 @@ describe('useBackup cloud actions', () => {
   it('applyCloudRestore background 失败 → throw', async () => {
     sendMessage.mockResolvedValue({ ok: false, error: '写入失败' });
     await expect(useBackup.getState().applyCloudRestore(okData)).rejects.toThrow('写入失败');
+  });
+
+  it('listCloudBackups → 委托 CloudStorageService.listBackups', async () => {
+    const list = [
+      { id: 'octane-backup-d1-1-a1b2c3d4', key: 'k', device: 'd1', timestamp: 1, size: 10 },
+    ];
+    cloud.listBackups.mockResolvedValue(list);
+    expect(await useBackup.getState().listCloudBackups('s3')).toBe(list);
+    expect(cloud.listBackups).toHaveBeenCalledWith('s3');
+  });
+
+  it('restoreCloudVersion → downloadBackup(id, versionId) → parseBackupFile → data', async () => {
+    cloud.downloadBackup.mockResolvedValue(new Blob(['x']));
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({
+      ok: true,
+      kind: 'backup',
+      data: okData,
+    });
+    const data = await useBackup
+      .getState()
+      .restoreCloudVersion('s3', 'octane-backup-d1-1-a1b2c3d4');
+    expect(cloud.downloadBackup).toHaveBeenCalledWith('s3', 'octane-backup-d1-1-a1b2c3d4');
+    expect(data).toEqual(okData);
+  });
+
+  it('restoreCloudVersion 解析失败 → throw', async () => {
+    cloud.downloadBackup.mockResolvedValue(new Blob(['x']));
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: false, error: '坏备份' });
+    await expect(
+      useBackup.getState().restoreCloudVersion('s3', 'octane-backup-d1-1-a1b2c3d4'),
+    ).rejects.toThrow('坏备份');
+  });
+
+  it('deleteCloudBackup → 委托 CloudStorageService.deleteBackup', async () => {
+    cloud.deleteBackup.mockResolvedValue(undefined);
+    await useBackup.getState().deleteCloudBackup('s3', 'octane-backup-d1-1-a1b2c3d4');
+    expect(cloud.deleteBackup).toHaveBeenCalledWith('s3', 'octane-backup-d1-1-a1b2c3d4');
   });
 });

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { parseBackupFile, buildBackupBlob } from '@/services/BackupService';
 import * as CloudStorageService from '@/services/CloudStorageService';
 import type { BackupData } from '@/shared/types';
-import type { ProviderId, CloudStorageConfig } from '@/services/cloud/types';
+import type { BackupVersion, ProviderId, CloudStorageConfig } from '@/services/cloud/types';
 
 export type BackupStatus = 'idle' | 'validating' | 'confirming' | 'running' | 'success' | 'error';
 
@@ -21,9 +21,19 @@ interface BackupState {
   uploadCloudBackup: (id: ProviderId) => Promise<void>;
   restoreFromCloud: (id: ProviderId) => Promise<BackupData>;
   applyCloudRestore: (data: BackupData) => Promise<void>;
+  listCloudBackups: (id: ProviderId) => Promise<BackupVersion[]>;
+  restoreCloudVersion: (id: ProviderId, versionId: string) => Promise<BackupData>;
+  deleteCloudBackup: (id: ProviderId, versionId: string) => Promise<void>;
 }
 
 const INITIAL = { status: 'idle' as BackupStatus, errorMessage: null as string | null, pendingData: null as BackupData | null };
+
+/** 下载的 cloud blob → parseBackupFile 校验 → BackupData（restoreFromCloud GET latest 与 restoreCloudVersion 指定版本共用）。 */
+async function parseCloudBlob(blob: Blob): Promise<BackupData> {
+  const r = await parseBackupFile(new File([blob], 'octane-cloud-backup.json'));
+  if (!r.ok) throw new Error(r.error);
+  return r.data;
+}
 
 export const useBackup = create<BackupState>((set, get) => ({
   ...INITIAL,
@@ -93,14 +103,15 @@ export const useBackup = create<BackupState>((set, get) => ({
     const blob = await buildBackupBlob();
     await CloudStorageService.uploadBackup(id, blob);
   },
-  restoreFromCloud: async (id) => {
-    const blob = await CloudStorageService.downloadBackup(id);
-    const r = await parseBackupFile(new File([blob], 'octane-cloud-backup.json'));
-    if (!r.ok) throw new Error(r.error);
-    return r.data;
-  },
+  restoreFromCloud: async (id) => parseCloudBlob(await CloudStorageService.downloadBackup(id)),
+  restoreCloudVersion: async (id, versionId) =>
+    parseCloudBlob(await CloudStorageService.downloadBackup(id, versionId)),
   applyCloudRestore: async (data) => {
     const res = await browser.runtime.sendMessage({ type: 'octane:apply-import', data });
     if (!res || !res.ok) throw new Error((res?.error as string) || '恢复失败');
+  },
+  listCloudBackups: async (id) => CloudStorageService.listBackups(id),
+  deleteCloudBackup: async (id, versionId) => {
+    await CloudStorageService.deleteBackup(id, versionId);
   },
 }));
