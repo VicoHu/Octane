@@ -19,7 +19,7 @@ interface SettingsModalProps {
   visible: boolean;
   onCancel: () => void;
   /** 打开时默认激活的 Tab（sidebar 版本标记点击时传 'about'）。 */
-  initialTab?: string;
+  initialTab?: 'shortcuts' | 'backup' | 'maintenance' | 'password' | 'about';
 }
 
 /**

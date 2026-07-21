@@ -40,11 +40,11 @@
   margin-left: 0.25rem;
 }
 
-/* badge 醒目色实现时对齐 DESIGN.md 当前品牌色 token（参考 sidebar 内其他 accent 用法） */
+/* badge 醒目色：品牌绿（--sidebar-accent token 待 DESIGN.md 定义，暂用固定值） */
 .updateBadge {
   margin-left: auto;
   border: none;
-  background: var(--sidebar-accent, #00B894);
+  background: #00B894;
   color: white;
   width: 18px;
   height: 18px;

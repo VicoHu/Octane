@@ -68,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const { version: pendingVersion } = usePendingUpdate();
   const appVersion = (chrome as unknown as ChromeLike).runtime.getManifest().version;
   // sidebar 版本标记点击 → 打开设置「关于」Tab
-  const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'about' | undefined>(undefined);
 
   // === T6 分类拖拽排序 ===
   // activationConstraint distance:8 兜底(grip listener)
