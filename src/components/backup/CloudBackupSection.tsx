@@ -15,7 +15,7 @@ import { cloudProviders, getCloudProvider } from '@/services/cloud/providers';
 import { getCloudConfig, getLastBackupAt } from '@/services/CloudStorageService';
 import { S3_PRESETS, WEBDAV_PRESETS } from '@/services/cloud/presets';
 import type { BackupData } from '@/shared/types';
-import type { CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset, WebdavPreset } from '@/services/cloud/types';
+import type { BackupVersion, CloudStorageConfig, ConfigFieldDef, ProviderId, S3Preset, WebdavPreset } from '@/services/cloud/types';
 import styles from './CloudBackupSection.module.css';
 
 /** Tab 列表从注册表动态生成（去硬编码）。 */
@@ -26,6 +26,13 @@ function optionLabel(field: ConfigFieldDef, value: string): string {
   if (field.name === 's3Preset') return S3_PRESETS[value as S3Preset]?.label ?? value;
   if (field.name === 'webdavPreset') return WEBDAV_PRESETS[value as WebdavPreset]?.label ?? value;
   return value;
+}
+
+/** 字节数 → 人类可读（B/KB/MB），版本历史列表展示用。 */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** 云备份区：S3(阿里/腾讯)/WebDAV(坚果云) 配置 + 连通测试 + 上传/恢复（覆盖式，恢复为破坏性强确认）。popup/home 共享。 */
@@ -42,6 +49,10 @@ export function CloudBackupSection() {
   const [busy, setBusy] = useState(false);
   const [restoreData, setRestoreData] = useState<BackupData | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyStatus, setHistoryStatus] = useState<'idle' | 'loading' | 'list' | 'empty' | 'error'>('idle');
+  const [versions, setVersions] = useState<BackupVersion[]>([]);
+  const [historyError, setHistoryError] = useState('');
 
   const provider = getCloudProvider(tab);
 
@@ -174,6 +185,51 @@ export function CloudBackupSection() {
     }
   };
 
+  const loadHistory = async () => {
+    setHistoryStatus('loading');
+    try {
+      const list = await useBackup.getState().listCloudBackups(tab);
+      setVersions(list);
+      setHistoryStatus(list.length > 0 ? 'list' : 'empty');
+    } catch (e) {
+      setHistoryError((e as Error).message || '加载失败');
+      setHistoryStatus('error');
+    }
+  };
+
+  const handleOpenHistory = () => {
+    setHistoryOpen(true);
+    void loadHistory();
+  };
+
+  // 恢复指定版本：下载该 snapshot → 复用破坏性确认 Dialog（D4 initiateRestore DRY）
+  const handleRestoreVersion = async (version: BackupVersion) => {
+    setBusy(true);
+    try {
+      const data = await useBackup.getState().restoreCloudVersion(tab, version.id);
+      setRestoreData(data);
+      setConfirmed(false);
+      setHistoryOpen(false);
+    } catch (e) {
+      Toast.error((e as Error).message || '下载失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteVersion = async (version: BackupVersion) => {
+    setBusy(true);
+    try {
+      await useBackup.getState().deleteCloudBackup(tab, version.id);
+      Toast.success('已删除版本');
+      await loadHistory();
+    } catch (e) {
+      Toast.error((e as Error).message || '删除失败');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className={styles.cloudSection}>
       {!unlocked && (
@@ -248,6 +304,7 @@ export function CloudBackupSection() {
           上传备份
         </Button>
         <Button variant="destructive" disabled={disabled} onClick={handleRestoreClick}>从云恢复</Button>
+        <Button variant="outline" disabled={disabled} onClick={handleOpenHistory}>历史版本</Button>
       </div>
 
       <Dialog open={restoreData !== null} onOpenChange={(o) => !o && !busy && setRestoreData(null)} disablePointerDismissal>
@@ -271,6 +328,40 @@ export function CloudBackupSection() {
               确认覆盖
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={historyOpen} onOpenChange={(o) => !o && !busy && setHistoryOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>版本历史</DialogTitle>
+          </DialogHeader>
+          {historyStatus === 'loading' && (
+            <div className="flex justify-center py-4"><Spinner /></div>
+          )}
+          {historyStatus === 'empty' && (
+            <Typography.Text type="tertiary">暂无历史版本</Typography.Text>
+          )}
+          {historyStatus === 'error' && (
+            <Alert>
+              <AlertDescription>
+                <span>{historyError} </span>
+                <Button size="sm" variant="ghost" onClick={loadHistory}>重试</Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          {historyStatus === 'list' && (
+            <ul className="flex flex-col gap-2">
+              {versions.map((v) => (
+                <li key={v.id} className="flex items-center gap-2">
+                  <span className="flex-1">{new Date(v.timestamp).toLocaleString()}</span>
+                  <span className="text-sm opacity-70">{formatSize(v.size)}</span>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => handleRestoreVersion(v)}>恢复</Button>
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => handleDeleteVersion(v)}>删除</Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </DialogContent>
       </Dialog>
     </div>
