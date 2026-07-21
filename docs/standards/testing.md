@@ -51,7 +51,7 @@ mock 的唯一合法理由是**隔离副作用，让测试快、稳、确定**�
 
 | 该 mock（副作用边界） | 不该 mock（被测对象 / 纯计算） |
 |---|---|
-| `chrome.*` 扩展 API（tabs / storage.session / runtime） | Semi 组件（`Modal/Input/Button/...`） |
+| `chrome.*` 扩展 API（tabs / storage.session / runtime；WXT `fake-browser` 的 `getManifest`/`storage.local`/`storage.onChanged` 是未实现 stub，由 `tests/setup.ts` `beforeEach` 提供可用实现） | Semi 组件（`Modal/Input/Button/...`） |
 | IndexedDB —— 用 `fake-indexeddb`（已采用） | 你自己的纯函数 service（`CryptoService` 的 `encrypt/decrypt` 等） |
 | 网络（`fetch` / OSS / COS SDK） | 你自己的组件（除非满足 §4.3 浅渲染条件） |
 | 全局副作用：`Toast`（portal + 动画）、`lottie-web`、`BroadcastChannel` | store / hook 的业务逻辑 |

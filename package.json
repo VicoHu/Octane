@@ -1,6 +1,6 @@
 {
   "name": "octane",
-  "version": "0.1.13.0",
+  "version": "0.1.13.1",
   "private": true,
   "packageManager": "pnpm@10.11.0",
   "type": "module",
