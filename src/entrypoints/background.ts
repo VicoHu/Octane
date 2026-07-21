@@ -1,5 +1,6 @@
 import { handleMessage } from '@/services/BackupMessaging';
 import { handleCommand } from '@/services/CommandHandler';
+import { savePendingUpdate, clearPendingUpdate } from '@/services/UpdateStore';
 import {
   focusOrCreateHomeTab,
   ensureHomeTabInAllWindows,
@@ -37,6 +38,14 @@ try {
   // wxt build 期 fakeBrowser stub 未实现 commands.onCommand；忽略，SW runtime 正常注册。
 }
 
+// Chrome 检测到商店更新包时触发（商店用户被动感知）：持久化待装版本供 home 显示。
+// 顶层注册（与 onInstalled 同策略，避 SW 唤醒时序丢事件）。不 reload（不强制重启）。
+browser.runtime.onUpdateAvailable.addListener((details: { version: string }) => {
+  savePendingUpdate(details.version).catch((e) =>
+    console.error('[octane] onUpdateAvailable 保存 pendingUpdate 失败', e),
+  );
+});
+
 // logo tab 常驻保证：顶层注册（与 onMessage 同策略，避免 SW 唤醒时序丢事件）。
 // 放弃 newtab override 后，改为每窗口常驻一个 pinned home tab（见 home entrypoint + focusOrCreateHomeTab）。
 // - install：首次安装，当前窗口唤起 logo tab
@@ -51,6 +60,10 @@ browser.runtime.onInstalled.addListener((details) => {
   } else if (reason === 'update') {
     ensureHomeTabInAllWindows().catch((e) =>
       console.error('[octane] onInstalled(update) 补齐 logo tab 失败', e),
+    );
+    // 更新已装 → 清除 pendingUpdate 提示（避免残留）
+    clearPendingUpdate().catch((e) =>
+      console.error('[octane] onInstalled(update) 清理 pendingUpdate 失败', e),
     );
   }
 });
