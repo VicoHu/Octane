@@ -191,4 +191,17 @@ describe('PinnedTabService', () => {
       ).rejects.toThrow('不属于');
     });
   });
+
+  describe('normalizePinnedTabUrl', () => {
+    it('小写 protocol+host、补 pathname、保留 query、去 hash', () => {
+      expect(PinnedTabService.normalizePinnedTabUrl('HTTPS://GitHub.com/foo?a=1#top'))
+        .toBe('https://github.com/foo?a=1');
+      expect(PinnedTabService.normalizePinnedTabUrl('https://a.com'))
+        .toBe('https://a.com/');
+    });
+
+    it('非法 URL 回退原串', () => {
+      expect(PinnedTabService.normalizePinnedTabUrl('not-a-url')).toBe('not-a-url');
+    });
+  });
 });

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { MapPin, Plus, Bookmark as BookmarkIcon } from 'lucide-react';
-import type { Bookmark } from '@/shared/types';
+import { MapPin, Plus, Bookmark as BookmarkIcon, Pin } from 'lucide-react';
+import type { Bookmark, PinnedTab } from '@/shared/types';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab } from '@/shared/tabs/matchUrl';
+import { normalizePinnedTabUrl, PINNED_TAB_CAP } from '@/services/PinnedTabService';
 import { isSafeFavIcon } from '@/shared/tabs/safeFavIcon';
 import { cn } from '@/lib/utils';
 import styles from './index.module.css';
@@ -18,6 +19,9 @@ interface TabListProps {
   currentCategoryId?: string;
   onTabClick: (tab: OpenTab) => void;
   onSaveTab: (tab: OpenTab) => void;
+  /** 当前工作区常驻标签(前置 dedup 数据源) */
+  pinnedTabs: PinnedTab[];
+  onPinTab: (tab: OpenTab) => void;
 }
 
 /**
@@ -33,12 +37,15 @@ export const TabList: React.FC<TabListProps> = ({
   currentCategoryId,
   onTabClick,
   onSaveTab,
+  pinnedTabs,
+  onPinTab,
 }) => {
   if (tabs.length === 0) {
     return <div className={styles.empty}>当前窗口没有其他标签页</div>;
   }
 
   const canSave = !!currentCategoryId;
+  const atCap = pinnedTabs.length >= PINNED_TAB_CAP;
 
   // 直接渲染传入的 tabs——排序职责归 useOpenTabs(按浏览器 index 序,与 tab 栏一致)。
   // 此处不二次排序,保持单一数据源。
@@ -55,6 +62,9 @@ export const TabList: React.FC<TabListProps> = ({
             canSave={canSave}
             onTabClick={() => onTabClick(tab)}
             onSave={() => onSaveTab(tab)}
+            pinned={pinnedTabs.some((p) => normalizePinnedTabUrl(p.url) === normalizePinnedTabUrl(tab.url))}
+            canPin={!atCap}
+            onPin={() => onPinTab(tab)}
           />
         );
       })}
@@ -68,9 +78,12 @@ interface TabCardProps {
   canSave: boolean;
   onTabClick: () => void;
   onSave: () => void;
+  pinned: boolean;
+  canPin: boolean;
+  onPin: () => void;
 }
 
-const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSave }) => {
+const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSave, pinned, canPin, onPin }) => {
   const [faviconError, setFaviconError] = useState(false);
   // title 缺失回退 host,再回退 url
   const host = (() => {
@@ -85,6 +98,9 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
   const saveDisabled = saved || !canSave;
   // 保存不可用原因(Tooltip 提示,accessible name 仍取按钮文本「存为书签」)
   const saveHint = saved ? '已在书签库' : canSave ? '' : '请先选择分类';
+  // 常驻按钮(icon-only)用 aria-label=pinHint 提供 accessible name + Tooltip
+  const pinDisabled = pinned || !canPin;
+  const pinHint = pinned ? '已常驻' : canPin ? '存为常驻标签' : `常驻已满(${PINNED_TAB_CAP}/${PINNED_TAB_CAP})`;
 
   return (
     <li className={styles.card}>
@@ -147,6 +163,22 @@ const TabCard: React.FC<TabCardProps> = ({ tab, saved, canSave, onTabClick, onSa
             存为书签
           </TooltipTrigger>
           <TooltipContent sideOffset={6}>{saveHint || '收藏到当前分类'}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                disabled={pinDisabled}
+                className={cn(styles.saveBtn, 'text-base')}
+                onClick={onPin}
+                aria-label={pinHint}
+              />
+            }
+          >
+            <Pin />
+          </TooltipTrigger>
+          <TooltipContent sideOffset={6}>{pinHint}</TooltipContent>
         </Tooltip>
       </div>
     </li>

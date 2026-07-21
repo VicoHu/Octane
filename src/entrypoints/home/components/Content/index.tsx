@@ -16,6 +16,7 @@ import { Plus, Search, X } from 'lucide-react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useSearch } from '@/store/useSearch';
+import { usePinnedTabs } from '@/store/usePinnedTabs';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
@@ -47,6 +48,7 @@ import {
 import { EmptyState } from '../EmptyState';
 import { ContextList } from '../ContextList';
 import { TabList } from '../TabList';
+import { AddPinnedTabDialog } from '../AddPinnedTabDialog';
 import type { Bookmark } from '@/shared/types';
 import styles from './index.module.css';
 
@@ -66,6 +68,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const createBookmark = useBookmarks((s) => s.createBookmark);
   const reorderBookmarks = useBookmarks((s) => s.reorderBookmarks);
   const loadAllByWorkspace = useBookmarks((s) => s.loadAllByWorkspace);
+  const pinnedTabs = usePinnedTabs((s) => s.pinnedTabs);
+  const loadPinnedTabs = usePinnedTabs((s) => s.loadPinnedTabs);
   const query = useSearch((s) => s.query);
   const setQuery = useSearch((s) => s.setQuery);
 
@@ -77,6 +81,9 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const [activeView, setActiveView] = useState<View>('bookmarks');
   // 从 tab 触发保存时携带的预填源(null=手动「添加书签」)
   const [saveFromTab, setSaveFromTab] = useState<OpenTab | null>(null);
+  // 常驻标签:从 tab 触发存为常驻时携带的预填源 + Dialog 开关
+  const [pinFromTab, setPinFromTab] = useState<OpenTab | null>(null);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const currentCategory = categories.find((c) => c.id === currentCategoryId);
@@ -93,6 +100,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   useEffect(() => {
     if (currentWorkspaceId) void loadAllByWorkspace(currentWorkspaceId);
   }, [currentWorkspaceId, loadAllByWorkspace]);
+
+  // 常驻标签切片:进入工作区即 load(per-workspace;与 PinnedArea 各自 load,store loadSeq guard 保平安)
+  useEffect(() => {
+    if (currentWorkspaceId) void loadPinnedTabs(currentWorkspaceId);
+  }, [currentWorkspaceId, loadPinnedTabs]);
 
   useEffect(() => {
     const focusSearch = (event: KeyboardEvent) => {
@@ -188,6 +200,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const openAddManual = () => {
     setSaveFromTab(null);
     setShowAddModal(true);
+  };
+
+  const openPinForTab = (tab: OpenTab) => {
+    setPinFromTab(tab);
+    setPinDialogOpen(true);
   };
 
   const handleAddBookmark = async (values: Record<string, string>) => {
@@ -478,9 +495,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             currentCategoryId={currentCategoryId}
             onTabClick={handleTabClick}
             onSaveTab={openAddForTab}
+            pinnedTabs={pinnedTabs}
+            onPinTab={openPinForTab}
           />
         </TabsContent>
       </Tabs>
+
+      {/* 存为常驻标签弹窗(从 tab 预填,共享 AddPinnedTabDialog) */}
+      <AddPinnedTabDialog
+        open={pinDialogOpen}
+        onOpenChange={setPinDialogOpen}
+        workspaceId={currentWorkspaceId ?? ''}
+        initialUrl={pinFromTab?.url ?? ''}
+        initialName={pinFromTab?.title ?? ''}
+      />
 
       {/* 添加书签弹窗(支持从 tab 预填 + 分类选择器 R4) */}
       <Dialog
