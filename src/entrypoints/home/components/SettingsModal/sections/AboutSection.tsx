@@ -1,0 +1,99 @@
+import { Button } from '@/components/ui/button';
+import {
+  detectChannel,
+  UPDATE_URL,
+  CHANNEL_LABEL,
+  type Channel,
+} from '@/shared/distribution';
+import { usePendingUpdate } from '@/entrypoints/home/hooks/usePendingUpdate';
+
+// 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 ShortcutsSection.tsx）。
+declare const chrome: unknown;
+interface ChromeLike {
+  runtime: { id: string; getManifest(): { version: string } };
+  tabs: { create(opts: { url: string }): unknown };
+}
+
+const AUTHOR_URL = 'https://github.com/VicoHu';
+const REPO_URL = 'https://github.com/VicoHu/Octane';
+const ISSUES_URL = 'https://github.com/VicoHu/Octane/issues';
+
+/** 关于 Octane：版本/渠道 + 作者/仓库/反馈 + 新版本提示 + 按渠道前往更新页。 */
+export function AboutSection() {
+  const c = chrome as unknown as ChromeLike;
+  const version = c.runtime.getManifest().version;
+  const channel: Channel = detectChannel(c.runtime.id);
+  const { version: pendingVersion } = usePendingUpdate();
+
+  const open = (url: string) => c.tabs.create({ url });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-lg font-semibold">
+          Octane <span className="font-normal text-muted-foreground">v{version}</span>
+        </div>
+        <div className="mt-1 text-sm text-muted-foreground">{CHANNEL_LABEL[channel]}</div>
+      </div>
+
+      <div className="space-y-1 text-sm">
+        <Row label="作者" value="VicoHu" onClick={() => open(AUTHOR_URL)} />
+        <Row label="开源仓库" value="VicoHu/Octane" onClick={() => open(REPO_URL)} />
+        <Row label="反馈 / 报告问题" value="GitHub Issues" onClick={() => open(ISSUES_URL)} />
+      </div>
+
+      <UpdateStatus channel={channel} pendingVersion={pendingVersion} onOpen={open} />
+    </div>
+  );
+}
+
+function Row({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-28 text-muted-foreground">{label}</span>
+      <Button variant="link" className="h-auto p-0 text-foreground" onClick={onClick}>
+        {value}
+      </Button>
+    </div>
+  );
+}
+
+function UpdateStatus({
+  channel,
+  pendingVersion,
+  onOpen,
+}: {
+  channel: Channel;
+  pendingVersion: string | null;
+  onOpen: (url: string) => void;
+}) {
+  // 手动安装：无自动更新（onUpdateAvailable 不触发），引导 Releases（优先级最高）
+  if (channel === 'manual') {
+    return (
+      <div className="rounded-md border border-border p-3 text-sm">
+        <div className="text-muted-foreground">
+          手动安装不会收到自动更新提示，请定期查看新版本。
+        </div>
+        <Button className="mt-2" size="sm" onClick={() => onOpen(UPDATE_URL.manual)}>
+          前往 GitHub Releases
+        </Button>
+      </div>
+    );
+  }
+  // 商店用户收到 Chrome 推送的待装版本
+  if (pendingVersion) {
+    return (
+      <div className="rounded-md border border-border p-3 text-sm">
+        <div>新版本 v{pendingVersion} 可用</div>
+        <div className="mt-1 text-muted-foreground">
+          新版本将通过商店自动更新（审核可能有延迟）。
+        </div>
+        <Button className="mt-2" size="sm" onClick={() => onOpen(UPDATE_URL[channel])}>
+          前往商店
+        </Button>
+      </div>
+    );
+  }
+  // 商店用户无待装版本：已是最新（商店自动更新）
+  return <div className="text-sm text-muted-foreground">已是最新版本（商店自动更新）。</div>;
+}
