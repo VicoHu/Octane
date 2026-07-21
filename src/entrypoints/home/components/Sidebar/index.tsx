@@ -386,7 +386,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <SettingsModal
         visible={showSettings}
         initialTab={settingsInitialTab}
-        onCancel={() => setShowSettings(false)}
+        onCancel={() => {
+          setShowSettings(false);
+          // 复位一次性打开参数：避免 ↑ badge 设过 'about' 后，底部「设置」按钮永远卡在关于 Tab
+          setSettingsInitialTab(undefined);
+        }}
       />
     </div>
   );
