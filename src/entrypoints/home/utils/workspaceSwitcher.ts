@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspace, getCurrentWindowId } from '@/store/useWorkspace';
 import { switchWorkspaceBySetting } from '@/shared/tabs/workspaceSwitch';
+import { Toast } from '@/components/ui/toast';
 import {
   getTabIsolationSetting,
   setTabIsolationSetting,
@@ -21,12 +22,22 @@ import {
 export async function switchWorkspace(toId: string): Promise<void> {
   const setting = await getTabIsolationSetting();
   const windowId = await getCurrentWindowId();
-  await switchWorkspaceBySetting({
+  const result = await switchWorkspaceBySetting({
     toId,
     setting,
     windowId,
     selectWorkspace: useWorkspace.getState().selectWorkspace,
   });
+  // T4：close 模式且关闭了 tab（N>0）→ 弹切换结果 Toast（action「切回」非"撤销"——完整反转切换）
+  if (result.closedCount > 0 && result.fromId) {
+    const workspaces = useWorkspace.getState().workspaces;
+    const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
+    const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
+    Toast.success({
+      content: `已切换到「${toName}」，已关闭 ${result.closedCount} 个标签`,
+      action: { label: `切回「${fromName}」`, onClick: () => void result.undo() },
+    });
+  }
 }
 
 export type TabIsolationLoadStatus = 'loading' | 'ready' | 'error';

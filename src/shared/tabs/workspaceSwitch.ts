@@ -37,9 +37,14 @@ export interface SwitchOptions {
   onProgress?: (progress: SwitchProgress) => void;
 }
 
-/** 切换结果：undo 回滚本次切换（dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。 */
+/** 切换结果：undo 回滚本次切换（dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+ *  fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）。 */
 export interface SwitchResult {
   undo: () => Promise<void>;
+  /** 切换前的工作区 id（T4「切回 Y」）；未实际切换（off/同 ws/archive 失败）为 null。 */
+  fromId: string | null;
+  /** 本次关闭的 content tab 数（T4「已关闭 N」）；N=0 不弹 Toast。 */
+  closedCount: number;
 }
 
 interface ChromeTab {
@@ -83,7 +88,11 @@ function isRestorable(tab: ChromeTab): boolean {
     url.startsWith('chrome://') ||
     url.startsWith('edge://') ||
     url.startsWith('about:') ||
-    url.startsWith('chrome-extension://')
+    url.startsWith('chrome-extension://') ||
+    // T6：devtools:（开发者工具页）/ file:（受限，tabs.create 需 file:///* 权限，未授权 restore 失败）
+    // 不可恢复——不进 archive/dispose/计数集（切换时保留，避免关了恢复不了丢 tab）
+    url.startsWith('devtools://') ||
+    url.startsWith('file://')
   );
 }
 
@@ -170,15 +179,15 @@ async function performSwitch(
 ): Promise<SwitchResult> {
   const onProgress = options?.onProgress;
   const c = getChrome();
-  if (!c) return { undo: noopUndo };
+  if (!c) return { undo: noopUndo, fromId: null, closedCount: 0 };
   const fromId = await getWorkspaceBinding(windowId);
-  if (!fromId || fromId === toId) return { undo: noopUndo };
+  if (!fromId || fromId === toId) return { undo: noopUndo, fromId: null, closedCount: 0 };
 
   // 1. archive（失败 = 硬屏障，不动 tab）
   const toDispose = await archive(windowId, fromId, onProgress);
   if (toDispose === null) {
     Toast.error('切换中止：无法保存当前标签');
-    return { undo: noopUndo };
+    return { undo: noopUndo, fromId: null, closedCount: 0 };
   }
 
   // 2. dispose（保 home：toDispose 已排除 home tab）
@@ -196,6 +205,7 @@ async function performSwitch(
   onProgress?.({ phase: 'done', count: 0, total: 0 });
 
   // undo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding（仅 token 存活期有效）
+  // fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）
   return {
     undo: async () => {
       if (openedIds.length) await disposeTabs(c, openedIds);
@@ -203,6 +213,8 @@ async function performSwitch(
       if (prevSession) await openTabsInWindow(c, windowId, prevSession.tabs);
       await setWorkspaceBinding(windowId, fromId);
     },
+    fromId,
+    closedCount: toDispose.length,
   };
 }
 
@@ -247,12 +259,16 @@ export async function switchWorkspaceBySetting(params: {
   setting: TabIsolationSetting;
   windowId: number | null;
   selectWorkspace: (id: string) => Promise<void>;
-}): Promise<void> {
-  const { toId, setting, windowId, selectWorkspace } = params;
+  onProgress?: (p: SwitchProgress) => void;
+}): Promise<SwitchResult> {
+  const { toId, setting, windowId, selectWorkspace, onProgress } = params;
   if (setting === 'close' && windowId != null) {
-    await requestWorkspaceSwitch(toId, windowId);
+    const result = await requestWorkspaceSwitch(toId, windowId, onProgress ? { onProgress } : undefined);
+    await selectWorkspace(toId);
+    return result;
   }
   await selectWorkspace(toId);
+  return { undo: noopUndo, fromId: null, closedCount: 0 };
 }
 
 /**

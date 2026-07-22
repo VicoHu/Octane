@@ -241,4 +241,43 @@ describe('countRestorableTabsInWindow — 本窗可归档 tab 计数（T5 首启
 
     expect(await countRestorableTabsInWindow(5)).toBe(0);
   });
+
+  it('devtools: 与 file: 不可恢复，不计入（T6）', async () => {
+    const { c } = mockChromeWithStorage({});
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      { id: 1, windowId: 5, url: 'https://a.com', index: 0 },
+      { id: 2, windowId: 5, url: 'devtools://devtools/builder.html', index: 1 },
+      { id: 3, windowId: 5, url: 'file:///tmp/x.html', index: 2 },
+    ] as never);
+
+    expect(await countRestorableTabsInWindow(5)).toBe(1);
+  });
+});
+
+describe('switchWorkspaceBySetting — 返回 SwitchResult（T4 切换结果 Toast 用）', () => {
+  it('close + windowId：返回 fromId/closedCount/undo（供 Toast「已关闭 N / 切回 Y」）', async () => {
+    const { c } = mockChromeWithStorage({
+      'windowWorkspaceBinding.1': 'ws-a',
+      'tabSession.ws-b': { tabs: [{ url: 'https://b.com', order: 0 }], savedAt: 1 },
+    });
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      { id: 10, windowId: 1, url: 'https://a.com', index: 0 },
+    ] as never);
+    const selectWorkspace = vi.fn();
+
+    const result = await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: 1, selectWorkspace });
+
+    expect(result.fromId).toBe('ws-a');
+    expect(result.closedCount).toBe(1); // 关了 1 个 content tab（a.com）
+    expect(typeof result.undo).toBe('function');
+  });
+
+  it('off：返回 noop（fromId null / closedCount 0，无 undo 语义）', async () => {
+    const selectWorkspace = vi.fn();
+
+    const result = await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'off', windowId: 1, selectWorkspace });
+
+    expect(result.fromId).toBeNull();
+    expect(result.closedCount).toBe(0);
+  });
 });
