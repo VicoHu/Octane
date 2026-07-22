@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { requestWorkspaceSwitch, switchWorkspaceBySetting, type SwitchProgress } from '../workspaceSwitch';
+import { requestWorkspaceSwitch, switchWorkspaceBySetting, countRestorableTabsInWindow, type SwitchProgress } from '../workspaceSwitch';
 
 type QueryInfo = { currentWindow?: boolean; windowId?: number; url?: string };
 
@@ -220,5 +220,25 @@ describe('switchWorkspaceBySetting — 门控分流（T3：off 纯 UI / close ta
     const selectWorkspace = vi.fn();
     await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: null, selectWorkspace });
     expect(selectWorkspace).toHaveBeenCalledWith('ws-b');
+  });
+});
+
+describe('countRestorableTabsInWindow — 本窗可归档 tab 计数（T5 首启告知用）', () => {
+  it('计数可归档 content tab，排除内部页与 home', async () => {
+    const { c } = mockChromeWithStorage({});
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      { id: 1, windowId: 5, url: 'https://a.com', index: 0 },
+      { id: 2, windowId: 5, url: 'https://b.com', index: 1 },
+      { id: 3, windowId: 5, url: 'chrome://newtab', index: 2 },
+      { id: 4, windowId: 5, url: 'chrome-extension://octane/home.html', index: 3 },
+    ] as never);
+
+    expect(await countRestorableTabsInWindow(5)).toBe(2);
+  });
+
+  it('无 tab → 0', async () => {
+    mockChromeWithStorage({});
+
+    expect(await countRestorableTabsInWindow(5)).toBe(0);
   });
 });

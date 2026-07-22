@@ -254,3 +254,19 @@ export async function switchWorkspaceBySetting(params: {
   }
   await selectWorkspace(toId);
 }
+
+/**
+ * 计数窗口内可归档（可恢复）的 content tab 数（T5 首启告知用：off→close 时告知用户
+ * 当前窗口 N 个标签将归入当前工作区，下次切换时自动收纳）。复用 isRestorable 过滤
+ *（排除内部页 + home tab）。非扩展环境 / query 异常 → 0。
+ */
+export async function countRestorableTabsInWindow(windowId: number): Promise<number> {
+  const c = getChrome();
+  if (!c) return 0;
+  try {
+    const tabs = await c.tabs.query({ windowId });
+    return tabs.filter(isRestorable).length;
+  } catch {
+    return 0;
+  }
+}
