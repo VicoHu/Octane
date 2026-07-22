@@ -144,6 +144,28 @@ export interface PinnedTab {
   createdAt: number;
 }
 
+/**
+ * 工作区标签隔离：切出工作区时归档的单个标签条目（rev4 瘦身，只存可恢复字段）。
+ * tabs.create 自动重取 title/favicon；active 在切换入口是 home tab 取不到。
+ */
+export interface TabEntry {
+  url: string;
+  /** 固定标签（chrome.tabs pinned 状态） */
+  pinned?: boolean;
+  /** 窗口内顺序，restore 时按 index 重开 */
+  order: number;
+}
+
+/**
+ * 工作区标签会话快照：存 chrome.storage.local 分键 tabSession.<workspaceId>。
+ * 切回工作区时按 tabs 顺序 + pinned 恢复（仅 URL 集合，不保页面运行时态）。
+ */
+export interface TabSession {
+  tabs: TabEntry[];
+  /** 归档时间戳 */
+  savedAt: number;
+}
+
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
 /** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind，v4 起书签带 order） */
