@@ -3,8 +3,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -13,7 +18,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
-import { Lock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { Lock, MessageSquare, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import type { Bookmark } from '@/shared/types';
 import { useFavicon } from '@/hooks/useFavicon';
 import styles from './index.module.css';
@@ -117,63 +122,39 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
       {/* 拖拽手柄(D6:grip 是唯一拖拽触发器,hover 显;操作区 data-no-dnd 防冒泡) */}
       {grip && <div className={styles.gripSlot}>{grip}</div>}
 
-      {/* 操作按钮区（悬停淡入的右上角悬浮图标按钮）*/}
-      {/* 容器级 stopPropagation：按钮间空白不触发卡片跳转（防误触）;data-no-dnd 防拖拽冒泡 */}
-      <div className={styles.actions} data-no-dnd onClick={(e) => e.stopPropagation()}>
-        <Tooltip>
-          <TooltipTrigger
+      {/* 更多操作（悬停淡入）；data-no-dnd 防拖拽冒泡 */}
+      <div className={styles.actions} data-no-dnd>
+        <DropdownMenu>
+          <DropdownMenuTrigger
             render={
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-label="查看上下文"
+                aria-label="更多操作"
                 className={styles.actionBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewContexts(bookmark);
-                }}
-              />
+              >
+                <MoreHorizontal />
+              </Button>
             }
-          >
-            <MessageSquare />
-          </TooltipTrigger>
-          <TooltipContent>查看上下文</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="编辑书签"
-                className={styles.actionBtn}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditBookmark(bookmark);
-                }}
-              />
-            }
-          >
-            <Pencil />
-          </TooltipTrigger>
-          <TooltipContent>编辑书签</TooltipContent>
-        </Tooltip>
-        {/* 删除：级联删上下文，AlertDialog 二次确认。文案按 contextCount 分支（0 条时不显示无意义计数）。
-            AlertDialogAction 不自动关闭，需 setDeleteOpen(false)；content 经 Portal 不冒泡到卡片。 */}
+          />
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onViewContexts(bookmark)}>
+              <MessageSquare />
+              查看上下文
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEditBookmark(bookmark)}>
+              <Pencil />
+              编辑书签
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+              <Trash2 />
+              删除书签
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* 删除：级联删上下文，AlertDialog 二次确认。 */}
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogTrigger
-            render={
-              <Button
-                variant="destructive"
-                size="icon-sm"
-                aria-label="删除书签"
-                className={styles.actionBtn}
-                onClick={(e) => e.stopPropagation()}
-              />
-            }
-          >
-            <Trash2 />
-          </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>删除书签</AlertDialogTitle>
