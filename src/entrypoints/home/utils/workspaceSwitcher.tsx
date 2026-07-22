@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useWorkspace, getCurrentWindowId } from '@/store/useWorkspace';
 import { switchWorkspaceBySetting, type SwitchProgress } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
+import { Progress } from '@/components/ui/progress';
 import {
   getTabIsolationSetting,
   setTabIsolationSetting,
@@ -20,17 +21,36 @@ import {
 } from '@/shared/tabIsolationSetting';
 
 /** T8 loading Toast 进度文案（phase + count/total）。 */
-function progressLabel(p: SwitchProgress): string {
+function progressLabel(p: SwitchProgress, toName: string): string {
   switch (p.phase) {
     case 'archive':
       return '正在保存当前标签…';
     case 'dispose':
       return `正在关闭当前标签 ${p.count}/${p.total}`;
     case 'restore':
-      return `正在恢复工作区标签 ${p.count}/${p.total}`;
+      return `正在恢复「${toName}」标签 ${p.count}/${p.total}`;
     case 'done':
       return '即将完成…';
   }
+}
+
+/**
+ * T8 切换进度 loading Toast 内容（订阅 store switching，自动随进度更新 Progress + 文案）。
+ * 渲染在 sonner toast content 内；switching.total>0 时显示 shadcn Progress（count/total → %）。
+ */
+export function LoadingToastContent({ toId }: { toId: string }) {
+  const switching = useWorkspace((s) => s.switching);
+  const toName = useWorkspace((s) => s.workspaces.find((w) => w.id === toId)?.name ?? toId);
+  if (!switching) {
+    return <span>{`正在切换到「${toName}」…`}</span>;
+  }
+  const pct = switching.total > 0 ? Math.round((switching.count / switching.total) * 100) : 0;
+  return (
+    <div className="flex w-full flex-col gap-2">
+      <span className="text-sm">{progressLabel(switching, toName)}</span>
+      {switching.total > 0 && <Progress value={pct} />}
+    </div>
+  );
 }
 
 export async function switchWorkspace(toId: string): Promise<void> {
@@ -48,14 +68,14 @@ export async function switchWorkspace(toId: string): Promise<void> {
   let loadingTimer: ReturnType<typeof setTimeout> | undefined;
   if (toastId) {
     loadingTimer = setTimeout(() => {
-      Toast.loading({ id: toastId, content: '正在切换工作区…' });
+      // content 订阅 store switching，自动随 onProgress 更新 Progress + 文案
+      Toast.loading({ id: toastId, content: <LoadingToastContent toId={toId} /> });
     }, 300);
   }
 
   const onProgress = isClose
     ? (p: SwitchProgress) => {
         useWorkspace.setState({ switching: { toId, ...p } });
-        if (toastId) Toast.loading({ id: toastId, content: progressLabel(p) });
       }
     : undefined;
 

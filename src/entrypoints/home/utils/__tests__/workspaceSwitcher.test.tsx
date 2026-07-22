@@ -10,10 +10,11 @@ vi.mock('@/components/ui/toast', () => ({
   Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), loading: vi.fn(), close: vi.fn() },
 }));
 
+import { render, screen } from '@testing-library/react';
 import { switchWorkspaceBySetting, type SwitchResult } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/store/useWorkspace';
-import { switchWorkspace } from '../workspaceSwitcher';
+import { switchWorkspace, LoadingToastContent } from '../workspaceSwitcher';
 
 const NOOP_RESULT: SwitchResult = { undo: vi.fn(), fromId: null, closedCount: 0 };
 
@@ -115,5 +116,29 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     await switchWorkspace('ws-b');
 
     expect(useWorkspace.getState().switching).toBeNull();
+  });
+});
+
+describe('LoadingToastContent — T8 Progress 进度条（订阅 switching）', () => {
+  beforeEach(() => {
+    useWorkspace.setState({
+      workspaces: [{ id: 'w1', name: '工作区1', icon: '📁', createdAt: 0, order: 0 }],
+    });
+  });
+
+  it('dispose 阶段（total>0）显示 Progress + 文案（count/total → 40%）', () => {
+    useWorkspace.setState({ switching: { toId: 'w1', phase: 'dispose', count: 2, total: 5 } });
+    render(<LoadingToastContent toId="w1" />);
+
+    expect(screen.getByText(/关闭当前标签 2\/5/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40');
+  });
+
+  it('archive 阶段（total=0）不显示 Progress，仅文案', () => {
+    useWorkspace.setState({ switching: { toId: 'w1', phase: 'archive', count: 0, total: 0 } });
+    render(<LoadingToastContent toId="w1" />);
+
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByText(/保存当前标签/)).toBeInTheDocument();
   });
 });
