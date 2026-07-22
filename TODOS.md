@@ -53,3 +53,17 @@
 ## 待确认 — 插件 License
 
 - **仓库 License 待确认**：仓库根暂无 LICENSE 文件。「关于」Tab 是否显示 License 项、显示何值，待确认仓库实际 License 类型后决定（可能需补 LICENSE 文件）。来源：关于 Tab + 新版本检测特性设计（2026-07-22，`docs/superpowers/specs/2026-07-22-about-tab-update-check-design.md`）。
+
+## 工作区标签隔离 v1.1 — hide 模式 + 自动归档
+
+> **方案文件（恢复上下文必读）**：`docs/superpowers/specs/2026-07-22-workspace-tab-isolation-design.md` — 读 `## NOT in scope` 段（v1.1 两项）+ `## Constraints` C3（tabGroups 三硬伤）/ C5（MV3 SW ~30s 回收）+ `## UI/UX Design (rev 5)`（设置分区 hide 第三档）。
+> v1（close-only + 手动切换）已 ship **0.2.0.0**（PR#41，2026-07-23）。memory：`[[workspace-tab-isolation-design]]`（施工进度 + 测试范式）。
+
+v1.1 两项独立需求（设计文档 NOT in scope 明确）：
+
+- **hide 模式（tabGroups 折叠 + discard）**：「软隔离」——离开工作区不关 tab，折叠 tabGroup + discard（释放内存但保留 tab，切回即恢复）。需先解决 **C3 三硬伤**：tabGroup `groupId` 易失（刷新/崩溃后重生成，不稳定）、抖动（分组视觉跳变）、跨窗口分组语义。新增 `tabGroups` 权限（低风险，v1 无新权限）。设置分区 RadioGroup 加第三档「隐藏（折叠）」。
+  - 相关：`src/shared/tabs/workspaceSwitch.ts`（archive/dispose/restore 编排复用，加 hide 分支替代 dispose）、`src/entrypoints/home/components/SettingsModal/sections/WorkspaceTabsSection.tsx`（RadioGroup 加「隐藏」选项 + AlertDialog 确认）、`tabIsolationSetting`（type 加 `'hide'`）。
+- **自动归档（Arc 式 alarms）**：离开工作区自动归档（不需手动切换触发）——`chrome.alarms` 定时 + 窗口 `lastActive` 检测，跑 MV3 service worker（非 home 页）。复杂度独立（**C5**：SW ~30s 回收，需 alarms 唤醒 + 归档逻辑可在 SW 跑）。
+  - 相关：`src/entrypoints/background.ts`（alarms 注册 + 监听）、`src/shared/tabs/workspaceSwitch.ts`（`archive` 抽出为可复用 helper，SW 与 home 共用）。
+
+> **不在 v1.1**：lazy restore（v1.x，大 session 性能，占位点击载入）、多窗口同 ws 会话合并去重（v1.2）、跨设备 tab 会话备份恢复（不做，rev4：设备本地临时）。详见设计文档 NOT in scope。
