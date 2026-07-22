@@ -94,7 +94,17 @@ export async function switchWorkspace(toId: string): Promise<void> {
       const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
       Toast.success({
         content: `已切换到「${toName}」，已关闭 ${result.closedCount} 个标签`,
-        action: { label: `切回「${fromName}」`, onClick: () => void result.undo() },
+        action: {
+          label: `切回「${fromName}」`,
+          // undo 回滚 tab/binding，再 selectWorkspace(fromId) 同步 store 选中态
+          //（undo 不碰 store，不补则 AppRail active 停留 toId）
+          onClick: () => {
+            void result.undo().then(() => {
+              const fid = result.fromId;
+              if (fid) void useWorkspace.getState().selectWorkspace(fid);
+            });
+          },
+        },
       });
     }
   } finally {

@@ -9,8 +9,11 @@ vi.mock('@/shared/tabs/workspaceSwitch', () => ({
 vi.mock('@/components/ui/toast', () => ({
   Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), loading: vi.fn(), close: vi.fn() },
 }));
+vi.mock('@/services/CategoryService', () => ({
+  listCategories: vi.fn(async () => []),
+}));
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { switchWorkspaceBySetting, type SwitchResult } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/store/useWorkspace';
@@ -90,6 +93,26 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     await switchWorkspace('ws-b');
 
     expect(Toast.success).not.toHaveBeenCalled();
+  });
+
+  it('T4 切回 action：undo 后同步 store currentWorkspaceId 到 fromId（修复 AppRail active 不切换）', async () => {
+    installChrome({ tabIsolationSetting: 'close' }, 5);
+    useWorkspace.setState({
+      workspaces: [
+        { id: 'ws-a', name: '工作区A', icon: '📁', createdAt: 0, order: 0 },
+        { id: 'ws-b', name: '工作区B', icon: '🔬', createdAt: 0, order: 1 },
+      ],
+      currentWorkspaceId: 'ws-b',
+    });
+    const undo = vi.fn(async () => {});
+    vi.mocked(switchWorkspaceBySetting).mockResolvedValue({ undo, fromId: 'ws-a', closedCount: 3 });
+
+    await switchWorkspace('ws-b');
+
+    const input = vi.mocked(Toast.success).mock.calls[0]![0] as { action: { onClick: () => void } };
+    input.action.onClick();
+    await waitFor(() => expect(useWorkspace.getState().currentWorkspaceId).toBe('ws-a'));
+    expect(undo).toHaveBeenCalled();
   });
 
   // ===== T8：切换进度 state（switching）=====
