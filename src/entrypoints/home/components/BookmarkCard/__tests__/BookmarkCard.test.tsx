@@ -95,7 +95,8 @@ describe('BookmarkCard', () => {
     renderCard({}, { onClick, onEditBookmark: onEdit });
 
     await user.click(screen.getByRole('button', { name: '打开书签 GitHub' }));
-    await user.click(screen.getByRole('button', { name: '编辑书签' }));
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '编辑书签' }));
 
     expect(onEdit).toHaveBeenCalledWith(bookmark);
     expect(onClick).toHaveBeenCalledTimes(1);
@@ -107,7 +108,8 @@ describe('BookmarkCard', () => {
     const onView = vi.fn();
     renderCard({}, { onClick, onViewContexts: onView });
 
-    await user.click(screen.getByRole('button', { name: '查看上下文' }));
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '查看上下文' }));
 
     expect(onView).toHaveBeenCalledWith(bookmark);
     expect(onClick).not.toHaveBeenCalled();
@@ -151,16 +153,28 @@ describe('BookmarkCard', () => {
     expect(screen.getByRole('listitem', { name: 'GitHub' })).toBeInTheDocument();
   });
 
-  it('T9 渲染删除按钮且带 aria-label="删除书签"', () => {
+  it('悬浮操作区只渲染更多操作按钮，展开后显示三项操作', async () => {
+    const user = userEvent.setup();
     renderCard();
-    expect(screen.getByRole('button', { name: '删除书签' })).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: '更多操作' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '查看上下文' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '编辑书签' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '删除书签' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+
+    expect(await screen.findByRole('menuitem', { name: '查看上下文' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '编辑书签' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '删除书签' })).toBeInTheDocument();
   });
 
   it('T8a 无上下文(count=0)时 Popconfirm 文案不含计数', async () => {
     const user = userEvent.setup();
     renderCard({ contextCount: 0 });
 
-    await user.click(screen.getByRole('button', { name: '删除书签' }));
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '删除书签' }));
 
     await waitFor(() => {
       expect(screen.getByText('确定删除该书签？')).toBeInTheDocument();
@@ -171,19 +185,21 @@ describe('BookmarkCard', () => {
     const user = userEvent.setup();
     renderCard({ contextCount: 3 });
 
-    await user.click(screen.getByRole('button', { name: '删除书签' }));
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '删除书签' }));
 
     await waitFor(() => {
       expect(screen.getByText(/将同时删除 3 条上下文/)).toBeInTheDocument();
     });
   });
 
-  it('删除按钮点击不冒泡到卡片 onClick（容器级 stopPropagation）', async () => {
+  it('删除菜单项不触发卡片 onClick', async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
     renderCard({}, { onClick });
 
-    await user.click(screen.getByRole('button', { name: '删除书签' }));
+    await user.click(screen.getByRole('button', { name: '更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '删除书签' }));
 
     expect(onClick).not.toHaveBeenCalled();
   });
