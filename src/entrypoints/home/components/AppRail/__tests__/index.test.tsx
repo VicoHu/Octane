@@ -21,6 +21,7 @@ describe('AppRail — 工作区主导航', () => {
         { id: 'w2', name: '研究', icon: '🔬', createdAt: 0, order: 1 },
       ],
       currentWorkspaceId: 'w1',
+      switching: null,
     });
   });
 
@@ -41,6 +42,16 @@ describe('AppRail — 工作区主导航', () => {
     await user.click(screen.getByRole('button', { name: '切换到工作区 研究' }));
 
     expect(switchWorkspace).toHaveBeenCalledWith('w2');
+  });
+
+  it('T8：切换中（switching != null）→ 工作区按钮禁用（防重复点击）', () => {
+    useWorkspace.setState({
+      switching: { toId: 'w2', phase: 'dispose', count: 1, total: 2 },
+    });
+    render(<AppRail />);
+
+    expect(screen.getByRole('button', { name: '切换到工作区 主工作区' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '切换到工作区 研究' })).toBeDisabled();
   });
 
   it('悬停工作区 → 显示名称提示', async () => {

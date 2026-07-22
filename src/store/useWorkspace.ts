@@ -16,6 +16,7 @@ import {
   listAllBindings,
 } from '@/shared/windowWorkspaceBinding';
 import { clearTabSession } from '@/services/TabSessionService';
+import type { SwitchPhase } from '@/shared/tabs/workspaceSwitch';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -23,6 +24,8 @@ interface WorkspaceState {
   categories: Category[];
   currentCategoryId: string | null;
   loading: boolean;
+  /** 切换中的工作区进度（T8 进度反馈：入口 aria-disabled + 目标项 Spinner + loading Toast/Progress）；null=空闲。 */
+  switching: { toId: string; phase: SwitchPhase; count: number; total: number } | null;
 
   loadWorkspaces: () => Promise<void>;
   createWorkspace: (name: string, icon: string) => Promise<void>;
@@ -142,6 +145,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   categories: [],
   currentCategoryId: null,
   loading: false,
+  switching: null,
 
   loadWorkspaces: async () => {
     set({ loading: true });

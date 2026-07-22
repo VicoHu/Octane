@@ -39,5 +39,9 @@ export const Toast = {
     const [msg, opts] = resolve(input);
     return sonnerToast.warning(msg, opts);
   },
+  loading: (input: ToastInput) => {
+    const [msg, opts] = resolve(input);
+    return sonnerToast.loading(msg, opts);
+  },
   close: (id?: string | number) => sonnerToast.dismiss(id),
 };

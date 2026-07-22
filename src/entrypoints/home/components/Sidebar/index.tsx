@@ -51,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
   const categories = useWorkspace((s) => s.categories);
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
+  const switching = useWorkspace((s) => s.switching);
   const createCategory = useWorkspace((s) => s.createCategory);
   const deleteCategory = useWorkspace((s) => s.deleteCategory);
   const reorderCategories = useWorkspace((s) => s.reorderCategories);
@@ -188,6 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
           <Select
             value={currentWorkspaceId}
             onValueChange={(val) => val && switchWorkspace(val)}
+            disabled={!!switching}
           >
             <SelectTrigger className={styles.select}>
               <SelectValue>

@@ -7,7 +7,7 @@ vi.mock('@/shared/tabs/workspaceSwitch', () => ({
   requestWorkspaceSwitch: vi.fn(),
 }));
 vi.mock('@/components/ui/toast', () => ({
-  Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), close: vi.fn() },
+  Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), loading: vi.fn(), close: vi.fn() },
 }));
 
 import { switchWorkspaceBySetting, type SwitchResult } from '@/shared/tabs/workspaceSwitch';
@@ -89,5 +89,31 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     await switchWorkspace('ws-b');
 
     expect(Toast.success).not.toHaveBeenCalled();
+  });
+
+  // ===== T8：切换进度 state（switching）=====
+  it('T8：close 切换设/更新/清 switching state（onProgress 驱动）', async () => {
+    installChrome({ tabIsolationSetting: 'close' }, 5);
+    let switchingDuringProgress: unknown = undefined;
+    vi.mocked(switchWorkspaceBySetting).mockImplementation(async (params) => {
+      params.onProgress?.({ phase: 'dispose', count: 2, total: 5 });
+      switchingDuringProgress = useWorkspace.getState().switching;
+      return NOOP_RESULT;
+    });
+
+    await switchWorkspace('ws-b');
+
+    // 进度期间 switching 非 null（toId + onProgress 更新的 phase/count/total）
+    expect(switchingDuringProgress).toEqual({ toId: 'ws-b', phase: 'dispose', count: 2, total: 5 });
+    // 完成后清
+    expect(useWorkspace.getState().switching).toBeNull();
+  });
+
+  it('T8：off 模式不设 switching（无 tab 编排）', async () => {
+    installChrome({}, 5);
+
+    await switchWorkspace('ws-b');
+
+    expect(useWorkspace.getState().switching).toBeNull();
   });
 });

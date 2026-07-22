@@ -89,4 +89,17 @@ describe('Sidebar 工作区下拉框（Base UI Select.Value children function）
     expect(within(currentWorkspace).getByText('📁')).toBeInTheDocument();
     expect(within(currentWorkspace).getByText('主工作区')).toBeInTheDocument();
   });
+
+  it('T8：切换中（switching）→ 工作区下拉禁用（防重复切换）', () => {
+    useWorkspace.setState({
+      workspaces: [{ id: 'w1', name: '主工作区', icon: '📁', createdAt: 0, order: 0 }] as never,
+      currentWorkspaceId: 'w1',
+      categories: [],
+      currentCategoryId: null,
+      switching: { toId: 'w1', phase: 'dispose', count: 1, total: 2 },
+    });
+    render(<Sidebar openTabs={[]} />);
+
+    expect(screen.getByRole('combobox')).toBeDisabled();
+  });
 });

@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspace, getCurrentWindowId } from '@/store/useWorkspace';
-import { switchWorkspaceBySetting } from '@/shared/tabs/workspaceSwitch';
+import { switchWorkspaceBySetting, type SwitchProgress } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
 import {
   getTabIsolationSetting,
@@ -19,24 +19,68 @@ import {
   type TabIsolationSetting,
 } from '@/shared/tabIsolationSetting';
 
+/** T8 loading Toast 进度文案（phase + count/total）。 */
+function progressLabel(p: SwitchProgress): string {
+  switch (p.phase) {
+    case 'archive':
+      return '正在保存当前标签…';
+    case 'dispose':
+      return `正在关闭当前标签 ${p.count}/${p.total}`;
+    case 'restore':
+      return `正在恢复工作区标签 ${p.count}/${p.total}`;
+    case 'done':
+      return '即将完成…';
+  }
+}
+
 export async function switchWorkspace(toId: string): Promise<void> {
   const setting = await getTabIsolationSetting();
   const windowId = await getCurrentWindowId();
-  const result = await switchWorkspaceBySetting({
-    toId,
-    setting,
-    windowId,
-    selectWorkspace: useWorkspace.getState().selectWorkspace,
-  });
-  // T4：close 模式且关闭了 tab（N>0）→ 弹切换结果 Toast（action「切回」非"撤销"——完整反转切换）
-  if (result.closedCount > 0 && result.fromId) {
-    const workspaces = useWorkspace.getState().workspaces;
-    const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
-    const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
-    Toast.success({
-      content: `已切换到「${toName}」，已关闭 ${result.closedCount} 个标签`,
-      action: { label: `切回「${fromName}」`, onClick: () => void result.undo() },
+  const isClose = setting === 'close' && windowId != null;
+
+  // T8：立即设 switching state（入口 aria-disabled + 目标项 Spinner，防重复点击/误判失败）
+  if (isClose) {
+    useWorkspace.setState({ switching: { toId, phase: 'archive', count: 0, total: 0 } });
+  }
+
+  // T8：>300ms loading Toast（同 id 更新；快切换 <300ms 不打扰）
+  const toastId = isClose ? `ws-switch-${toId}` : null;
+  let loadingTimer: ReturnType<typeof setTimeout> | undefined;
+  if (toastId) {
+    loadingTimer = setTimeout(() => {
+      Toast.loading({ id: toastId, content: '正在切换工作区…' });
+    }, 300);
+  }
+
+  const onProgress = isClose
+    ? (p: SwitchProgress) => {
+        useWorkspace.setState({ switching: { toId, ...p } });
+        if (toastId) Toast.loading({ id: toastId, content: progressLabel(p) });
+      }
+    : undefined;
+
+  try {
+    const result = await switchWorkspaceBySetting({
+      toId,
+      setting,
+      windowId,
+      selectWorkspace: useWorkspace.getState().selectWorkspace,
+      onProgress,
     });
+    // T4：close 模式且关闭了 tab（N>0）→ 弹切换结果 Toast（action「切回」非"撤销"——完整反转切换）
+    if (result.closedCount > 0 && result.fromId) {
+      const workspaces = useWorkspace.getState().workspaces;
+      const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
+      const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
+      Toast.success({
+        content: `已切换到「${toName}」，已关闭 ${result.closedCount} 个标签`,
+        action: { label: `切回「${fromName}」`, onClick: () => void result.undo() },
+      });
+    }
+  } finally {
+    if (loadingTimer) clearTimeout(loadingTimer);
+    if (toastId) Toast.close(toastId);
+    if (isClose) useWorkspace.setState({ switching: null });
   }
 }
 
