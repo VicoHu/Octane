@@ -21,6 +21,26 @@ import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
 
+/** 切换编排的阶段（T8 进度反馈消费）。 */
+export type SwitchPhase = 'archive' | 'dispose' | 'restore' | 'done';
+
+/** 切换进度事件：phase + 已处理 count + 该阶段总数 total。 */
+export interface SwitchProgress {
+  phase: SwitchPhase;
+  count: number;
+  total: number;
+}
+
+/** 切换选项：onProgress 进度回调（T8 两层进度反馈消费）。 */
+export interface SwitchOptions {
+  onProgress?: (progress: SwitchProgress) => void;
+}
+
+/** 切换结果：undo 回滚本次切换（dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。 */
+export interface SwitchResult {
+  undo: () => Promise<void>;
+}
+
 interface ChromeTab {
   id?: number;
   windowId: number;
@@ -77,6 +97,7 @@ function toEntry(tab: ChromeTab): TabEntry {
 async function archive(
   windowId: number,
   fromId: string,
+  onProgress?: (p: SwitchProgress) => void,
 ): Promise<{ id: number }[] | null> {
   const c = getChrome();
   if (!c) return null;
@@ -84,6 +105,7 @@ async function archive(
     const tabs = await c.tabs.query({ windowId });
     const restorable = tabs.filter(isRestorable);
     await saveTabSession(fromId, restorable.map(toEntry));
+    onProgress?.({ phase: 'archive', count: restorable.length, total: restorable.length });
     return restorable.map((t) => ({ id: t.id! }));
   } catch {
     return null; // 硬屏障：归档失败，不返回处置集
@@ -91,53 +113,120 @@ async function archive(
 }
 
 /** 关闭窗口内 content tab（dispose）。ids 来自 archive 的可恢复集（已排除 home）。部分失败不阻断。 */
-async function disposeTabs(c: ChromeLike, ids: number[]): Promise<void> {
+async function disposeTabs(
+  c: ChromeLike,
+  ids: number[],
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<void> {
+  let i = 0;
   for (const id of ids) {
     try {
       await c.tabs.remove(id);
     } catch {
       // 部分失败：记录但不阻断（设计 #3：有处置集记录，编排层 Toast 提示）
     }
+    onProgress?.({ phase: 'dispose', count: i + 1, total: ids.length });
+    i++;
   }
 }
 
-/** 在窗口内重开 tab（restore / undo / 首启存量收纳复用）。active:false 防 restore 抢焦点闪烁。 */
+/** 在窗口内重开 tab（restore / undo / 首启存量收纳复用）。active:false 防 restore 抢焦点闪烁。
+ *  返回新建 tab 的 id 集供 undo dispose。 */
 async function openTabsInWindow(
   c: ChromeLike,
   windowId: number,
   tabs: TabEntry[],
-): Promise<void> {
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<number[]> {
+  const ids: number[] = [];
+  let i = 0;
   for (const t of tabs) {
-    await c.tabs.create({ url: t.url, pinned: t.pinned, windowId, index: t.order, active: false });
+    const created = (await c.tabs.create({
+      url: t.url,
+      pinned: t.pinned,
+      windowId,
+      index: t.order,
+      active: false,
+    })) as { id?: number } | undefined;
+    if (created?.id != null) ids.push(created.id);
+    onProgress?.({ phase: 'restore', count: i + 1, total: tabs.length });
+    i++;
   }
+  return ids;
 }
+
+const noopUndo = async () => {};
 
 /**
  * 切换窗口的工作区：归档当前 → 关闭 content tab → 恢复目标 → 更新绑定。
  * archive 失败时绝不 dispose（硬屏障），Toast 报错后中止——绝不无归档关闭 tab。
+ * 返回 undo 回调（T4：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
  */
-export async function requestWorkspaceSwitch(toId: string, windowId: number): Promise<void> {
+async function performSwitch(
+  toId: string,
+  windowId: number,
+  options?: SwitchOptions,
+): Promise<SwitchResult> {
+  const onProgress = options?.onProgress;
   const c = getChrome();
-  if (!c) return;
+  if (!c) return { undo: noopUndo };
   const fromId = await getWorkspaceBinding(windowId);
-  if (!fromId || fromId === toId) return;
+  if (!fromId || fromId === toId) return { undo: noopUndo };
 
   // 1. archive（失败 = 硬屏障，不动 tab）
-  const toDispose = await archive(windowId, fromId);
+  const toDispose = await archive(windowId, fromId, onProgress);
   if (toDispose === null) {
     Toast.error('切换中止：无法保存当前标签');
-    return;
+    return { undo: noopUndo };
   }
 
   // 2. dispose（保 home：toDispose 已排除 home tab）
-  await disposeTabs(c, toDispose.map((t) => t.id));
+  await disposeTabs(c, toDispose.map((t) => t.id), onProgress);
 
-  // 3. restore 目标工作区标签（active:false 防闪烁）
+  // 3. restore 目标工作区标签（active:false 防闪烁）；记 openedIds 供 undo
   const targetSession = await getTabSession(toId);
+  let openedIds: number[] = [];
   if (targetSession) {
-    await openTabsInWindow(c, windowId, targetSession.tabs);
+    openedIds = await openTabsInWindow(c, windowId, targetSession.tabs, onProgress);
   }
 
   // 4. 更新窗口绑定
   await setWorkspaceBinding(windowId, toId);
+  onProgress?.({ phase: 'done', count: 0, total: 0 });
+
+  // undo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding（仅 token 存活期有效）
+  return {
+    undo: async () => {
+      if (openedIds.length) await disposeTabs(c, openedIds);
+      const prevSession = await getTabSession(fromId);
+      if (prevSession) await openTabsInWindow(c, windowId, prevSession.tabs);
+      await setWorkspaceBinding(windowId, fromId);
+    },
+  };
+}
+
+// per-window 串行队列（rev4 #2）：同窗并发切换按序执行，防 archive/dispose 交错覆盖 session/关错 tab。
+// 不同窗口各自独立 inflight，互不阻塞。
+const inflight = new Map<number, Promise<void>>();
+
+/**
+ * 切换窗口的工作区（单命令入口，AppRail/Sidebar 共用）。selectWorkspace 保持纯 UI。
+ * 同窗并发请求串行化排队；archive 硬屏障保证绝不无归档关闭 tab。
+ * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费）。
+ */
+export async function requestWorkspaceSwitch(
+  toId: string,
+  windowId: number,
+  options?: SwitchOptions,
+): Promise<SwitchResult> {
+  const run = () => performSwitch(toId, windowId, options);
+  const prev = inflight.get(windowId) ?? Promise.resolve();
+  const task = prev.then(run, run); // Promise<SwitchResult>
+  const voidTask = task.then(noopUndo, noopUndo);
+  inflight.set(windowId, voidTask);
+  try {
+    return await task;
+  } finally {
+    if (inflight.get(windowId) === voidTask) inflight.delete(windowId);
+  }
 }

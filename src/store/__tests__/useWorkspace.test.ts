@@ -4,6 +4,7 @@ import { installChromeStorageLocal } from '@/test/storageMock';
 // mock WorkspaceService / CategoryService
 const ws = vi.hoisted(() => ({
   listWorkspaces: vi.fn(),
+  createWorkspace: vi.fn(),
   updateWorkspace: vi.fn(),
   deleteWorkspace: vi.fn(),
   reorderWorkspaces: vi.fn(),
@@ -35,6 +36,7 @@ beforeEach(() => {
   });
   installChromeStorageLocal();
   ws.listWorkspaces.mockReset();
+  ws.createWorkspace.mockReset();
   ws.updateWorkspace.mockReset();
   ws.deleteWorkspace.mockReset();
   ws.reorderWorkspaces.mockReset();
@@ -43,6 +45,41 @@ beforeEach(() => {
   cat.deleteCategory.mockReset();
   cat.reorderCategories.mockReset();
 });
+
+/** 给 globalThis.chrome 装上 windows.getCurrent mock（本窗 binding 测试用）。 */
+function withWindows(windowId: number | null) {
+  const chrome = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
+  chrome.windows = {
+    getCurrent: vi.fn(async () => (windowId == null ? undefined : { id: windowId })),
+  };
+}
+
+/** 装 windows.getCurrent + onCreated/onRemoved 事件 mock（窗口 listener 测试用）。 */
+function withWindowEvents(windowId = 100) {
+  const chrome = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
+  const createdCbs: Array<(w: { id: number }) => Promise<void> | void> = [];
+  const removedCbs: Array<(id: number) => Promise<void> | void> = [];
+  chrome.windows = {
+    getCurrent: vi.fn(async () => ({ id: windowId })),
+    onCreated: {
+      addListener: vi.fn((cb: (w: { id: number }) => Promise<void> | void) => createdCbs.push(cb)),
+      removeListener: vi.fn(),
+    },
+    onRemoved: {
+      addListener: vi.fn((cb: (id: number) => Promise<void> | void) => removedCbs.push(cb)),
+      removeListener: vi.fn(),
+    },
+  };
+  return {
+    // for...of + await：等待 async listener（setWorkspaceBinding/clear）完成
+    fireCreated: async (win: { id: number }) => {
+      for (const cb of createdCbs) await cb(win);
+    },
+    fireRemoved: async (id: number) => {
+      for (const cb of removedCbs) await cb(id);
+    },
+  };
+}
 
 describe('useWorkspace — updateWorkspace', () => {
   it('调用 Service 并同步本地 workspaces', async () => {
@@ -164,6 +201,78 @@ describe('useWorkspace — loadWorkspaces 持久化恢复', () => {
   });
 });
 
+describe('useWorkspace — loadWorkspaces 窗口绑定（T1b：本窗 binding 优先）', () => {
+  it('本窗无 binding → 回写 binding=当前 ws', async () => {
+    const { store } = installChromeStorageLocal({ initial: {} });
+    withWindows(100);
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1'), wsOf('w2')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w1');
+    expect(store['windowWorkspaceBinding.100']).toBe('w1');
+  });
+
+  it('本窗有 binding → 用 binding 覆盖（优先于 lastWorkspaceId）', async () => {
+    installChromeStorageLocal({
+      initial: { lastWorkspaceId: 'w1', 'windowWorkspaceBinding.100': 'w2' },
+    });
+    withWindows(100);
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1'), wsOf('w2')]);
+    cat.listCategories.mockResolvedValue([catOf('c2', 'w2')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    // binding=w2 覆盖 lastWorkspaceId=w1（home 一旦绑定后用 binding 而非 lastWorkspaceId）
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w2');
+    expect(cat.listCategories).toHaveBeenCalledWith('w2');
+  });
+
+  it('binding 失效（指向已删 ws）→ 回退 resolved + 回写新 binding', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: { 'windowWorkspaceBinding.100': 'wGhost' },
+    });
+    withWindows(100);
+    ws.listWorkspaces.mockResolvedValue([wsOf('w1')]);
+    cat.listCategories.mockResolvedValue([catOf('c1', 'w1')]);
+
+    await useWorkspace.getState().loadWorkspaces();
+
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('w1');
+    expect(store['windowWorkspaceBinding.100']).toBe('w1');
+  });
+});
+
+describe('useWorkspace — createWorkspace 首建补 binding（T1b rev4 #6）', () => {
+  it('零 ws → 创建首个 ws → 给本窗 binding=新 ws', async () => {
+    const { store } = installChromeStorageLocal({ initial: {} });
+    withWindows(100);
+    useWorkspace.setState({ workspaces: [], currentWorkspaceId: null });
+    ws.createWorkspace.mockResolvedValue(wsOf('wNew', '新'));
+    cat.listCategories.mockResolvedValue([]);
+
+    await useWorkspace.getState().createWorkspace('新', '🆕');
+
+    expect(store['windowWorkspaceBinding.100']).toBe('wNew');
+    expect(useWorkspace.getState().currentWorkspaceId).toBe('wNew');
+  });
+
+  it('已有 ws → 创建新 ws → 不改本窗 binding（非首建）', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: { 'windowWorkspaceBinding.100': 'wOld' },
+    });
+    withWindows(100);
+    useWorkspace.setState({ workspaces: [wsOf('wOld')], currentWorkspaceId: 'wOld' });
+    ws.createWorkspace.mockResolvedValue(wsOf('wNew', '新'));
+
+    await useWorkspace.getState().createWorkspace('新', '🆕');
+
+    // 非首建：binding 保持 wOld，不被新 ws 覆盖
+    expect(store['windowWorkspaceBinding.100']).toBe('wOld');
+  });
+});
+
 describe('useWorkspace — selectWorkspace 持久化', () => {
   it('切换工作区 → persist last-ws + 恢复该工作区 last-cat（不在切换时 persist cat）', async () => {
     const { store } = installChromeStorageLocal({
@@ -252,6 +361,65 @@ describe('useWorkspace — delete 持久化', () => {
   });
 });
 
+describe('useWorkspace — deleteWorkspace 深化（T1c rev4 #5：rebind + 清 session）', () => {
+  it('删 ws：所有 bound=该 ws 的窗口 rebind 到 fallback', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: {
+        'windowWorkspaceBinding.100': 'wDel',
+        'windowWorkspaceBinding.200': 'wKeep',
+      },
+    });
+    useWorkspace.setState({
+      workspaces: [wsOf('wDel'), wsOf('wKeep')],
+      currentWorkspaceId: 'wKeep',
+    });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+    cat.listCategories.mockResolvedValue([]);
+
+    await useWorkspace.getState().deleteWorkspace('wDel');
+
+    // wDel 的窗口 100 rebind 到 fallback(wKeep)；窗口 200 已是 wKeep 不变
+    expect(store['windowWorkspaceBinding.100']).toBe('wKeep');
+    expect(store['windowWorkspaceBinding.200']).toBe('wKeep');
+  });
+
+  it('删 ws → 清该 ws 的 tabSession（隐私：不留已删 ws 的 tab URL）', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: {
+        'tabSession.wDel': { tabs: [{ url: 'https://secret.example', order: 0 }], savedAt: 1 },
+      },
+    });
+    useWorkspace.setState({
+      workspaces: [wsOf('wDel'), wsOf('wKeep')],
+      currentWorkspaceId: 'wKeep',
+    });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+
+    await useWorkspace.getState().deleteWorkspace('wDel');
+
+    expect(store['tabSession.wDel']).toBeUndefined();
+  });
+
+  it('删最后 ws（无剩余）→ bound 该 ws 的窗口 clearBinding + currentWorkspaceId=null', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: { 'windowWorkspaceBinding.100': 'wOnly' },
+    });
+    useWorkspace.setState({
+      workspaces: [wsOf('wOnly')],
+      currentWorkspaceId: 'wOnly',
+    });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([]);
+
+    await useWorkspace.getState().deleteWorkspace('wOnly');
+
+    expect(store['windowWorkspaceBinding.100']).toBeUndefined();
+    expect(useWorkspace.getState().currentWorkspaceId).toBeNull();
+  });
+});
+
 describe('useWorkspace — T3 reorder(乐观重排 + 失败回滚)', () => {
   it('reorderCategories 乐观重排 categories 切片并赋 0..N', async () => {
     useWorkspace.setState({
@@ -315,5 +483,33 @@ describe('useWorkspace — T3 reorder(乐观重排 + 失败回滚)', () => {
     const list = useWorkspace.getState().workspaces;
     expect(list.map((w) => w.id)).toEqual(['w1', 'w2']);
     expect(list.map((w) => w.order)).toEqual([0, 1]);
+  });
+});
+
+describe('useWorkspace — 窗口 listener（T1c：onCreated 默认绑定 / onRemoved 清 binding）', () => {
+  it('loadWorkspaces 注册 onCreated：新窗 → 默认 binding=当前 ws', async () => {
+    const { store } = installChromeStorageLocal({ initial: {} });
+    const events = withWindowEvents(100);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wCur')]);
+    cat.listCategories.mockResolvedValue([]);
+
+    await useWorkspace.getState().loadWorkspaces();
+    await events.fireCreated({ id: 200 });
+
+    expect(store['windowWorkspaceBinding.200']).toBe('wCur');
+  });
+
+  it('onRemoved：窗口关闭 → 清该窗 binding', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: { 'windowWorkspaceBinding.100': 'wCur' },
+    });
+    const events = withWindowEvents(100);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wCur')]);
+    cat.listCategories.mockResolvedValue([]);
+
+    await useWorkspace.getState().loadWorkspaces();
+    await events.fireRemoved(100);
+
+    expect(store['windowWorkspaceBinding.100']).toBeUndefined();
   });
 });

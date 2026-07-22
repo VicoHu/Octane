@@ -4,6 +4,7 @@ import {
   getWorkspaceBinding,
   setWorkspaceBinding,
   clearWorkspaceBinding,
+  listAllBindings,
 } from '../windowWorkspaceBinding';
 
 // windowWorkspaceBinding：窗口↔工作区绑定存 chrome.storage.local 分键
@@ -35,5 +36,28 @@ describe('windowWorkspaceBinding — 窗口↔工作区绑定 storage.local 分�
     await setWorkspaceBinding(2, 'ws-b');
     expect(await getWorkspaceBinding(1)).toBe('ws-a');
     expect(await getWorkspaceBinding(2)).toBe('ws-b');
+  });
+});
+
+describe('windowWorkspaceBinding — listAllBindings（扫全量 storage.local）', () => {
+  it('返回所有 windowId→wsId 的 Map（忽略非 binding key）', async () => {
+    installChromeStorageLocal({
+      initial: {
+        'windowWorkspaceBinding.1': 'ws-a',
+        'windowWorkspaceBinding.2': 'ws-b',
+        lastWorkspaceId: 'ws-a',
+      },
+    });
+    expect(await listAllBindings()).toEqual(
+      new Map([
+        [1, 'ws-a'],
+        [2, 'ws-b'],
+      ]),
+    );
+  });
+
+  it('无任何 binding → 返回空 Map', async () => {
+    installChromeStorageLocal({ initial: { lastWorkspaceId: 'ws-a' } });
+    expect(await listAllBindings()).toEqual(new Map());
   });
 });

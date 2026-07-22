@@ -15,7 +15,7 @@ function key(windowId: number): string {
 }
 
 interface ChromeStorageLocal {
-  get: (keys: string | string[]) => Promise<Record<string, unknown>>;
+  get: (keys: string | string[] | null) => Promise<Record<string, unknown>>;
   set: (data: Record<string, unknown>) => Promise<void>;
   remove: (keys: string | string[]) => Promise<void>;
 }
@@ -57,4 +57,24 @@ export async function clearWorkspaceBinding(windowId: number): Promise<void> {
   const local = getLocal();
   if (!local) return;
   await local.remove([key(windowId)]);
+}
+
+/**
+ * 列出所有窗口绑定（扫全量 storage.local.get(null)；delete 深化 rebind 用）。
+ * 返回 Map<windowId, workspaceId>。删 ws X 时须扫所有绑定把 =X 的窗口 rebind 到 fallback。
+ */
+export async function listAllBindings(): Promise<Map<number, string>> {
+  const local = getLocal();
+  const all = new Map<number, string>();
+  if (!local) return all;
+  const entries = await local.get(null); // null = 全量
+  for (const [k, v] of Object.entries(entries)) {
+    if (k.startsWith(WINDOW_BINDING_PREFIX)) {
+      const winId = Number(k.slice(WINDOW_BINDING_PREFIX.length));
+      if (Number.isFinite(winId) && typeof v === 'string') {
+        all.set(winId, v);
+      }
+    }
+  }
+  return all;
 }

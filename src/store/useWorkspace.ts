@@ -9,6 +9,13 @@ import {
   resolveLastCat,
   type LastCatMap,
 } from '@/shared/lastSelection';
+import {
+  getWorkspaceBinding,
+  setWorkspaceBinding,
+  clearWorkspaceBinding,
+  listAllBindings,
+} from '@/shared/windowWorkspaceBinding';
+import { clearTabSession } from '@/services/TabSessionService';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -71,6 +78,64 @@ async function persistCat(wsId: string, catId: string): Promise<void> {
   }
 }
 
+/** 取本窗 id（chrome.windows.getCurrent）；非扩展环境/异常 → null（binding 逻辑跳过）。 */
+async function getCurrentWindowId(): Promise<number | null> {
+  try {
+    const chrome = (globalThis as Record<string, unknown>)['chrome'];
+    if (chrome && typeof chrome === 'object') {
+      const windows = (chrome as Record<string, unknown>)['windows'];
+      if (windows && typeof windows === 'object') {
+        const getCurrent = (windows as Record<string, unknown>)['getCurrent'];
+        if (typeof getCurrent === 'function') {
+          const win = await (getCurrent as () => Promise<{ id?: number }>)();
+          return win?.id ?? null;
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── 窗口生命周期 listener（onCreated 默认绑定 / onRemoved 清 binding；loadWorkspaces 首次注册）──
+// onWindowCreated 运行期读 useWorkspace（store 已初始化），不触模块加载期 TDZ。
+const onWindowCreated = async (win: { id: number }) => {
+  const ws = useWorkspace.getState().currentWorkspaceId;
+  if (ws) await setWorkspaceBinding(win.id, ws);
+};
+const onWindowRemoved = async (winId: number) => {
+  await clearWorkspaceBinding(winId);
+};
+
+/** 注册窗口生命周期 listener（loadWorkspaces 调；先 remove 再 add 幂等，避免重复注册）。 */
+function registerWindowListeners(): void {
+  const chrome = (globalThis as Record<string, unknown>)['chrome'];
+  if (!chrome || typeof chrome !== 'object') return;
+  const windows = (chrome as Record<string, unknown>)['windows'];
+  if (!windows || typeof windows !== 'object') return;
+  const onCreated = (windows as Record<string, unknown>)['onCreated'] as
+    | {
+        addListener?: (cb: (w: { id: number }) => void) => void;
+        removeListener?: (cb: (w: { id: number }) => void) => void;
+      }
+    | undefined;
+  const onRemoved = (windows as Record<string, unknown>)['onRemoved'] as
+    | {
+        addListener?: (cb: (id: number) => void) => void;
+        removeListener?: (cb: (id: number) => void) => void;
+      }
+    | undefined;
+  if (onCreated?.addListener) {
+    onCreated.removeListener?.(onWindowCreated);
+    onCreated.addListener(onWindowCreated);
+  }
+  if (onRemoved?.addListener) {
+    onRemoved.removeListener?.(onWindowRemoved);
+    onRemoved.addListener(onWindowRemoved);
+  }
+}
+
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   currentWorkspaceId: null,
@@ -80,9 +145,23 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
 
   loadWorkspaces: async () => {
     set({ loading: true });
+    registerWindowListeners();
     const workspaces = await WorkspaceService.listWorkspaces();
     const { ws: lastWs, catMap } = await readLastSelection();
-    const currentWorkspaceId = resolveLastWs(lastWs, workspaces);
+    let currentWorkspaceId = resolveLastWs(lastWs, workspaces);
+
+    // 本窗 binding 优先于 lastWorkspaceId（home 一旦绑定后用 binding 而非 lastWorkspaceId）。
+    // 无 binding / 失效 → 回写当前 ws；有 binding 且存在 → 用 binding 覆盖。
+    const winId = await getCurrentWindowId();
+    if (winId != null) {
+      const binding = await getWorkspaceBinding(winId);
+      if (binding && workspaces.some((w) => w.id === binding)) {
+        currentWorkspaceId = binding;
+      } else if (currentWorkspaceId) {
+        await setWorkspaceBinding(winId, currentWorkspaceId);
+      }
+    }
+
     set({ workspaces, currentWorkspaceId, loading: false });
 
     if (currentWorkspaceId) {
@@ -95,10 +174,16 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   },
 
   createWorkspace: async (name, icon) => {
+    const wasEmpty = get().workspaces.length === 0;
     const workspace = await WorkspaceService.createWorkspace(name, icon);
     set((s) => ({ workspaces: [...s.workspaces, workspace] }));
     if (!get().currentWorkspaceId) {
       await get().selectWorkspace(workspace.id);
+    }
+    // 首次创建（零→一，rev4 #6）：给本窗 binding=新 ws（create 本身不编排 tab，但须补 binding）
+    if (wasEmpty) {
+      const winId = await getCurrentWindowId();
+      if (winId != null) await setWorkspaceBinding(winId, workspace.id);
     }
   },
 
@@ -113,11 +198,24 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     await WorkspaceService.deleteWorkspace(id);
     const workspaces = await WorkspaceService.listWorkspaces();
     set({ workspaces });
+    const fallback = workspaces[0]?.id;
+
+    // delete 深化（rev4 #5）：扫所有 binding，凡=被删 ws 的窗口 rebind 到 fallback
+    // （无 fallback=删最后 ws → clearBinding，内容 tab 保留不归属）。
+    const bindings = await listAllBindings();
+    for (const [winId, boundWs] of bindings) {
+      if (boundWs === id) {
+        if (fallback) await setWorkspaceBinding(winId, fallback);
+        else await clearWorkspaceBinding(winId);
+      }
+    }
+    // 隐私：清已删 ws 的 tab 会话（不留已删 ws 的 tab URL）
+    await clearTabSession(id);
+
     const wasCurrent = get().currentWorkspaceId === id;
     if (wasCurrent) {
-      // 复用 selectWorkspace：persist 新 ws + 加载分类 + 恢复该 ws 的 last-cat
-      const fallback = workspaces[0]?.id;
       if (fallback) {
+        // 复用 selectWorkspace：persist 新 ws + 加载分类 + 恢复该 ws 的 last-cat
         await get().selectWorkspace(fallback);
       } else {
         set({ currentWorkspaceId: null, categories: [], currentCategoryId: null });

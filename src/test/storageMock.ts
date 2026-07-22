@@ -19,7 +19,7 @@ type LocalStore = Record<string, unknown>;
 
 interface InstallOptions {
   initial?: LocalStore;
-  getImpl?: (keys: string | string[]) => Promise<LocalStore>;
+  getImpl?: (keys: string | string[] | null) => Promise<LocalStore>;
   setImpl?: (data: LocalStore) => Promise<void>;
 }
 
@@ -29,7 +29,9 @@ export function installChromeStorageLocal(options: InstallOptions = {}) {
   const local = {
     get: vi.fn(
       options.getImpl ??
-        (async (keys: string | string[]) => {
+        (async (keys: string | string[] | null) => {
+          // null = 全量（chrome.storage.local.get(null) 语义；listAllBindings 扫所有绑定用）
+          if (keys === null) return { ...store };
           const arr = Array.isArray(keys) ? keys : [keys];
           const out: LocalStore = {};
           for (const k of arr) if (k in store) out[k] = store[k];
