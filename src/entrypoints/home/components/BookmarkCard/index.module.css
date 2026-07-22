@@ -170,12 +170,12 @@
 
 .actions {
   position: absolute;
-  top: 50%;
+  top: var(--space-sm);
   right: var(--space-sm);
   display: flex;
   gap: var(--space-xs);
   opacity: 0;
-  transform: translateY(-50%) translateX(4px);
+  transform: translateY(-4px) translateX(4px);
   pointer-events: none;
   z-index: 2;
   transition: opacity var(--transition-normal), transform var(--transition-normal);
@@ -184,7 +184,7 @@
 .card:hover .actions,
 .card:focus-within .actions {
   opacity: 1;
-  transform: translateY(-50%);
+  transform: translateY(-4px);
   pointer-events: auto;
 }
 
@@ -197,7 +197,7 @@
 @media (hover: none) {
   .actions {
     opacity: 1;
-    transform: translateY(-50%);
+    transform: translateY(-4px);
     pointer-events: auto;
   }
 }
@@ -206,7 +206,7 @@
 @media (prefers-reduced-motion: reduce) {
   .actions {
     transition: none;
-    transform: translateY(-50%);
+    transform: translateY(-4px);
   }
   .cardHasOpenTab.pulsing::before {
     animation: none;
