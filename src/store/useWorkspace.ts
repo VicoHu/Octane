@@ -79,7 +79,7 @@ async function persistCat(wsId: string, catId: string): Promise<void> {
 }
 
 /** 取本窗 id（chrome.windows.getCurrent）；非扩展环境/异常 → null（binding 逻辑跳过）。 */
-async function getCurrentWindowId(): Promise<number | null> {
+export async function getCurrentWindowId(): Promise<number | null> {
   try {
     const chrome = (globalThis as Record<string, unknown>)['chrome'];
     if (chrome && typeof chrome === 'object') {

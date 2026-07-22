@@ -17,6 +17,7 @@
 import type { TabEntry } from '@/shared/types';
 import { saveTabSession, getTabSession } from '@/services/TabSessionService';
 import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspaceBinding';
+import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
 import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
@@ -229,4 +230,27 @@ export async function requestWorkspaceSwitch(
   } finally {
     if (inflight.get(windowId) === voidTask) inflight.delete(windowId);
   }
+}
+
+/**
+ * 门控分流（T3）：按隔离设置决定切换走 tab 编排（close）还是纯 UI（off）。
+ *
+ * - close + windowId：先 requestWorkspaceSwitch（archive/dispose/restore + 更新 binding），
+ *   再 selectWorkspace。requestWorkspaceSwitch 只改 binding/session 不动 store 选中态，
+ *   不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
+ * - off 或 windowId=null（非扩展环境）：仅 selectWorkspace（当前行为，不碰 tab）。
+ *
+ * selectWorkspace 注入（store 方法），保持本模块不依赖 store。
+ */
+export async function switchWorkspaceBySetting(params: {
+  toId: string;
+  setting: TabIsolationSetting;
+  windowId: number | null;
+  selectWorkspace: (id: string) => Promise<void>;
+}): Promise<void> {
+  const { toId, setting, windowId, selectWorkspace } = params;
+  if (setting === 'close' && windowId != null) {
+    await requestWorkspaceSwitch(toId, windowId);
+  }
+  await selectWorkspace(toId);
 }

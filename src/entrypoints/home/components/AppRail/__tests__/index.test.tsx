@@ -2,21 +2,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useWorkspace } from '@/store/useWorkspace';
+
+// 门控入口 mock：AppRail 的职责是「点击工作区 → 调切换入口」，
+// switchWorkspace 的分流行为（off/close）由 workspaceSwitcher.test.ts 独立覆盖。
+vi.mock('@/entrypoints/home/utils/workspaceSwitcher', () => ({
+  switchWorkspace: vi.fn(),
+}));
+
+import { switchWorkspace } from '@/entrypoints/home/utils/workspaceSwitcher';
 import { AppRail } from '..';
 
 describe('AppRail — 工作区主导航', () => {
-  const selectWorkspace = vi.fn<() => Promise<void>>();
-
   beforeEach(() => {
-    selectWorkspace.mockReset();
-    selectWorkspace.mockResolvedValue();
+    vi.mocked(switchWorkspace).mockReset();
     useWorkspace.setState({
       workspaces: [
         { id: 'w1', name: '主工作区', icon: '📁', createdAt: 0, order: 0 },
         { id: 'w2', name: '研究', icon: '🔬', createdAt: 0, order: 1 },
       ],
       currentWorkspaceId: 'w1',
-      selectWorkspace,
     });
   });
 
@@ -30,13 +34,13 @@ describe('AppRail — 工作区主导航', () => {
     expect(screen.getByRole('separator')).toBeInTheDocument();
   });
 
-  it('点击工作区 → 切换到对应工作区', async () => {
+  it('点击工作区 → 调门控切换入口 switchWorkspace', async () => {
     const user = userEvent.setup();
     render(<AppRail />);
 
     await user.click(screen.getByRole('button', { name: '切换到工作区 研究' }));
 
-    expect(selectWorkspace).toHaveBeenCalledWith('w2');
+    expect(switchWorkspace).toHaveBeenCalledWith('w2');
   });
 
   it('悬停工作区 → 显示名称提示', async () => {

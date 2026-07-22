@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { requestWorkspaceSwitch, type SwitchProgress } from '../workspaceSwitch';
+import { requestWorkspaceSwitch, switchWorkspaceBySetting, type SwitchProgress } from '../workspaceSwitch';
 
 type QueryInfo = { currentWindow?: boolean; windowId?: number; url?: string };
 
@@ -183,5 +183,42 @@ describe('requestWorkspaceSwitch — undo（T4：回滚切换）', () => {
     // binding 回滚 ws-a；restore ws-a session（= 切换时 archive 的 cur.com）
     expect(store['windowWorkspaceBinding.100']).toBe('ws-a');
     expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://cur.com' }));
+  });
+});
+
+describe('switchWorkspaceBySetting — 门控分流（T3：off 纯 UI / close tab 编排）', () => {
+  it('off 模式：仅 selectWorkspace，不触发 tab 编排', async () => {
+    const { c } = mockChromeWithStorage({ 'windowWorkspaceBinding.1': 'ws-a' });
+    const selectWorkspace = vi.fn();
+    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'off', windowId: 1, selectWorkspace });
+    // off 不调 requestWorkspaceSwitch：无 tab 操作
+    expect(c.tabs.remove).not.toHaveBeenCalled();
+    expect(c.tabs.create).not.toHaveBeenCalled();
+    // selectWorkspace 仍同步选中态（off = 当前行为）
+    expect(selectWorkspace).toHaveBeenCalledWith('ws-b');
+  });
+
+  it('close + windowId：requestWorkspaceSwitch 编排 tab + selectWorkspace 同步选中态', async () => {
+    const { c, store } = mockChromeWithStorage({
+      'windowWorkspaceBinding.1': 'ws-a',
+      'tabSession.ws-b': { tabs: [{ url: 'https://b.com', order: 0 }], savedAt: 1 },
+    });
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      { id: 10, windowId: 1, url: 'https://a.com', index: 0 },
+    ] as never);
+    const selectWorkspace = vi.fn();
+    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: 1, selectWorkspace });
+    // tab 编排：restore ws-b 的 tab（active:false 防闪烁）
+    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
+    // binding 更新到 ws-b（requestWorkspaceSwitch 内部）
+    expect(store['windowWorkspaceBinding.1']).toBe('ws-b');
+    // selectWorkspace 同步 store 选中态（否则 UI 高亮/分类停留在旧工作区）
+    expect(selectWorkspace).toHaveBeenCalledWith('ws-b');
+  });
+
+  it('close + windowId null（非扩展环境）：fallback 仅 selectWorkspace，不编排', async () => {
+    const selectWorkspace = vi.fn();
+    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: null, selectWorkspace });
+    expect(selectWorkspace).toHaveBeenCalledWith('ws-b');
   });
 });

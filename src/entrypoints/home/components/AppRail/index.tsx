@@ -9,12 +9,12 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/store/useWorkspace';
+import { switchWorkspace } from '@/entrypoints/home/utils/workspaceSwitcher';
 import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 
 export function AppRail() {
   const workspaces = useWorkspace((state) => state.workspaces);
   const currentWorkspaceId = useWorkspace((state) => state.currentWorkspaceId);
-  const selectWorkspace = useWorkspace((state) => state.selectWorkspace);
 
   return (
     <aside className="app-rail dark" aria-label="主导航">
@@ -38,7 +38,7 @@ export function AppRail() {
                         )}
                         aria-label={`切换到工作区 ${workspace.name}`}
                         aria-pressed={isCurrent}
-                        onClick={() => void selectWorkspace(workspace.id)}
+                        onClick={() => void switchWorkspace(workspace.id)}
                       />
                     }
                   >
