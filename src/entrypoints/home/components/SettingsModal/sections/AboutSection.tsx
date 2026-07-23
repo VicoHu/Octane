@@ -17,6 +17,7 @@ interface ChromeLike {
 const AUTHOR_URL = 'https://github.com/VicoHu';
 const REPO_URL = 'https://github.com/VicoHu/Octane';
 const ISSUES_URL = 'https://github.com/VicoHu/Octane/issues';
+const DISCUSS_URL = 'https://discuss.vectorcube.vip';
 
 /** 关于 Octane：版本/渠道 + 作者/仓库/反馈 + 新版本提示 + 按渠道前往更新页。 */
 export function AboutSection() {
@@ -39,7 +40,8 @@ export function AboutSection() {
       <div className="space-y-1 text-sm">
         <Row label="作者" value="VicoHu" onClick={() => open(AUTHOR_URL)} />
         <Row label="开源仓库" value="VicoHu/Octane" onClick={() => open(REPO_URL)} />
-        <Row label="反馈 / 报告问题" value="GitHub Issues" onClick={() => open(ISSUES_URL)} />
+        <Row label="技术问题反馈" value="GitHub Issues" onClick={() => open(ISSUES_URL)} />
+        <Row label="社区讨论/反馈" value="Discuss" onClick={() => open(DISCUSS_URL)} />
       </div>
 
       <UpdateStatus channel={channel} pendingVersion={pendingVersion} onOpen={open} />
