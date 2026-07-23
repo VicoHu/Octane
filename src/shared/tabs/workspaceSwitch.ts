@@ -11,7 +11,8 @@
  * 绝不无归档关闭 tab，防丢数据。此 invariant 有专门回归测试守护。
  *
  * v1.1：performSwitch 加 mode（close/hide/hide-discard）+ 失败状态机（archive/dispose/restore
- * 三失败路径，M2 restore try/catch）。undo 暂为 noopUndo（T6 buildUndo 接管）。
+ * 三失败路径，M2 restore try/catch）。undo = buildUndo（generation 校验 + 按 mode 反转）包
+ * queuedUndo（走 per-window 串行队列，防 undo 与下一次切换交错）。
  *
  * chrome 引用在函数体内读取（参考 focusOrCreateHomeTab.ts），测试覆盖 chrome 后生效。
  */
@@ -39,7 +40,19 @@ export interface SwitchOptions {
   onProgress?: (progress: SwitchProgress) => void;
 }
 
-/** 切换结果：undo 回滚本次切换（dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+/** 切换快照（T6）：undo 前校验目标组结构未变（generation），按 mode 反转。
+ *  targetGroupId = restoreByMode 命中/新建的目标组 id（close=None）。 */
+interface UndoSnapshot {
+  fromId: string;
+  toId: string;
+  mode: TabIsolationMode;
+  /** restore 命中/新建的目标组 id（close=None）；undo 前校验 findGroupByIdentity(toId) 未变。 */
+  targetGroupId: number | null;
+  /** 本次 restore 重开的 tab id 集（close 档 undo 时 dispose）。 */
+  openedIds: number[];
+}
+
+/** 切换结果：undo 回滚本次切换（generation 校验 → 按 mode 反转 → 回滚 binding）。
  *  fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）。 */
 export interface SwitchResult {
   undo: () => Promise<void>;
@@ -391,7 +404,8 @@ export async function restoreByMode(
  * - restore failed 非空（部分 tab 重开失败）→ 仍更新 binding（部分成功）+ Toast「未完成 N 个」。
  *
  * archive 失败时绝不 dispose（硬屏障），Toast 报错后中止——绝不无归档关闭 tab。
- * undo 暂为 noopUndo（T6 实现 buildUndo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+ * undo = buildUndo 包 queuedUndo（T6）：generation 校验目标组结构 → 按 mode 反转 → 回滚 binding，
+ * 走 per-window 串行队列防与下一次切换交错。
  */
 export async function performSwitch(
   toId: string,
@@ -422,10 +436,13 @@ export async function performSwitch(
 
   // 3. restore 目标 ws（M2：try/catch 兜底 restoreByMode 内 group/update 抛错；
   //    restoreByMode close 路径的 openTabsInWindow 抛错也在此兜住）
-  let failed: TabEntry[] = [];
+  let restored: { opened: number[]; failed: TabEntry[]; groupId: number | null } = {
+    opened: [],
+    failed: [],
+    groupId: null,
+  };
   try {
-    const r = await restoreByMode(c, windowId, toId, toName, mode, onProgress);
-    failed = r.failed;
+    restored = await restoreByMode(c, windowId, toId, toName, mode, onProgress);
   } catch {
     // restore 抛错（非 failed 非空）→ 不更新 binding；源已 dispose 的中间态由 undo/手动切回兜底
     Toast.error('切换未完成：恢复目标标签时出错');
@@ -436,27 +453,92 @@ export async function performSwitch(
   await setWorkspaceBinding(windowId, toId);
   onProgress?.({ phase: 'done', count: 0, total: 0 });
 
-  if (failed.length) {
-    Toast.error(`切换未完成：还有 ${failed.length} 个标签未恢复`);
+  if (restored.failed.length) {
+    Toast.error(`切换未完成：还有 ${restored.failed.length} 个标签未恢复`);
   }
 
-  // undo 暂为 noopUndo（T6 buildUndo 接管：dispose opened → restore fromId → 回滚 binding）
-  return {
-    undo: noopUndo,
+  // T6: buildUndo（generation 校验 + 按 mode 反转）包 queuedUndo（走 per-window 串行队列）
+  const snapshot: UndoSnapshot = {
     fromId,
-    closedCount: archived.tabs.length,
+    toId,
+    mode,
+    targetGroupId: restored.groupId,
+    openedIds: restored.opened,
   };
+  const undo = queueUndo(windowId, buildUndo(c, windowId, snapshot, onProgress));
+  return { undo, fromId, closedCount: archived.tabs.length };
 }
 
 // per-window 串行队列（rev4 #2）：同窗并发切换按序执行，防 archive/dispose 交错覆盖 session/关错 tab。
-// 不同窗口各自独立 inflight，互不阻塞。
+// 不同窗口各自独立 inflight，互不阻塞。undo（queuedUndo）也走本队列，防 undo 与下一次切换交错。
 const inflight = new Map<number, Promise<void>>();
+
+/**
+ * 把 undo 包进 per-window 串行队列（T6）。undo 不绕过 inflight，防 undo 与下一次切换
+ * 交错（archive/dispose/undo 互相覆盖 session 或关错 tab）。模式与 requestWorkspaceSwitch 同构。
+ */
+function queueUndo(windowId: number, undoFn: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    const prev = inflight.get(windowId) ?? Promise.resolve();
+    const task = prev.then(undoFn, undoFn); // Promise<void>
+    const voidTask = task.then(noopUndo, noopUndo);
+    inflight.set(windowId, voidTask);
+    try {
+      await task;
+    } finally {
+      if (inflight.get(windowId) === voidTask) inflight.delete(windowId);
+    }
+  };
+}
+
+/**
+ * 构造 undo 函数（T6）：generation 校验 + 按 mode 反转。
+ *
+ * generation 校验：undo 前查 findGroupByIdentity(toId) === snapshot.targetGroupId？
+ * 不等（组被删/标题改/重建为新 gid）→ 拒绝 undo（Toast「工作区已变化，可手动切回」）+ 不回滚。
+ *
+ * 反转（按 mode）：
+ * - close：dispose 本次 opened（restore 集）+ restoreByMode(fromId, close) + 回滚 binding。
+ * - hide / hide-discard：collapse 目标组 + restoreByMode(fromId, hide)（命中 expand 源组 /
+ *   未命中兜底重开）+ 回滚 binding。
+ */
+function buildUndo(
+  c: ChromeLike,
+  windowId: number,
+  snapshot: UndoSnapshot,
+  onProgress?: (p: SwitchProgress) => void,
+): () => Promise<void> {
+  return async () => {
+    // generation 校验：目标组结构未变（groupId 仍存、标识回找一致）
+    const gid = await findGroupByIdentity(windowId, snapshot.toId);
+    if (gid !== snapshot.targetGroupId) {
+      Toast.error('工作区已变化，无法撤销，可手动切回');
+      return;
+    }
+    // 反转：collapse 目标组（hide / hide-discard；close 路径 gid=null 跳过）
+    if (gid != null) {
+      try {
+        await c.tabGroups.update(gid, { collapsed: true });
+      } catch {
+        /* 组已不存在等：忽略，继续回滚 binding */
+      }
+    }
+    // close：dispose 本次 restore 重开的 tab（opened 集）
+    if (snapshot.mode === 'close' && snapshot.openedIds.length) {
+      await disposeTabs(c, snapshot.openedIds);
+    }
+    // 源工作区：restoreByMode（hide 命中→expand 源组 / 未命中→兜底重开；close→重开 session）
+    await restoreByMode(c, windowId, snapshot.fromId, '', snapshot.mode, onProgress);
+    // 回滚 binding 到源工作区
+    await setWorkspaceBinding(windowId, snapshot.fromId);
+  };
+}
 
 /**
  * 切换窗口的工作区（单命令入口，AppRail/Sidebar 共用）。selectWorkspace 保持纯 UI。
  * 同窗并发请求串行化排队；archive 硬屏障保证绝不无归档关闭 tab。
  * toName 由上层（能访问 store）传入，供 restoreByMode 建 group title。
- * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费，T5 暂 noopUndo）。
+ * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费；T6 buildUndo 包 queuedUndo）。
  */
 export async function requestWorkspaceSwitch(
   toId: string,

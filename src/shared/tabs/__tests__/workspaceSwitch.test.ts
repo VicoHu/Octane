@@ -174,7 +174,7 @@ describe('requestWorkspaceSwitch — 进度事件（T8 消费：archive/dispose/
 });
 
 describe('requestWorkspaceSwitch — undo（T4：回滚切换）', () => {
-  it('undo（T5：noopUndo 占位，T6 实现 buildUndo 后恢复回滚断言）', async () => {
+  it('undo 回滚切换（T6 buildUndo：dispose opened + restore 源 + 回滚 binding）', async () => {
     const { c, store } = mockChromeWithStorage({
       'windowWorkspaceBinding.100': 'ws-a',
       'tabSession.ws-a': { tabs: [{ url: 'https://a.com', order: 0 }], savedAt: 1 },
@@ -187,10 +187,10 @@ describe('requestWorkspaceSwitch — undo（T4：回滚切换）', () => {
     const result = await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
     expect(store['windowWorkspaceBinding.100']).toBe('ws-b');
 
-    await result.undo(); // noopUndo：不回滚（T6 buildUndo 接管）
+    await result.undo(); // T6 buildUndo：generation 通过 → 回滚
 
-    // T5 占位：undo 暂为 noop，binding 仍停留目标；T6 实现 buildUndo 后改回断言 ws-a
-    expect(store['windowWorkspaceBinding.100']).toBe('ws-b');
+    // undo 回滚 binding 到源工作区 ws-a
+    expect(store['windowWorkspaceBinding.100']).toBe('ws-a');
   });
 });
 
@@ -742,5 +742,131 @@ describe('performSwitch — 失败状态机 + close 回归（T5）', () => {
     // archive 存 ws-a session；dispose remove tab 1；restore create b.com
     expect(c.__testTabs.has(1)).toBe(false);
     expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T6: undo generation 校验 + per-window 串行队列
+// buildUndo（generation 校验 + 按 mode 反转）+ queuedUndo（走 inflight 队列，不绕过）。
+// 复用 installDisposeRestoreStub（Map 驱动 chrome + storage.local 真实往返）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('performSwitch — undo generation 校验 + 入队（T6）', () => {
+  beforeEach(() => {
+    installDisposeRestoreStub();
+  });
+
+  it('组结构未变 → undo 反转（hide：collapse 目标 + expand 源 + 回滚 binding）', async () => {
+    const c = (globalThis as any).chrome;
+    // 源 ws-a 组（展开）+ 目标 ws-b 组（折叠）；tab 1 在源组
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(r.fromId).toBe('aaaa1111-0000-0000');
+    // 切换后：源组折叠、目标组展开、binding=ws-b
+    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    expect(c.__testGroups.get(20).collapsed).toBe(false);
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+
+    await r.undo();
+
+    // undo 反转：目标组折叠、源组展开、binding 回 ws-a
+    expect(c.__testGroups.get(20).collapsed).toBe(true);
+    expect(c.__testGroups.get(10).collapsed).toBe(false);
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
+  });
+
+  it('组结构变化（目标组被删）→ undo 拒绝 + Toast + binding 不回滚', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    // 仅 spy Toast.error（命令式 API），不整体 mock 模块
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    errorSpy.mockClear();
+
+    // 组结构变化：删目标组 20（findGroupByIdentity 将回找不到 → gid=null !== targetGroupId=20）
+    c.__testGroups.delete(20);
+    await r.undo();
+
+    // undo 拒绝：Toast 提示 + binding 未回滚（仍 ws-b）+ 源组未被展开（未反转）
+    expect(errorSpy).toHaveBeenCalledWith('工作区已变化，无法撤销，可手动切回');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    errorSpy.mockRestore();
+  });
+
+  it('undo 走 per-window 串行队列：undo 进行中，下一次切换 archive 等待', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+
+    // 计数 archive 的 tabs.query（undo 不调 tabs.query，仅切换 archive 会调）
+    let queryCount = 0;
+    const origQuery = c.tabs.query;
+    c.tabs.query = async (info: any) => {
+      queryCount++;
+      return origQuery(info);
+    };
+    const queryBefore = queryCount;
+
+    // 让 undo 反转路径的 collapse 目标组（gid=20, collapsed:true）挂起
+    let resolveUndo!: () => void;
+    const origUpdate = c.tabGroups.update;
+    c.tabGroups.update = async (gid: number, props: any) => {
+      if (gid === 20 && props?.collapsed === true) {
+        await new Promise<void>((res) => {
+          resolveUndo = res;
+        });
+      }
+      return origUpdate(gid, props);
+    };
+
+    // 启动 undo（不 await）→ 进入 inflight 并挂起
+    const undoP = r.undo();
+    await new Promise((rr) => setTimeout(rr, 0));
+
+    // undo 进行中：下一次切换应排队，archive 未执行（tabs.query 未增）
+    const switchP = requestWorkspaceSwitch('cccc3333-0000-0000', 'C', 1, 'close');
+    await new Promise((rr) => setTimeout(rr, 0));
+    expect(queryCount).toBe(queryBefore);
+
+    // 解除 undo → undo 完成 → 切换 archive 才执行
+    resolveUndo();
+    await Promise.all([undoP, switchP]);
+    expect(queryCount).toBeGreaterThan(queryBefore);
+  });
+
+  it('close 档 undo：dispose 本次 opened + restore 源 session + 回滚 binding', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    const { saveTabSession } = await import('@/services/TabSessionService');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    await saveTabSession('bbbb2222-0000-0000', [{ url: 'https://b.com', pinned: false, order: 0 }]);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'close');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
+
+    await r.undo();
+
+    // undo：dispose 本次 opened（b.com）+ restore 源 a.com + binding 回 ws-a
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
+    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com' }));
   });
 });
