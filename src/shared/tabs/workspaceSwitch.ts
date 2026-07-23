@@ -10,7 +10,8 @@
  * 【安全锚】（设计 Assignment）：archive 失败时 chrome.tabs.remove 绝不被调用——
  * 绝不无归档关闭 tab，防丢数据。此 invariant 有专门回归测试守护。
  *
- * v1 范围：close-only。per-window busy 串行队列 / 进度事件 / undo 为后续（T2 余 + T4/T8）。
+ * v1.1：performSwitch 加 mode（close/hide/hide-discard）+ 失败状态机（archive/dispose/restore
+ * 三失败路径，M2 restore try/catch）。undo 暂为 noopUndo（T6 buildUndo 接管）。
  *
  * chrome 引用在函数体内读取（参考 focusOrCreateHomeTab.ts），测试覆盖 chrome 后生效。
  */
@@ -165,22 +166,6 @@ export async function archiveByMode(
   } catch {
     return null; // 硬屏障
   }
-}
-
-/**
- * 归档窗口内当前工作区的标签（v1 close-only 入口，保持调用点签名 `{id}[]` 不变）。
- * v1.1：内部委托 archiveByMode(c, ..., 'close', ...)，close 路径行为与 v1 完全一致。
- * 任何异常返回 null——硬屏障信号（调用方据此不 dispose）。
- */
-async function archive(
-  windowId: number,
-  fromId: string,
-  onProgress?: (p: SwitchProgress) => void,
-): Promise<{ id: number }[] | null> {
-  const c = getChrome();
-  if (!c) return null;
-  const r = await archiveByMode(c, windowId, fromId, 'close', onProgress);
-  return r ? r.tabs.map((t) => ({ id: t.id })) : null;
 }
 
 /** 关闭窗口内 content tab（dispose）。ids 来自 archive 的可恢复集（已排除 home）。部分失败不阻断。 */
@@ -396,12 +381,23 @@ export async function restoreByMode(
 
 /**
  * 切换窗口的工作区：归档当前 → 关闭 content tab → 恢复目标 → 更新绑定。
+ * v1.1：按 mode 委托 archiveByMode/disposeByMode/restoreByMode，引入失败状态机。
+ *
+ * 失败状态机（核心）：
+ * - archive null（硬屏障）→ 不 dispose + 不更新 binding + fromId:null。
+ * - dispose ok=false（hide 折叠/建组关键失败）→ 不 restore + 不更新 binding + fromId:null。
+ * - restore 抛错（M2 try/catch 兜底 group/update 抛错）→ 不更新 binding + fromId:null
+ *   （源已 dispose 的中间态由 undo/手动切回兜底）。
+ * - restore failed 非空（部分 tab 重开失败）→ 仍更新 binding（部分成功）+ Toast「未完成 N 个」。
+ *
  * archive 失败时绝不 dispose（硬屏障），Toast 报错后中止——绝不无归档关闭 tab。
- * 返回 undo 回调（T4：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+ * undo 暂为 noopUndo（T6 实现 buildUndo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
  */
-async function performSwitch(
+export async function performSwitch(
   toId: string,
+  toName: string,
   windowId: number,
+  mode: TabIsolationMode,
   options?: SwitchOptions,
 ): Promise<SwitchResult> {
   const onProgress = options?.onProgress;
@@ -410,38 +406,45 @@ async function performSwitch(
   const fromId = await getWorkspaceBinding(windowId);
   if (!fromId || fromId === toId) return { undo: noopUndo, fromId: null, closedCount: 0 };
 
-  // 1. archive（失败 = 硬屏障，不动 tab）
-  const toDispose = await archive(windowId, fromId, onProgress);
-  if (toDispose === null) {
+  // 1. archive（硬屏障：失败绝不再向下走，绝不无归档关闭 tab）
+  const archived = await archiveByMode(c, windowId, fromId, mode, onProgress);
+  if (archived === null) {
     Toast.error('切换中止：无法保存当前标签');
     return { undo: noopUndo, fromId: null, closedCount: 0 };
   }
 
-  // 2. dispose（保 home：toDispose 已排除 home tab）
-  await disposeTabs(c, toDispose.map((t) => t.id), onProgress);
-
-  // 3. restore 目标工作区标签（active:false 防闪烁）；记 openedIds 供 undo
-  const targetSession = await getTabSession(toId);
-  let openedIds: number[] = [];
-  if (targetSession) {
-    openedIds = await openTabsInWindow(c, windowId, targetSession.tabs, onProgress);
+  // 2. dispose（hide：collapse/建组关键失败 ok=false → 不更新 binding）
+  const disposed = await disposeByMode(c, windowId, fromId, mode, archived.tabs, onProgress);
+  if (!disposed.ok) {
+    Toast.error('切换中止：无法收起当前标签，已保留');
+    return { undo: noopUndo, fromId: null, closedCount: 0 };
   }
 
-  // 4. 更新窗口绑定
+  // 3. restore 目标 ws（M2：try/catch 兜底 restoreByMode 内 group/update 抛错；
+  //    restoreByMode close 路径的 openTabsInWindow 抛错也在此兜住）
+  let failed: TabEntry[] = [];
+  try {
+    const r = await restoreByMode(c, windowId, toId, toName, mode, onProgress);
+    failed = r.failed;
+  } catch {
+    // restore 抛错（非 failed 非空）→ 不更新 binding；源已 dispose 的中间态由 undo/手动切回兜底
+    Toast.error('切换未完成：恢复目标标签时出错');
+    return { undo: noopUndo, fromId: null, closedCount: 0 };
+  }
+
+  // 4. 更新绑定（dispose.ok 后；restore failed 非空仍更新 = 部分成功）
   await setWorkspaceBinding(windowId, toId);
   onProgress?.({ phase: 'done', count: 0, total: 0 });
 
-  // undo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding（仅 token 存活期有效）
-  // fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）
+  if (failed.length) {
+    Toast.error(`切换未完成：还有 ${failed.length} 个标签未恢复`);
+  }
+
+  // undo 暂为 noopUndo（T6 buildUndo 接管：dispose opened → restore fromId → 回滚 binding）
   return {
-    undo: async () => {
-      if (openedIds.length) await disposeTabs(c, openedIds);
-      const prevSession = await getTabSession(fromId);
-      if (prevSession) await openTabsInWindow(c, windowId, prevSession.tabs);
-      await setWorkspaceBinding(windowId, fromId);
-    },
+    undo: noopUndo,
     fromId,
-    closedCount: toDispose.length,
+    closedCount: archived.tabs.length,
   };
 }
 
@@ -452,14 +455,17 @@ const inflight = new Map<number, Promise<void>>();
 /**
  * 切换窗口的工作区（单命令入口，AppRail/Sidebar 共用）。selectWorkspace 保持纯 UI。
  * 同窗并发请求串行化排队；archive 硬屏障保证绝不无归档关闭 tab。
- * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费）。
+ * toName 由上层（能访问 store）传入，供 restoreByMode 建 group title。
+ * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费，T5 暂 noopUndo）。
  */
 export async function requestWorkspaceSwitch(
   toId: string,
+  toName: string,
   windowId: number,
+  mode: TabIsolationMode,
   options?: SwitchOptions,
 ): Promise<SwitchResult> {
-  const run = () => performSwitch(toId, windowId, options);
+  const run = () => performSwitch(toId, toName, windowId, mode, options);
   const prev = inflight.get(windowId) ?? Promise.resolve();
   const task = prev.then(run, run); // Promise<SwitchResult>
   const voidTask = task.then(noopUndo, noopUndo);
@@ -479,18 +485,27 @@ export async function requestWorkspaceSwitch(
  *   不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
  * - off 或 windowId=null（非扩展环境）：仅 selectWorkspace（当前行为，不碰 tab）。
  *
+ * toName 由上层（switchWorkspace）传入，供 restoreByMode 建 group title。
+ * mode 暂硬编码 'close'（v1 行为不变）；hide/hide-discard 映射在 T8 由 setting→mode 转换接入。
  * selectWorkspace 注入（store 方法），保持本模块不依赖 store。
  */
 export async function switchWorkspaceBySetting(params: {
   toId: string;
+  toName: string;
   setting: TabIsolationSetting;
   windowId: number | null;
   selectWorkspace: (id: string) => Promise<void>;
   onProgress?: (p: SwitchProgress) => void;
 }): Promise<SwitchResult> {
-  const { toId, setting, windowId, selectWorkspace, onProgress } = params;
+  const { toId, toName, setting, windowId, selectWorkspace, onProgress } = params;
   if (setting === 'close' && windowId != null) {
-    const result = await requestWorkspaceSwitch(toId, windowId, onProgress ? { onProgress } : undefined);
+    const result = await requestWorkspaceSwitch(
+      toId,
+      toName,
+      windowId,
+      'close',
+      onProgress ? { onProgress } : undefined,
+    );
     await selectWorkspace(toId);
     return result;
   }

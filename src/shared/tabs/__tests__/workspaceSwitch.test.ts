@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   requestWorkspaceSwitch,
+  performSwitch,
   switchWorkspaceBySetting,
   countRestorableTabsInWindow,
   archiveByMode,
@@ -62,7 +63,7 @@ describe('requestWorkspaceSwitch — archive 硬屏障（安全锚）', () => {
     const { c } = mockChromeWithStorage({ 'windowWorkspaceBinding.100': 'ws-a' });
     vi.mocked(c.tabs.query).mockRejectedValue(new Error('query failed'));
 
-    await requestWorkspaceSwitch('ws-b', 100);
+    await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
 
     expect(c.tabs.remove).not.toHaveBeenCalled();
   });
@@ -79,7 +80,7 @@ describe('requestWorkspaceSwitch — 正常切换编排', () => {
       { id: 11, windowId: 100, url: HOME_URL, pinned: true, index: 1 }, // home tab，全程排除
     ] as never);
 
-    await requestWorkspaceSwitch('ws-b', 100);
+    await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
 
     // archive：ws-a session 保存 a.com（home 排除，order 取 index）
     const archived = store['tabSession.ws-a'] as { tabs: { url: string; pinned?: boolean; order: number }[] };
@@ -109,10 +110,10 @@ describe('requestWorkspaceSwitch — per-window 串行队列（rev4 #2：防并�
       return Promise.resolve([{ id: 2, windowId: 100, url: 'https://x.com', index: 0 }]);
     });
 
-    const p1 = requestWorkspaceSwitch('ws-b', 100);
+    const p1 = requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
     await vi.waitFor(() => expect(c.tabs.query).toHaveBeenCalledTimes(1)); // p1 进入 archive
 
-    const p2 = requestWorkspaceSwitch('ws-a', 100);
+    const p2 = requestWorkspaceSwitch('ws-a', 'A', 100, 'close');
     await new Promise((r) => setTimeout(r, 0)); // 让 microtask 推进
     // p2 排队：archive 仍只调用 1 次（未与 p1 交错）
     expect(c.tabs.query).toHaveBeenCalledTimes(1);
@@ -134,8 +135,8 @@ describe('requestWorkspaceSwitch — per-window 串行队列（rev4 #2：防并�
 
     // 窗 100 和窗 200 并发，应同时进入（不等彼此）
     await Promise.all([
-      requestWorkspaceSwitch('ws-b', 100),
-      requestWorkspaceSwitch('ws-b', 200),
+      requestWorkspaceSwitch('ws-b', 'B', 100, 'close'),
+      requestWorkspaceSwitch('ws-b', 'B', 200, 'close'),
     ]);
 
     // 两窗各 archive 一次（query 共 2 次，证明未互相阻塞）
@@ -160,7 +161,7 @@ describe('requestWorkspaceSwitch — 进度事件（T8 消费：archive/dispose/
     ] as never);
 
     const events: SwitchProgress[] = [];
-    await requestWorkspaceSwitch('ws-b', 100, { onProgress: (p) => events.push({ ...p }) });
+    await requestWorkspaceSwitch('ws-b', 'B', 100, 'close', { onProgress: (p) => events.push({ ...p }) });
 
     const phases = events.map((e) => e.phase);
     expect(phases[0]).toBe('archive'); // 首事件 = archive
@@ -173,7 +174,7 @@ describe('requestWorkspaceSwitch — 进度事件（T8 消费：archive/dispose/
 });
 
 describe('requestWorkspaceSwitch — undo（T4：回滚切换）', () => {
-  it('undo：回滚 binding 到原工作区 + restore 原工作区标签', async () => {
+  it('undo（T5：noopUndo 占位，T6 实现 buildUndo 后恢复回滚断言）', async () => {
     const { c, store } = mockChromeWithStorage({
       'windowWorkspaceBinding.100': 'ws-a',
       'tabSession.ws-a': { tabs: [{ url: 'https://a.com', order: 0 }], savedAt: 1 },
@@ -183,14 +184,13 @@ describe('requestWorkspaceSwitch — undo（T4：回滚切换）', () => {
       { id: 10, windowId: 100, url: 'https://cur.com', index: 0 },
     ] as never);
 
-    const result = await requestWorkspaceSwitch('ws-b', 100);
+    const result = await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
     expect(store['windowWorkspaceBinding.100']).toBe('ws-b');
 
-    await result.undo();
+    await result.undo(); // noopUndo：不回滚（T6 buildUndo 接管）
 
-    // binding 回滚 ws-a；restore ws-a session（= 切换时 archive 的 cur.com）
-    expect(store['windowWorkspaceBinding.100']).toBe('ws-a');
-    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://cur.com' }));
+    // T5 占位：undo 暂为 noop，binding 仍停留目标；T6 实现 buildUndo 后改回断言 ws-a
+    expect(store['windowWorkspaceBinding.100']).toBe('ws-b');
   });
 });
 
@@ -198,7 +198,7 @@ describe('switchWorkspaceBySetting — 门控分流（T3：off 纯 UI / close ta
   it('off 模式：仅 selectWorkspace，不触发 tab 编排', async () => {
     const { c } = mockChromeWithStorage({ 'windowWorkspaceBinding.1': 'ws-a' });
     const selectWorkspace = vi.fn();
-    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'off', windowId: 1, selectWorkspace });
+    await switchWorkspaceBySetting({ toId: 'ws-b', toName: 'B', setting: 'off', windowId: 1, selectWorkspace });
     // off 不调 requestWorkspaceSwitch：无 tab 操作
     expect(c.tabs.remove).not.toHaveBeenCalled();
     expect(c.tabs.create).not.toHaveBeenCalled();
@@ -215,7 +215,7 @@ describe('switchWorkspaceBySetting — 门控分流（T3：off 纯 UI / close ta
       { id: 10, windowId: 1, url: 'https://a.com', index: 0 },
     ] as never);
     const selectWorkspace = vi.fn();
-    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: 1, selectWorkspace });
+    await switchWorkspaceBySetting({ toId: 'ws-b', toName: 'B', setting: 'close', windowId: 1, selectWorkspace });
     // tab 编排：restore ws-b 的 tab（active:false 防闪烁）
     expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
     // binding 更新到 ws-b（requestWorkspaceSwitch 内部）
@@ -226,7 +226,7 @@ describe('switchWorkspaceBySetting — 门控分流（T3：off 纯 UI / close ta
 
   it('close + windowId null（非扩展环境）：fallback 仅 selectWorkspace，不编排', async () => {
     const selectWorkspace = vi.fn();
-    await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: null, selectWorkspace });
+    await switchWorkspaceBySetting({ toId: 'ws-b', toName: 'B', setting: 'close', windowId: null, selectWorkspace });
     expect(selectWorkspace).toHaveBeenCalledWith('ws-b');
   });
 });
@@ -273,7 +273,7 @@ describe('switchWorkspaceBySetting — 返回 SwitchResult（T4 切换结果 Toa
     ] as never);
     const selectWorkspace = vi.fn();
 
-    const result = await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'close', windowId: 1, selectWorkspace });
+    const result = await switchWorkspaceBySetting({ toId: 'ws-b', toName: 'B', setting: 'close', windowId: 1, selectWorkspace });
 
     expect(result.fromId).toBe('ws-a');
     expect(result.closedCount).toBe(1); // 关了 1 个 content tab（a.com）
@@ -283,7 +283,7 @@ describe('switchWorkspaceBySetting — 返回 SwitchResult（T4 切换结果 Toa
   it('off：返回 noop（fromId null / closedCount 0，无 undo 语义）', async () => {
     const selectWorkspace = vi.fn();
 
-    const result = await switchWorkspaceBySetting({ toId: 'ws-b', setting: 'off', windowId: 1, selectWorkspace });
+    const result = await switchWorkspaceBySetting({ toId: 'ws-b', toName: 'B', setting: 'off', windowId: 1, selectWorkspace });
 
     expect(result.fromId).toBeNull();
     expect(result.closedCount).toBe(0);
@@ -653,5 +653,94 @@ describe('restoreByMode', () => {
       expect(r.groupId).not.toBeNull();
       expect(c.__testTabs.get(plainId).groupId).toBe(r.groupId);
     });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T5: performSwitch mode 集成 + 失败状态机
+// archive null（硬屏障）/ dispose ok=false → 不更新 binding + fromId:null（未成功切换）。
+// restore 抛错（M2 try/catch）→ 不更新 binding；restore failed 非空 → 仍更新（部分成功）。
+// 复用 installDisposeRestoreStub（Map 驱动 chrome + storage.local 真实往返）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('performSwitch — 失败状态机 + close 回归（T5）', () => {
+  beforeEach(() => {
+    installDisposeRestoreStub();
+  });
+
+  it('archive 失败（query 抛错）→ 硬屏障，不 dispose / 不折叠 / 不更新 binding', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+
+    const orig = c.tabs.query;
+    c.tabs.query = async () => { throw new Error('boom'); };
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(r.fromId).toBeNull(); // 未成功切换
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000'); // binding 未动
+    c.tabs.query = orig;
+  });
+
+  it('dispose 失败（collapse 抛错 ok=false）→ 不更新 binding（停留源 ws）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+
+    const orig = c.tabGroups.update;
+    c.tabGroups.update = async () => { throw new Error('boom'); };
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(r.fromId).toBeNull();
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000'); // binding 未动
+    c.tabGroups.update = orig;
+  });
+
+  it('restore 抛错（M2 try/catch，非 failed）→ 不更新 binding + Toast', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    // close 路径：restoreByMode → openTabsInWindow → tabs.create 抛错（throw，非 failed）
+    const { saveTabSession } = await import('@/services/TabSessionService');
+    await saveTabSession('bbbb2222-0000-0000', [{ url: 'https://b.com', pinned: false, order: 0 }]);
+    const orig = c.tabs.create;
+    c.tabs.create = async () => { throw new Error('create boom'); };
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'close');
+    expect(r.fromId).toBeNull();
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000'); // binding 未动（M2）
+    c.tabs.create = orig;
+  });
+
+  it('restore failed 非空（部分成功）→ 仍更新 binding + Toast 未完成', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    // hide 兜底 restore：session 有 tab，create 抛错被 restoreByMode 内层 catch → failed
+    const { saveTabSession } = await import('@/services/TabSessionService');
+    await saveTabSession('bbbb2222-0000-0000', [{ url: 'https://b.com', pinned: false, order: 0 }]);
+    const orig = c.tabs.create;
+    c.tabs.create = async () => { throw new Error('create boom'); };
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(r.fromId).toBe('aaaa1111-0000-0000'); // 部分成功，仍切换
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000'); // binding 更新
+    c.tabs.create = orig;
+  });
+
+  it('close 模式回归：v1 行为不变（archive→remove→restore→binding）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const { saveTabSession } = await import('@/services/TabSessionService');
+    await saveTabSession('bbbb2222-0000-0000', [{ url: 'https://b.com', pinned: false, order: 0 }]);
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'close');
+    expect(r.fromId).toBe('aaaa1111-0000-0000');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    // archive 存 ws-a session；dispose remove tab 1；restore create b.com
+    expect(c.__testTabs.has(1)).toBe(false);
+    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://b.com' }));
   });
 });

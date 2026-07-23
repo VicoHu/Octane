@@ -70,7 +70,7 @@ describe('T7 集成 — fake-browser 完整往返 + 承重', () => {
     vi.mocked(c.tabs.query).mockResolvedValue([
       { id: 10, windowId: 100, url: 'https://a.com', pinned: false, index: 0 },
     ] as never);
-    await requestWorkspaceSwitch('ws-b', 100);
+    await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
 
     // archive：a.com 存入 ws-a session
     expect(sessionTabs(store, 'ws-a').some((t) => t.url === 'https://a.com')).toBe(true);
@@ -86,7 +86,7 @@ describe('T7 集成 — fake-browser 完整往返 + 承重', () => {
       { id: 20, windowId: 100, url: 'https://b.com', pinned: false, index: 0 },
     ] as never);
     vi.mocked(c.tabs.create).mockClear();
-    await requestWorkspaceSwitch('ws-a', 100);
+    await requestWorkspaceSwitch('ws-a', 'A', 100, 'close');
 
     // archive：b.com 存入 ws-b
     expect(sessionTabs(store, 'ws-b').some((t) => t.url === 'https://b.com')).toBe(true);
@@ -107,7 +107,7 @@ describe('T7 集成 — fake-browser 完整往返 + 承重', () => {
     // 第一个 remove 失败（部分失败），第二个成功
     vi.mocked(c.tabs.remove).mockRejectedValueOnce(new Error('remove 10 失败'));
 
-    await requestWorkspaceSwitch('ws-b', 100);
+    await requestWorkspaceSwitch('ws-b', 'B', 100, 'close');
 
     // remove 调 2 次（部分失败不中断 dispose 循环）
     expect(c.tabs.remove).toHaveBeenCalledTimes(2);
@@ -126,7 +126,7 @@ describe('T7 集成 — fake-browser 完整往返 + 承重', () => {
     ] as never);
 
     // 同窗快速连切 A→B、A→C（应串行，不交错 archive/dispose）
-    await Promise.all([requestWorkspaceSwitch('ws-b', 100), requestWorkspaceSwitch('ws-c', 100)]);
+    await Promise.all([requestWorkspaceSwitch('ws-b', 'B', 100, 'close'), requestWorkspaceSwitch('ws-c', 'C', 100, 'close')]);
 
     // 最终 binding 为最后一次（C）；archive query 共 2 次（两次各自 archive，未互相吞掉）
     expect(store['windowWorkspaceBinding.100']).toBe('ws-c');

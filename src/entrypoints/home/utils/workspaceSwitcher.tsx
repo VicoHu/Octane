@@ -80,8 +80,12 @@ export async function switchWorkspace(toId: string): Promise<void> {
     : undefined;
 
   try {
+    // toName 由 store 派生（供 restoreByMode 建 group title；fallback toId）
+    const workspaces = useWorkspace.getState().workspaces;
+    const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
     const result = await switchWorkspaceBySetting({
       toId,
+      toName,
       setting,
       windowId,
       selectWorkspace: useWorkspace.getState().selectWorkspace,
@@ -89,8 +93,6 @@ export async function switchWorkspace(toId: string): Promise<void> {
     });
     // T4：close 模式且关闭了 tab（N>0）→ 弹切换结果 Toast（action「切回」非"撤销"——完整反转切换）
     if (result.closedCount > 0 && result.fromId) {
-      const workspaces = useWorkspace.getState().workspaces;
-      const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
       const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
       Toast.success({
         content: `已切换到「${toName}」，已关闭 ${result.closedCount} 个标签`,
