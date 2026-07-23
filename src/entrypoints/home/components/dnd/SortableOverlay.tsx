@@ -1,5 +1,5 @@
 import React from 'react';
-import { DragOverlay } from '@dnd-kit/core';
+import { DragOverlay, type Modifier } from '@dnd-kit/core';
 import styles from './dnd.module.css';
 
 interface SortableOverlayProps {
@@ -9,6 +9,8 @@ interface SortableOverlayProps {
   invalid?: boolean;
   /** 常驻 grip 态(ManagePanel)无需影响 overlay,保留扩展位 */
   children: React.ReactNode;
+  /** 可选的 overlay 位移约束；workspace 需要与列表行保持同一垂直坐标策略。 */
+  modifiers?: Modifier[];
 }
 
 /**
@@ -19,7 +21,7 @@ interface SortableOverlayProps {
  * - 描边按面明度(D6):浅色面炭灰 #2D3436,深色面浅描边 rgba(255,255,255,.5)。
  * - scale(1.04) + shadow-elevated;reduced-motion 由 dnd.module.css 禁用 scale。
  */
-export function SortableOverlay({ tone = 'light', invalid = false, children }: SortableOverlayProps) {
+export function SortableOverlay({ tone = 'light', invalid = false, children, modifiers }: SortableOverlayProps) {
   const cls = [
     styles.overlay,
     tone === 'dark' ? styles.overlayDark : styles.overlayLight,
@@ -28,7 +30,11 @@ export function SortableOverlay({ tone = 'light', invalid = false, children }: S
     .filter(Boolean)
     .join(' ');
   return (
-    <DragOverlay style={{ zIndex: 1005 }} dropAnimation={{ duration: 180, easing: 'ease-out' }}>
+    <DragOverlay
+      modifiers={modifiers}
+      style={{ zIndex: 1005 }}
+      dropAnimation={{ duration: 180, easing: 'ease-out' }}
+    >
       <div className={cls}>{children}</div>
     </DragOverlay>
   );

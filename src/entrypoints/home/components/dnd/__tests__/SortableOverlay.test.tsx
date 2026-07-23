@@ -11,8 +11,13 @@ import { SortableOverlay } from '../SortableOverlay';
  * 对 Semi Toast 的 partial mock —— DragOverlay 是呈现依赖,非被测对象)。dnd-kit 真
  * 拖拽在 jsdom 难测(brief),留给真机 QA。
  */
+const dragOverlayProps = vi.hoisted(() => ({ modifiers: undefined as unknown }));
+
 vi.mock('@dnd-kit/core', () => ({
-  DragOverlay: ({ children }: { children: ReactNode }) => children,
+  DragOverlay: ({ children, modifiers }: { children: ReactNode; modifiers?: unknown }) => {
+    dragOverlayProps.modifiers = modifiers;
+    return children;
+  },
 }));
 
 describe('SortableOverlay — invalid 传递(M5 非法落区 overlay)', () => {
@@ -46,5 +51,16 @@ describe('SortableOverlay — invalid 传递(M5 非法落区 overlay)', () => {
     );
     const overlay = screen.getByText('卡').parentElement!;
     expect(overlay.className).toMatch(/overlayDark/);
+  });
+
+  it('透传 workspace overlay 的位移约束', () => {
+    const modifiers = [vi.fn()];
+    render(
+      <SortableOverlay modifiers={modifiers}>
+        <span>受约束卡</span>
+      </SortableOverlay>,
+    );
+
+    expect(dragOverlayProps.modifiers).toBe(modifiers);
   });
 });

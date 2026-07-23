@@ -19,7 +19,7 @@ import { useWorkspace } from '@/store/useWorkspace';
 import { IconPicker } from '@/components/IconPicker';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
-import { restrictToVerticalAxis } from '../dnd/modifiers';
+import { restrictToVerticalAxis, toVerticalTransform } from '../dnd/modifiers';
 import { Trash2 } from 'lucide-react';
 import dndStyles from '../dnd/dnd.module.css';
 import {
@@ -177,7 +177,7 @@ const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, o
       ref={setNodeRef}
       role="presentation"
       className={`${styles.sortableRow}${isDragging ? ` ${dndStyles.placeholder}` : ''}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Transform.toString(toVerticalTransform(transform)), transition }}
     >
       <div className={`${styles.rowInner}${isDragging ? ` ${styles.dragGhost}` : ''}`}>
         <span className={styles.gripSlot}>
@@ -321,7 +321,7 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
               ))}
             </SortableContext>
           </div>
-          <SortableOverlay tone="light" invalid={invalid}>
+          <SortableOverlay tone="light" invalid={invalid} modifiers={[restrictToVerticalAxis]}>
             {activeWs && (
               <div
                 className={styles.ghostRow}
