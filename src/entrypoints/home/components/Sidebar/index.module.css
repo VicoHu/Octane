@@ -33,18 +33,19 @@
 }
 
 .version {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--sidebar-text);
-  opacity: 0.6;
-  margin-left: 0.25rem;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  align-self: flex-end;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-xs);
+  background-color: var(--primary-light);
 }
 
 /* badge 醒目色：品牌绿（--sidebar-accent token 待 DESIGN.md 定义，暂用固定值） */
 .updateBadge {
-  margin-left: auto;
-  border: none;
-  background: #00B894;
+  background: #f87171;
   color: white;
   width: 18px;
   height: 18px;
@@ -54,6 +55,7 @@
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  align-self: flex-end;
   justify-content: center;
   padding: 0;
 }

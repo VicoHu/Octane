@@ -453,6 +453,16 @@ function installDisposeRestoreStub() {
           if (tab) tab.groupId = -1;
         }
       },
+      move: async (ids: number[], props: { index: number }) => {
+        const entries = Array.from(tabsStore.entries());
+        const idSet = new Set(ids);
+        const moving = entries.filter(([id]) => idSet.has(id));
+        const rest = entries.filter(([id]) => !idSet.has(id));
+        const pos = Math.min(Math.max(props.index, 0), rest.length);
+        const reordered = [...rest.slice(0, pos), ...moving, ...rest.slice(pos)];
+        tabsStore.clear();
+        for (const [id, tab] of reordered) tabsStore.set(id, tab);
+      },
     },
     tabGroups: {
       get: async (gid: number) => {

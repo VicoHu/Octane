@@ -119,6 +119,9 @@ describe('级联删除', () => {
     await putRecord('contexts', makeContext('ctx-1', 'bm-1', '笔记1'));
     await putRecord('contexts', makeContext('ctx-2', 'bm-2', '笔记2'));
     await putRecord('contexts', makeContext('ctx-3', 'bm-3', '笔记3'));
+    await putRecord('pinnedTabs', {
+      id: 'pin-1', workspaceId: 'ws-1', name: '常驻', url: 'https://example.com', order: 0, createdAt: 0,
+    });
 
     await cascadeDeleteWorkspace('ws-1');
 
@@ -126,6 +129,7 @@ describe('级联删除', () => {
     expect(await getAll('categories')).toHaveLength(0);
     expect(await getAll('bookmarks')).toHaveLength(0);
     expect(await getAll('contexts')).toHaveLength(0);
+    expect(await getAll('pinnedTabs')).toHaveLength(0);
   });
 
   it('删除分类 → 级联删除该书签+上下文，不影响其他分类', async () => {

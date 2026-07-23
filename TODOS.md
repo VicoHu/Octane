@@ -11,7 +11,7 @@
   未做以保持简单。需要时加 ~200ms debounce(cleanup 清 timer),注意 fake-timer + async query
   的测试脆弱性。相关:`src/entrypoints/home/hooks/useOpenTabs.ts`。
 
-### 0.2.x — 战略切入点(详见 ceo-plans/2026-06-29-tab-workset-session-save.md)
+### 0.2.x — 战略切入点
 - 会话保存/恢复(整组 tab 捕获为命名会话)— Workona/Toby 级杀手锏
 - 多窗口作用域(`useOpenTabs` 去掉 `currentWindow:true`,按 windowId 分组)
 - 三栏布局 Approach B `[Sidebar | Content | TabPanel]`(支撑拖拽)
@@ -36,7 +36,7 @@
 
 ## 0.1.12 — 拖拽排序 a11y 债（V1.1，本期仅鼠标）
 
-> 来源：plan-design-review 2026-07-14（D11），用户选「本期仅鼠标，键盘拖拽推迟 V1.1」。绑定 V1.1 跨容器拖拽（需三栏布局）一起做。设计文档：`~/.gstack/projects/octane/vicohu-master-design-20260713-191433.md`。
+> 来源：plan-design-review 2026-07-14（D11），用户选「本期仅鼠标，键盘拖拽推迟 V1.1」。绑定 V1.1 跨容器拖拽（需三栏布局）一起做。
 
 - **键盘拖拽**：grip 本期已是 `<button>`（为 focus/语义预留），V1.1 挂 dnd-kit keyboard sensor（空格拾起 / 方向键移动 / 回车落）。`src/entrypoints/home/components/{BookmarkCard,Sidebar,PinnedArea,ManagePanel}`。
 - **announcement 中文化**：dnd-kit `accessibility.customAnnouncements` 默认英文（"item picked up"），V1.1 配置中文（"已拾起 X" / "移动到第 N 位" / "已放下"）。

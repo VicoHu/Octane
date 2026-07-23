@@ -29,6 +29,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { PinnedTab } from '@/shared/types';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
+import { openUrlInNewTab } from '@/shared/tabs/openTab';
 import styles from './index.module.css';
 
 interface PinnedAreaProps {
@@ -201,7 +202,7 @@ function PinChip({
         className={styles.chip}
         aria-label={`打开 ${pin.name}`}
         title={pin.name}
-        onClick={() => window.open(pin.url, '_blank')}
+        onClick={(event) => void openUrlInNewTab(pin.url, !(event.metaKey || event.ctrlKey)).catch(() => Toast.error('打开失败'))}
       >
         <div className={styles.favicon}>
           {src ? (

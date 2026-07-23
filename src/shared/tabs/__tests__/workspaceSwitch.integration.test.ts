@@ -200,6 +200,16 @@ function installHideIntegrationStub(initial: Record<string, unknown> = {}) {
           if (tab) tab.groupId = -1;
         }
       },
+      move: async (ids: number[], props: { index: number }) => {
+        const entries = Array.from(tabsStore.entries());
+        const idSet = new Set(ids);
+        const moving = entries.filter(([id]) => idSet.has(id));
+        const rest = entries.filter(([id]) => !idSet.has(id));
+        const pos = Math.min(Math.max(props.index, 0), rest.length);
+        const reordered = [...rest.slice(0, pos), ...moving, ...rest.slice(pos)];
+        tabsStore.clear();
+        for (const [id, tab] of reordered) tabsStore.set(id, tab);
+      },
     },
     tabGroups: {
       get: async (gid: number) => {
@@ -243,6 +253,7 @@ function installHideIntegrationStub(initial: Record<string, unknown> = {}) {
 
 const WS_A = 'aaaaaaaa-0000-0000-0000-000000000000';
 const WS_B = 'bbbbbbbb-0000-0000-0000-000000000000';
+const WS_C = 'cccccccc-0000-0000-0000-000000000000';
 
 /** 读取某 ws 的 TabSession tabs（断言用）。 */
 function sessionUrls(c: any, wsId: string): string[] {
@@ -506,5 +517,34 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
 
     // undo 不触发正向 onProgress（防 switching state 泄漏卡死）
     expect(progCount).toBe(switchCount);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// hide 排序修复 — 真机 QA bug：切回当前工作区时，其他工作区折叠组排到了
+// 当前普通 tab 之后（应紧跟 pinned，当前 tab 最右）。
+// 根因：restoreByMode 解散目标组（ungroup）后 tab 停在历史位置（靠前），
+// 未移到折叠组之后；兜底 restore 按 index:t.order 插入也可能插到折叠组前面。
+// 修复：解散/重开后把当前 ws 普通 tab 移到窗口末尾（所有折叠组之后）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('hide 排序修复 — 切回当前 ws 普通 tab 移到所有折叠组之后', () => {
+  beforeEach(() => installHideIntegrationStub());
+
+  it('切回 A（命中组）：A 普通 tab 解散后移到 B/C 折叠组之后（当前 tab 最右）', async () => {
+    const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_C });
+    // 稳定态：A/B 折叠组在前（紧跟 pinned 区），C 当前活动散 tab 在后。
+    // Map 顺序 = tab 物理位置：[aTab(A组), bTab(B组), cTab(散)]
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: true });
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
+    c.__testTabs.set(3, { id: 3, windowId: 1, url: 'https://c.com', groupId: -1 });
+
+    // C→A（hide）：dispose 收 C 散 tab 建组 + restore A 解散 A 组
+    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide', { fromName: 'C' });
+
+    // 修复后顺序：[b(B组), c(C组), a(A当前散)] —— A 当前 tab 移到所有折叠组之后
+    const order = (await c.tabs.query({ windowId: 1 })).map((t: any) => t.url);
+    expect(order).toEqual(['https://b.com', 'https://c.com', 'https://a.com']);
   });
 });

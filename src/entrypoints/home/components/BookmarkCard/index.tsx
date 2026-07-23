@@ -31,7 +31,7 @@ interface BookmarkCardProps {
   runtimeFavIconUrl?: string;
   /** 拖拽手柄 slot(可选;由 SortableBookmarkCard 注入 GripButton,纯 BookmarkCard 不传) */
   grip?: React.ReactNode;
-  onClick: (bookmark: Bookmark) => void;
+  onClick: (bookmark: Bookmark, event?: React.MouseEvent<HTMLButtonElement>) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;
@@ -56,8 +56,12 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
     ? `包含加密上下文（${bookmark.contextCount} 条）`
     : `${bookmark.contextCount} 条上下文`;
 
-  const handleOpen = () => {
-    onClick(bookmark);
+  const handleOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (event.metaKey || event.ctrlKey) {
+      onClick(bookmark, event);
+    } else {
+      onClick(bookmark);
+    }
     // 有已打开 tab 时触发竖线脉冲（跳转反馈）
     if (hasOpenTab) {
       setPulsing(true);

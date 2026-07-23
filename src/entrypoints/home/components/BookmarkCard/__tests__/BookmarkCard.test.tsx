@@ -27,7 +27,7 @@ const bookmark: Bookmark = {
 const renderCard = (
   overrides: Partial<Bookmark> = {},
   handlers: {
-    onClick?: () => void;
+    onClick?: (...args: unknown[]) => void;
     onViewContexts?: () => void;
     onEditBookmark?: () => void;
     onDelete?: () => void;
@@ -63,6 +63,19 @@ describe('BookmarkCard', () => {
     await user.click(screen.getByRole('button', { name: '打开书签 GitHub' }));
 
     expect(onClick).toHaveBeenCalledWith(bookmark);
+  });
+
+  it('Cmd/Ctrl + 左键 → 将修饰键事件传给打开入口', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    renderCard({}, { onClick });
+
+    const openButton = screen.getByRole('button', { name: '打开书签 GitHub' });
+    await user.keyboard('[ControlLeft>]');
+    await user.click(openButton);
+    await user.keyboard('[/ControlLeft]');
+
+    expect(onClick).toHaveBeenCalledWith(bookmark, expect.objectContaining({ ctrlKey: true }));
   });
 
   it('主操作按钮是唯一入口且包含上下文徽章', () => {

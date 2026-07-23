@@ -119,3 +119,17 @@
 - mock 只命中副作用边界（chrome API / DB / 网络 / Toast / lottie），不 mock 被测对象。
 - 提交前 `pnpm run typecheck`（husky pre-push 自动跑）+ `pnpm run test` 必须双绿。
 - 写新组件测试前，参考 `tests/spike-semi-jsdom.test.tsx`（jsdom 真实渲染范本，Semi 时期遗留但模式仍适用 ui 组件）和 `src/services/__tests__/CryptoService.test.ts`（逻辑层标杆）。
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs for this repository live in GitHub Issues and use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default labels `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. Domain guidance lives in `CONTEXT.md` and `docs/adr/` when those files exist. See `docs/agents/domain.md`.

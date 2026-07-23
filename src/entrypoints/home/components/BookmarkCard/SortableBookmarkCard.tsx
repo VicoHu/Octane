@@ -14,7 +14,7 @@ interface SortableBookmarkCardProps {
   disabled?: boolean;
   /** 首启 coachmark(T9):首个书签 grip 显示提示 */
   coachmark?: { onClose: () => void };
-  onClick: (bookmark: Bookmark) => void;
+  onClick: (bookmark: Bookmark, event?: React.MouseEvent<HTMLButtonElement>) => void;
   onViewContexts: (bookmark: Bookmark) => void;
   onEditBookmark: (bookmark: Bookmark) => void;
   onDelete: (bookmark: Bookmark) => void;

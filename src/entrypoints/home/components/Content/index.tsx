@@ -20,6 +20,7 @@ import { usePinnedTabs } from '@/store/usePinnedTabs';
 import type { OpenTab } from '../../hooks/useOpenTabs';
 import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs/matchUrl';
 import { focusTab } from '@/shared/tabs/focusTab';
+import { openUrlInNewTab } from '@/shared/tabs/openTab';
 import * as CategoryService from '@/services/CategoryService';
 import { cn } from '@/lib/utils';
 import { BookmarkCard } from '../BookmarkCard';
@@ -243,12 +244,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     }
   };
 
-  const handleTabClick = (tab: OpenTab) => {
+  const handleTabClick = (tab: OpenTab, event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event?.metaKey || event?.ctrlKey) {
+      void openUrlInNewTab(tab.url, false).catch(() => Toast.error('打开失败'));
+      return;
+    }
     // 跳转到对应 tab;focusTab 内置 stale tabId 兜底(R2)
     void focusTab(tab.tabId, tab.url);
   };
 
-  const handleCardClick = (bookmark: Bookmark) => {
+  const handleCardClick = (bookmark: Bookmark, event?: React.MouseEvent<HTMLButtonElement>) => {
+    if (event?.metaKey || event?.ctrlKey) {
+      void openUrlInNewTab(bookmark.url, false).catch(() => Toast.error('打开失败'));
+      return;
+    }
     // Phase 2：匹配到已打开 tab → 聚焦「最近活跃」的那个;否则新建标签。
     // useOpenTabs 数据源按 index 排序,这里用 pickMostRecentMatchingTab 显式取最近活跃,
     // 不依赖数组顺序(保持原 Phase 2 语义)。
@@ -256,7 +265,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     if (tab) {
       void focusTab(tab.tabId, tab.url);
     } else {
-      window.open(bookmark.url, '_blank');
+      void openUrlInNewTab(bookmark.url, true).catch(() => Toast.error('打开失败'));
     }
   };
 

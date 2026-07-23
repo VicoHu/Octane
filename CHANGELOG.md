@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.2.2.0] - 2026-07-24
+
+### Added
+- **标签页打开位置**：新标签页统一在当前窗口最右侧打开；Cmd/Ctrl + 左键点击书签、标签或固定标签在后台打开新标签页。
+- **工作区删除**：管理面板可删除工作区（二次确认；级联清理分类/书签/上下文/固定标签与会话，单事务原子、无残留）。
+- **工作区拖拽排序**：管理面板工作区列表支持拖拽排序，拖拽约束在垂直轴。
+
+### Changed
+- 「打开的标签页」视图过滤 `chrome://` 等内部页（与浏览器 tab 栏可见一致）。
+- README 定位同步为「固定首页标签（home tab）」（非 NewTab override，Ctrl+T 保留浏览器默认新标签页）。
+
+### Fixed
+- 管理弹窗拖拽工作区时 overlay 横向瞬移：shadcn Dialog 居中 transform 捕获了 `position:fixed` 基准，DragOverlay 改 portal 到 `document.body` 修复。
+- 打开标签页失败（`chrome.tabs.create` reject）原先无反馈，现提示「打开失败」（与删除工作区一致）。
+- hide 模式（折叠·保状态）切回工作区时其他工作区折叠标签组排到了当前标签之后：`chrome.tabs.ungroup` 解散组后 tab 停在历史位置（常紧贴固定标签），现把当前工作区普通标签移到所有折叠组之后（固定标签 → 折叠组 → 当前标签）。
+
+### Internal
+- agent issue 工作流配置（gh CLI + triage labels + 单上下文仓库 domain 指引）。
+
 ## [0.2.1.0] - 2026-07-23
 
 ### Added
