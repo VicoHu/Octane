@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.2.0.0] - 2026-07-23
+
+### Added
+
+- **工作区标签隔离**（0.2.x 战略切入点）—— 切换工作区时自动隔离浏览器标签，解决 tab 随工作区切换线性膨胀（根因：原 `selectWorkspace` 只改选中不碰浏览器 tab）。
+  - **切换编排（close-only + 会话追踪）**：离开工作区归档其标签（archive 存 `chrome.storage.local`）→ 关闭 content tab（dispose，保 home tab）→ 恢复目标工作区标签（restore，`active:false` 防抢焦点闪烁）→ 更新窗口绑定（windowId→workspaceId）。**archive 失败硬屏障**（绝不无归档关闭 tab，防丢数据）+ per-window 串行队列（防 A→B→C 并发覆盖）。
+  - **可恢复性过滤**：排除内部页（`chrome://` / `edge://` / `about:` / `chrome-extension://`）+ `devtools:` / `file:`（不可恢复，切换时保留，避免关了恢复不了）。
+  - **设置开关**：设置中心「工作区与标签」分区，RadioGroup「不隔离（默认）/ 自动关闭与恢复」；首次开启（off→close）本窗有 tab 时弹 AlertDialog 存量告知确认（炭灰主键不红，非危险删除）。
+  - **切换反馈**：结果 Toast「已切换到「X」/ 已关闭 N / 切回「Y」」（action 切回 = undo 完整反转，非"撤销"）；切换中两层进度——立即（目标工作区项 Spinner + 所有切换入口禁用）/ >300ms（持久 loading Toast + Progress 进度条，订阅 store 自动随进度更新）。
+  - **存储**：`chrome.storage.local` 分键（`tabSession.<wsId>` 会话 + `windowWorkspaceBinding.<winId>` 绑定 + `tabIsolationSetting` 开关），不进 backup/share（设备本地临时，隐私边界）。
+  - 设计 rev5 三轮评审（office-hours + plan-eng-review 16 issues 全采纳 + plan-design-review），TDD 全程（集成测试端到端往返 + 承重用例）。
+
 ## [0.1.13.1] - 2026-07-22
 
 ### Added

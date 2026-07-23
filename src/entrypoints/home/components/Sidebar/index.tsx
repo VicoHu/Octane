@@ -22,6 +22,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { useWorkspace } from '@/store/useWorkspace';
+import { switchWorkspace } from '@/entrypoints/home/utils/workspaceSwitcher';
 import type { Category } from '@/shared/types';
 import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '../ManagePanel';
@@ -50,7 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
   const categories = useWorkspace((s) => s.categories);
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
-  const selectWorkspace = useWorkspace((s) => s.selectWorkspace);
+  const switching = useWorkspace((s) => s.switching);
   const createCategory = useWorkspace((s) => s.createCategory);
   const deleteCategory = useWorkspace((s) => s.deleteCategory);
   const reorderCategories = useWorkspace((s) => s.reorderCategories);
@@ -187,7 +188,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
         <div className={styles.workspaceSelect}>
           <Select
             value={currentWorkspaceId}
-            onValueChange={(val) => val && selectWorkspace(val)}
+            onValueChange={(val) => val && switchWorkspace(val)}
+            disabled={!!switching}
           >
             <SelectTrigger className={styles.select}>
               <SelectValue>

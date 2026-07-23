@@ -9,12 +9,14 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/store/useWorkspace';
+import { switchWorkspace } from '@/entrypoints/home/utils/workspaceSwitcher';
+import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 
 export function AppRail() {
   const workspaces = useWorkspace((state) => state.workspaces);
   const currentWorkspaceId = useWorkspace((state) => state.currentWorkspaceId);
-  const selectWorkspace = useWorkspace((state) => state.selectWorkspace);
+  const switching = useWorkspace((state) => state.switching);
 
   return (
     <aside className="app-rail dark" aria-label="主导航">
@@ -24,6 +26,7 @@ export function AppRail() {
           <div className="app-rail-workspace-list">
             {workspaces.map((workspace) => {
               const isCurrent = workspace.id === currentWorkspaceId;
+              const isSwitching = switching?.toId === workspace.id;
 
               return (
                 <Tooltip key={workspace.id}>
@@ -38,12 +41,13 @@ export function AppRail() {
                         )}
                         aria-label={`切换到工作区 ${workspace.name}`}
                         aria-pressed={isCurrent}
-                        onClick={() => void selectWorkspace(workspace.id)}
+                        disabled={!!switching}
+                        onClick={() => void switchWorkspace(workspace.id)}
                       />
                     }
                   >
                     <span className="app-rail-workspace-icon" aria-hidden="true">
-                      {workspace.icon}
+                      {isSwitching ? <Spinner /> : workspace.icon}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="right" role="tooltip">{workspace.name}</TooltipContent>
