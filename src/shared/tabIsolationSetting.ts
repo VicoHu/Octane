@@ -1,14 +1,17 @@
 /**
- * 工作区标签隔离开关：chrome.storage.local key `tabIsolationSetting` = 'off' | 'close'。
+ * 工作区标签隔离开关：chrome.storage.local key `tabIsolationSetting` = 'off' | 'close' | 'hide-discard' | 'hide'。
  *
  * off（默认）= 不隔离：切换工作区只改选中（selectWorkspace 纯 UI）。
  * close = 自动关闭与恢复：切换走 requestWorkspaceSwitch 编排（离开工作区关闭其标签，返回时自动恢复）。
+ * hide-discard = 隐藏+弃活：MV3 隐藏（chrome.tabs.hide + chrome.tabGroups.discard），显式恢复。
+ * hide = 仅隐藏：MV3 隐藏标签但保留活跃，显式恢复。
  *
  * 安全访问 chrome.storage.local（参考 windowWorkspaceBinding 范式）：非扩展环境返回 'off' / 空操作。
  */
-export type TabIsolationSetting = 'off' | 'close';
+export type TabIsolationSetting = 'off' | 'close' | 'hide-discard' | 'hide';
 
 const KEY = 'tabIsolationSetting';
+const VALID: TabIsolationSetting[] = ['off', 'close', 'hide-discard', 'hide'];
 
 interface ChromeStorageLocal {
   get: (keys: string | string[]) => Promise<Record<string, unknown>>;
@@ -35,8 +38,8 @@ export async function getTabIsolationSetting(): Promise<TabIsolationSetting> {
   const local = getLocal();
   if (!local) return 'off';
   const r = await local.get([KEY]);
-  // 仅接受 'close'；未设置 / 非法值 / 非 'close' → 'off'（默认不隔离）
-  return r[KEY] === 'close' ? 'close' : 'off';
+  const v = r[KEY];
+  return VALID.includes(v as TabIsolationSetting) ? (v as TabIsolationSetting) : 'off';
 }
 
 /** 写隔离设置。 */
