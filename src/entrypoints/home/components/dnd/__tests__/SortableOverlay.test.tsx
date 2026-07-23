@@ -64,3 +64,31 @@ describe('SortableOverlay — invalid 传递(M5 非法落区 overlay)', () => {
     expect(dragOverlayProps.modifiers).toBe(modifiers);
   });
 });
+
+describe('SortableOverlay — portal 到 document.body', () => {
+  /**
+   * 回归保护:ManagePanel 在 shadcn Dialog 内,DialogContent 用 translate(-50%,-50%) 居中
+   * 是常驻 transform 祖先。dnd-kit 的 DragOverlay 本身不 portal(渲染在 React 树原位),
+   * 若留在 Dialog 内,position:fixed 的 containing block 会被 transform 捕获,导致
+   * top/left(视口坐标)被当作相对 Dialog 的偏移 → overlay 瞬移到右下。故 SortableOverlay
+   * 必须把 DragOverlay 主动 portal 到 document.body,脱离任何 transform 祖先。
+   */
+  it('内容 portal 到 document.body,不留在带 transform 的渲染容器内', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    try {
+      render(
+        <SortableOverlay>
+          <span>幽灵行</span>
+        </SortableOverlay>,
+        { container },
+      );
+
+      expect(document.body).toHaveTextContent('幽灵行');
+      // portal 出去后,渲染容器内不应再保留 overlay 内容
+      expect(container).not.toHaveTextContent('幽灵行');
+    } finally {
+      container.remove();
+    }
+  });
+});
