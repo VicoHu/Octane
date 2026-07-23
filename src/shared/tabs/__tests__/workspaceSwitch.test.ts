@@ -1059,3 +1059,88 @@ describe('switchWorkspaceBySetting — hide 分流 + T5 M1（T8）', () => {
     errorSpy.mockRestore();
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// v1.1 buildUndo 失败状态机（undo 反向切换，对称 performSwitch 失败路径）
+// undo archive null / dispose ok=false / restore throw → Toast + 不回滚 binding（停留 toId）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('buildUndo — 失败状态机（v1.1 undo 反向切换）', () => {
+  beforeEach(() => {
+    installDisposeRestoreStub();
+  });
+
+  it('undo archive 失败（query 抛错）→ Toast 撤销失败 + 不回滚 binding（停留 toId）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    errorSpy.mockClear();
+
+    // undo 反向 archive 失败（query 抛错）
+    const orig = c.tabs.query;
+    c.tabs.query = async () => { throw new Error('boom'); };
+    await r.undo();
+    c.tabs.query = orig;
+
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000'); // binding 不回滚（仍 toId）
+    expect(errorSpy).toHaveBeenCalledWith('撤销失败：无法保存当前标签');
+    errorSpy.mockRestore();
+  });
+
+  it('undo dispose 失败（collapse 抛错 ok=false）→ Toast 撤销失败 + 不回滚 binding', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    errorSpy.mockClear();
+
+    // undo 反向 dispose 失败（tabGroups.update 抛错 → ok=false）
+    const orig = c.tabGroups.update;
+    c.tabGroups.update = async () => { throw new Error('boom'); };
+    await r.undo();
+    c.tabGroups.update = orig;
+
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    expect(errorSpy).toHaveBeenCalledWith('撤销失败：无法收起当前标签');
+    errorSpy.mockRestore();
+  });
+
+  it('undo restore 抛错 → Toast 撤销未完成 + 不回滚 binding', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    errorSpy.mockClear();
+
+    // undo 反向 restore 失败（restoreByMode 命中组 ungroup 抛错）
+    const orig = c.tabs.ungroup;
+    c.tabs.ungroup = async () => { throw new Error('boom'); };
+    await r.undo();
+    c.tabs.ungroup = orig;
+
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+    expect(errorSpy).toHaveBeenCalledWith('撤销未完成：恢复标签时出错');
+    errorSpy.mockRestore();
+  });
+});

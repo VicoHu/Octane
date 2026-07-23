@@ -77,5 +77,9 @@ v1.1 = 切换行为 2 档 → 4 档（加 hide 两档）。设计核心决策：
 - **normalizeOnModeChange O(n²)**：`src/shared/tabs/workspaceSwitch.ts` 每组全表扫 `tabs.query`。规模小（<20 组），可提 query 到循环外。
 - **incognito defense-in-depth**：archive/dispose 未过滤 incognito（ChromeTab 无字段）。实际不触发（incognito tab 不在 normal 窗口）。spec 边界已声明，零触发概率。
 - **restore throw 死胡同注释**：`performSwitch` restore 抛错返回 `noopUndo`（无 undo），注释说「undo 兜底」不准。边缘场景，注释修正即可。
+- **dispose pinned 序 + Toast 文案**（ship pre-landing review finding 2，非阻塞）：`disposeByMode` hide 路径先 remove pinned 再 group/collapse，折叠失败时 pinned 已关（session 留底，切回可重建，**不丢数据**），但 Toast「切换中止：无法收起当前标签，已保留」对 pinned 不准。根治需调序（先折叠成功再关 pinned）或修 Toast 为「已归档，可手动切回恢复」。
+- **dormant undo stale snapshot 风险**（ship pre-landing review finding 3）：`buildUndo`（undo 反向切换，60 行）去 Toast 切回按钮后**无 UI 入口**（仅测试调，覆盖完整含失败状态机）。保留；若未来恢复切回按钮，需补 generation/绑定校验或改用「undo = 切回 snapshot.fromId 的 fresh performSwitch」，避快连切 A→B→C 后旧 snapshot undo 致 C tab 孤立。
+- **incognito 显式守卫**（ship pre-landing review finding 4，补充）：`T9 deleteWorkspace` + `normalizeOnModeChange` 遍历窗口无 `w.incognito` 守卫（Chrome 默认扩展不进隐身故安全，显式 `if (w.incognito) continue` 更稳）。
+- **SwitchProgress 缺 setting 字段**（ship pre-landing review finding 5）：`SwitchProgress` 类型无 `setting`，但 store switching state + `progressLabel` 依赖它做动词适配。跨边界契约靠结构子集而非类型；可加 `setting?: TabIsolationSetting` 使契约显式。
 
 > **不在 v1.1**：lazy restore（v1.x）/ 跨设备 tab 会话备份（不做，设备本地临时）。详见 v1.1 设计文档 + v1 设计文档 NOT in scope。

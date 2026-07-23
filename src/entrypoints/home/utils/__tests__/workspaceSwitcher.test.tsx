@@ -44,6 +44,24 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     );
   });
 
+  it('fromName 从 currentWorkspaceId 派生传入（供建组 title，GAP-4）', async () => {
+    installChrome({ tabIsolationSetting: 'close' }, 5);
+    useWorkspace.setState({
+      workspaces: [
+        { id: 'ws-a', name: '工作区A', icon: '📁', createdAt: 0, order: 0 },
+        { id: 'ws-b', name: '工作区B', icon: '🔬', createdAt: 0, order: 1 },
+      ],
+      currentWorkspaceId: 'ws-a',
+    });
+
+    await switchWorkspace('ws-b');
+
+    // fromName = 当前工作区名（currentWorkspaceId 反查），传 switchWorkspaceBySetting
+    expect(switchWorkspaceBySetting).toHaveBeenCalledWith(
+      expect.objectContaining({ toId: 'ws-b', fromName: '工作区A' }),
+    );
+  });
+
   it('off setting（默认）：setting=off 传入', async () => {
     installChrome({}, 7);
 
