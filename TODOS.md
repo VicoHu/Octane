@@ -72,4 +72,10 @@ v1.1 = 切换行为 2 档 → 4 档（加 hide 两档）。设计核心决策：
 - **自动归档**（Arc 式 alarms + 窗口 lastActive，跑 MV3 SW）：用户决定 v1.1 只做 hide，推迟。相关 `src/entrypoints/background.ts`（alarms 注册 + 监听）+ `src/shared/tabs/workspaceSwitch.ts`（archive 抽出 SW/home 共用 helper）。
 - **同 ws 多窗 session 隔离**（TabSession key 加 windowId）：/plan-ceo-review tension 3 备选方案。v1.1 暂继承 v1「同 ws 多窗最后归档胜出」已知限制（多窗同 ws 低频）；后续据用户反馈评估是否做。
 
+### final review deferred（v1.1 实现小债务，非阻塞，后续 polish）
+- **T0 stub 保真度**：`tests/setup.ts` `tabs.discard` 未写回 store（discarded 状态 query 查不到）/ `ungroup` 不清空孤儿 group。T10 套件自建 stub 规避，未来测试若依赖 setup.ts 保真度需补。
+- **normalizeOnModeChange O(n²)**：`src/shared/tabs/workspaceSwitch.ts` 每组全表扫 `tabs.query`。规模小（<20 组），可提 query 到循环外。
+- **incognito defense-in-depth**：archive/dispose 未过滤 incognito（ChromeTab 无字段）。实际不触发（incognito tab 不在 normal 窗口）。spec 边界已声明，零触发概率。
+- **restore throw 死胡同注释**：`performSwitch` restore 抛错返回 `noopUndo`（无 undo），注释说「undo 兜底」不准。边缘场景，注释修正即可。
+
 > **不在 v1.1**：lazy restore（v1.x）/ 跨设备 tab 会话备份（不做，设备本地临时）。详见 v1.1 设计文档 + v1 设计文档 NOT in scope。
