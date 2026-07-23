@@ -632,5 +632,26 @@ describe('restoreByMode', () => {
       expect(r.failed).toEqual([]);
       expect(r.groupId).toBeNull();
     });
+
+    it('兜底 restore：session 含 pinned tab → pinned 不入组（C4b），非 pinned 入组', async () => {
+      const c = (globalThis as any).chrome;
+      const { saveTabSession } = await import('@/services/TabSessionService');
+      // session.tabs = [pinned, 非 pinned]；opened[i] 与 session.tabs[i] 按序对应
+      await saveTabSession('cccc3333-0000-0000', [
+        { url: 'https://pinned.com', pinned: true, order: 0 },
+        { url: 'https://plain.com', pinned: false, order: 1 },
+      ]);
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      // opened 含两者（pinned 重开仍计入）
+      expect(r.opened.length).toBe(2);
+      // pinned tab（首个重开，id 最小）不入组：groupId === -1
+      const pinnedId = r.opened[0];
+      const plainId = r.opened[1];
+      expect(c.__testTabs.get(pinnedId).pinned).toBe(true);
+      expect(c.__testTabs.get(pinnedId).groupId).toBe(-1);
+      // 非 pinned tab 入新组
+      expect(r.groupId).not.toBeNull();
+      expect(c.__testTabs.get(plainId).groupId).toBe(r.groupId);
+    });
   });
 });

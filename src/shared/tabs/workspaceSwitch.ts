@@ -378,9 +378,12 @@ export async function restoreByMode(
       failed.push(t);
     }
   }
+  // C4b：Chrome tabs.group 拒绝 pinned tab。opened[i] 与 session.tabs[i] 按序对应，
+  // 过滤掉 pinned（留 pinned 不入组，与 dispose 路径一致）；opened 返回值仍含全部重开 id。
+  const groupable = opened.filter((_, i) => !session.tabs[i]?.pinned);
   let newGid: number | null = null;
-  if (opened.length) {
-    newGid = await c.tabs.group({ tabIds: opened, createProperties: { windowId } });
+  if (groupable.length) {
+    newGid = await c.tabs.group({ tabIds: groupable, createProperties: { windowId } });
     await c.tabGroups.update(newGid, {
       title: makeGroupTitle(toName, toId),
       color: 'grey',
