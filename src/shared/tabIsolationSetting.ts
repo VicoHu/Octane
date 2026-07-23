@@ -3,8 +3,8 @@
  *
  * off（默认）= 不隔离：切换工作区只改选中（selectWorkspace 纯 UI）。
  * close = 自动关闭与恢复：切换走 requestWorkspaceSwitch 编排（离开工作区关闭其标签，返回时自动恢复）。
- * hide-discard = 隐藏+弃活：MV3 隐藏（chrome.tabs.hide + chrome.tabGroups.discard），显式恢复。
- * hide = 仅隐藏：MV3 隐藏标签但保留活跃，显式恢复。
+ * hide-discard = 隐藏+弃活：折叠标识组（chrome.tabGroups.update collapsed:true）+ 丢弃 tab 内存（chrome.tabs.discard），显式恢复。
+ * hide = 仅隐藏：折叠标识组（chrome.tabGroups.update collapsed:true）保留 tab 活跃，显式恢复。
  *
  * 安全访问 chrome.storage.local（参考 windowWorkspaceBinding 范式）：非扩展环境返回 'off' / 空操作。
  */

@@ -305,13 +305,15 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
 
     // 兜底 restore：从 TabSession.ws-a 重开 2 个 tab
-    const opened = Array.from(c.__testTabs.values()).filter((t: any) => t.url?.startsWith('https://a'));
+    const opened = Array.from(c.__testTabs.values()).filter(
+      (t: any) => t.url === 'https://a1.com' || t.url === 'https://a2.com',
+    );
     expect(opened.length).toBe(2);
     // 新建标识组（title 含 ` ·aaaaaaaa`，collapsed=false）
     const newGroup: any = Array.from(c.__testGroups.values()).find(
       (g: any) => g.title === 'A ·aaaaaaaa',
     );
-    expect(newGroup).toBeTruthy();
+    expect(newGroup).toBeDefined();
     expect(newGroup.collapsed).toBe(false);
   });
 
@@ -334,7 +336,8 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
     const newGroup: any = Array.from(c.__testGroups.values()).find(
       (g: any) => g.title === 'A ·aaaaaaaa',
     );
-    expect(newGroup).toBeTruthy();
+    expect(newGroup).toBeDefined();
+    expect(newGroup.collapsed).toBe(false);
     // 从 TabSession 重开 a.com（非组里的旧 a-old.com）
     expect(Array.from(c.__testTabs.values()).some((t: any) => t.url === 'https://a.com')).toBe(true);
   });
@@ -462,6 +465,37 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
     expect(c.__testTabs.get(2).discarded).toBe(true);
     // A 组 tab 仍存在（Chrome 语义：展开时 discarded tab 重载，stub 不模拟重载但 tab 保留）
     expect(c.__testTabs.has(1)).toBe(true);
+    expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
+  });
+
+  // 用例 9：hide 往返 pinned tab 正常路径 — dispose remove 后 restore 重建（不丢）
+  // 回归 b75591e review Fix#1：restoreByMode hide 命中组路径曾遗漏重建 pinned，
+  // 导致 pinned 在 hide 往返静默丢失（dispose remove + restore 只 expand 组）。
+  it('hide 往返 pinned：A→B remove P → B→A 命中组展开 + 重建 pinned P（不丢失）', async () => {
+    const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
+    // ws-a：pinned P（mail.com，散 tab groupId=-1）+ 组 10 普通 A（a.com）
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://mail.com', groupId: -1, pinned: true, index: 0 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://a.com', groupId: 10, index: 1 });
+    // ws-b：组 20 普通 B（b.com）
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
+    c.__testTabs.set(3, { id: 3, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
+
+    // A→B（hide）：archive 两（P + A）+ dispose remove P（C4b pinned 禁入组）+ 折叠组 10
+    await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide');
+    // pinned P 被 remove（dispose remove pinned，不折叠）
+    expect(Array.from(c.__testTabs.values()).some((t: any) => t.url === 'https://mail.com')).toBe(false);
+    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
+
+    // B→A（hide）：findGroupByIdentity 命中组 10 → 展开 + 重建 pinned P
+    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide');
+    // pinned P 重建（切回后存在 + pinned:true，不丢失）
+    const pinnedP: any = Array.from(c.__testTabs.values()).find((t: any) => t.url === 'https://mail.com');
+    expect(pinnedP).toBeDefined();
+    expect(pinnedP.pinned).toBe(true);
+    // 组 10 展开
+    expect(c.__testGroups.get(10).collapsed).toBe(false);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
   });
 });

@@ -350,6 +350,21 @@ export async function restoreByMode(
   // hide / hide-discard
   const gid = await findGroupByIdentity(windowId, toId);
   if (gid != null) {
+    // 重建 dispose 时 remove 的 pinned tab（C4b：pinned 禁入组，dispose remove，restore 重开）。
+    // 正常路径只 expand 组，但 pinned 在 dispose 被 remove（非折叠），不重建则 hide 往返静默丢失。
+    const session = await getTabSession(toId);
+    if (session) {
+      const existing = await c.tabs.query({ windowId });
+      for (const t of session.tabs) {
+        if (t.pinned && !existing.some((e) => e.url === t.url && e.pinned)) {
+          try {
+            await c.tabs.create({ url: t.url, pinned: true, windowId, active: false });
+          } catch {
+            /* 部分失败：不阻断 expand */
+          }
+        }
+      }
+    }
     await c.tabGroups.update(gid, { collapsed: false }); // expand
     onProgress?.({ phase: 'restore', count: 0, total: 0 });
     return { opened: [], failed: [], groupId: gid };
@@ -518,8 +533,9 @@ function buildUndo(
       Toast.error('工作区已变化，无法撤销，可手动切回');
       return;
     }
-    // 反转：collapse 目标组（hide / hide-discard；close 路径 gid=null 跳过）
-    if (gid != null) {
+    // 反转：collapse 目标组（仅 hide / hide-discard；close 不管理组，且此时 gid 非 targetGroupId——
+    // close 档跳过了 generation 校验，gid 可能是目标 ws 的残留 hide 标识组，不可误折叠）
+    if (snapshot.mode !== 'close' && gid != null) {
       try {
         await c.tabGroups.update(gid, { collapsed: true });
       } catch {
