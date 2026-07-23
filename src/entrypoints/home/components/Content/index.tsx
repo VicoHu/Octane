@@ -246,7 +246,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
 
   const handleTabClick = (tab: OpenTab, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event?.metaKey || event?.ctrlKey) {
-      void openUrlInNewTab(tab.url, false);
+      void openUrlInNewTab(tab.url, false).catch(() => Toast.error('打开失败'));
       return;
     }
     // 跳转到对应 tab;focusTab 内置 stale tabId 兜底(R2)
@@ -255,7 +255,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
 
   const handleCardClick = (bookmark: Bookmark, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (event?.metaKey || event?.ctrlKey) {
-      void openUrlInNewTab(bookmark.url, false);
+      void openUrlInNewTab(bookmark.url, false).catch(() => Toast.error('打开失败'));
       return;
     }
     // Phase 2：匹配到已打开 tab → 聚焦「最近活跃」的那个;否则新建标签。
@@ -265,7 +265,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     if (tab) {
       void focusTab(tab.tabId, tab.url);
     } else {
-      void openUrlInNewTab(bookmark.url, true);
+      void openUrlInNewTab(bookmark.url, true).catch(() => Toast.error('打开失败'));
     }
   };
 

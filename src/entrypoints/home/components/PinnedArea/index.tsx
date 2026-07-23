@@ -202,7 +202,7 @@ function PinChip({
         className={styles.chip}
         aria-label={`打开 ${pin.name}`}
         title={pin.name}
-        onClick={(event) => void openUrlInNewTab(pin.url, !(event.metaKey || event.ctrlKey))}
+        onClick={(event) => void openUrlInNewTab(pin.url, !(event.metaKey || event.ctrlKey)).catch(() => Toast.error('打开失败'))}
       >
         <div className={styles.favicon}>
           {src ? (

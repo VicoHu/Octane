@@ -321,7 +321,7 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
               ))}
             </SortableContext>
           </div>
-          <SortableOverlay tone="light" invalid={invalid} modifiers={[restrictToVerticalAxis]}>
+          <SortableOverlay tone="light" invalid={invalid}>
             {activeWs && (
               <div
                 className={styles.ghostRow}
