@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/store/useWorkspace';
 import { IconPicker } from '@/components/IconPicker';
 import { GripButton } from '../dnd/GripButton';
 import { SortableOverlay } from '../dnd/SortableOverlay';
+import { restrictToVerticalAxis } from '../dnd/modifiers';
+import { Trash2 } from 'lucide-react';
 import dndStyles from '../dnd/dnd.module.css';
 import {
   DndContext,
@@ -32,10 +46,66 @@ interface EntityEditRowProps {
   name: string;
   icon: string;
   onSave: (id: string, updates: { name: string; icon: string }) => Promise<void> | void;
+  actions?: React.ReactNode;
 }
 
+interface WorkspaceDeleteActionProps {
+  name: string;
+  onDelete: () => Promise<boolean>;
+  disabled?: boolean;
+}
+
+const WorkspaceDeleteAction: React.FC<WorkspaceDeleteActionProps> = ({ name, onDelete, disabled }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <AlertDialogTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon-sm"
+                  aria-label={`删除工作区 ${name}`}
+                  disabled={disabled}
+                />
+              }
+            />
+          }
+        >
+          <Trash2 />
+        </TooltipTrigger>
+        <TooltipContent>删除工作区</TooltipContent>
+      </Tooltip>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>删除工作区</AlertDialogTitle>
+          <AlertDialogDescription>
+            {`永久删除工作区「${name}」及其全部内容，此操作不可撤销。`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>取消</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            onClick={async () => {
+              const deleted = await onDelete();
+              if (deleted) setOpen(false);
+            }}
+          >
+            删除工作区
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
 /** 单个 workspace/category 的可编辑行：点击展开名称 + 图标编辑。 */
-const EntityEditRow: React.FC<EntityEditRowProps> = ({ id, name, icon, onSave }) => {
+const EntityEditRow: React.FC<EntityEditRowProps> = ({ id, name, icon, onSave, actions }) => {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(name);
   const [draftIcon, setDraftIcon] = useState(icon);
@@ -54,16 +124,19 @@ const EntityEditRow: React.FC<EntityEditRowProps> = ({ id, name, icon, onSave })
   return (
     <li className={styles.item}>
       {!editing ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className={styles.itemDisplay}
-          aria-label={`编辑 ${name}`}
-          onClick={enterEdit}
-        >
-          <span className={styles.itemIcon}>{icon}</span>
-          <span>{name}</span>
-        </Button>
+        <div className={styles.displayRow}>
+          <Button
+            type="button"
+            variant="ghost"
+            className={styles.itemDisplay}
+            aria-label={`编辑 ${name}`}
+            onClick={enterEdit}
+          >
+            <span className={styles.itemIcon}>{icon}</span>
+            <span>{name}</span>
+          </Button>
+          {actions && <div className={styles.rowActions}>{actions}</div>}
+        </div>
       ) : (
         <div className={styles.editRow}>
           {/* 编辑态 Input data-no-dnd:防拖拽时 Input 聚焦/输入冲突(D6 grip 收敛后额外保险) */}
@@ -84,6 +157,7 @@ interface SortableWorkspaceProps {
   name: string;
   icon: string;
   onSave: (id: string, updates: { name: string; icon: string }) => Promise<void> | void;
+  onDelete: () => Promise<boolean>;
   /** 连发锁:drop 写入期间禁用该 item 拖拽 */
   disabled?: boolean;
 }
@@ -96,7 +170,7 @@ interface SortableWorkspaceProps {
  * - 浅色面(Modal 白底)overlay tone=light 炭灰描边;DragOverlay portal body z-index 1005 > Modal 1000。
  * - isDragging 原位 visibility:hidden 保留行高(measured rect 占位),DragOverlay 副本浮于指针。
  */
-const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, onSave, disabled }) => {
+const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, onSave, onDelete, disabled }) => {
   const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   return (
     <div
@@ -110,7 +184,13 @@ const SortableWorkspace: React.FC<SortableWorkspaceProps> = ({ id, name, icon, o
           <GripButton listeners={listeners} className={dndStyles.gripAlwaysVisible} />
         </span>
         <div className={styles.entityWrap}>
-          <EntityEditRow id={id} name={name} icon={icon} onSave={onSave} />
+          <EntityEditRow
+            id={id}
+            name={name}
+            icon={icon}
+            onSave={onSave}
+            actions={<WorkspaceDeleteAction name={name} onDelete={onDelete} disabled={disabled} />}
+          />
         </div>
       </div>
     </div>
@@ -136,17 +216,42 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
   const updateWorkspace = useWorkspace((s) => s.updateWorkspace);
   const updateCategory = useWorkspace((s) => s.updateCategory);
   const reorderWorkspaces = useWorkspace((s) => s.reorderWorkspaces);
+  const deleteWorkspace = useWorkspace((s) => s.deleteWorkspace);
 
   // === T8 workspace 拖拽 ===
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeWsId, setActiveWsId] = useState<string | null>(null);
   const activeWs = activeWsId ? workspaces.find((w) => w.id === activeWsId) ?? null : null;
+  const wsListRef = useRef<HTMLDivElement>(null);
+  const [workspaceListWidth, setWorkspaceListWidth] = useState<number | null>(null);
   // 连发锁:drop 写入期间锁定 workspace 容器(防 store 乐观重排与回滚竞态)
   const [reordering, setReordering] = useState(false);
+  const [deletingWsId, setDeletingWsId] = useState<string | null>(null);
   // M5 非法落区:over=null(拖出 wsList)→ overlay 降透明 .5
   const [invalid, setInvalid] = useState(false);
 
-  const handleDragStart = (e: DragStartEvent) => setActiveWsId(String(e.active.id));
+  const handleDeleteWorkspace = async (id: string): Promise<boolean> => {
+    setDeletingWsId(id);
+    try {
+      await deleteWorkspace(id);
+      Toast.success('工作区已删除');
+      return true;
+    } catch (e) {
+      Toast.error('删除失败：' + (e as Error).message);
+      return false;
+    } finally {
+      setDeletingWsId(null);
+    }
+  };
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setActiveWsId(String(e.active.id));
+    const list = wsListRef.current;
+    if (list) {
+      const width = list.getBoundingClientRect().width || list.offsetWidth;
+      setWorkspaceListWidth(width || null);
+    }
+  };
   const handleDragOver = (e: DragOverEvent) => {
     // 只判非法落区(拖出容器 over=null);落点指示由 placeholder 虚线框承担(用户真机决策去绿线)
     if (!e.over) {
@@ -158,6 +263,7 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
   const handleDragEnd = async (e: DragEndEvent) => {
     const { active, over } = e;
     setActiveWsId(null);
+    setWorkspaceListWidth(null);
     setInvalid(false);
     if (!over || active.id === over.id) return;
     const oldIndex = workspaces.findIndex((w) => w.id === active.id);
@@ -190,13 +296,14 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
       {workspaces.length > 1 ? (
         <DndContext
           sensors={sensors}
+          modifiers={[restrictToVerticalAxis]}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
-          onDragCancel={() => { setActiveWsId(null); setInvalid(false); }}
+          onDragCancel={() => { setActiveWsId(null); setWorkspaceListWidth(null); setInvalid(false); }}
         >
-          <div className={styles.wsList} role="list">
+          <div ref={wsListRef} className={styles.wsList} role="list">
             <SortableContext
               items={workspaces.map((w) => w.id)}
               strategy={verticalListSortingStrategy}
@@ -208,14 +315,18 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
                   name={w.name}
                   icon={w.icon}
                   onSave={updateWorkspace}
-                  disabled={reordering}
+                  onDelete={() => handleDeleteWorkspace(w.id)}
+                  disabled={reordering || deletingWsId !== null}
                 />
               ))}
             </SortableContext>
           </div>
           <SortableOverlay tone="light" invalid={invalid}>
             {activeWs && (
-              <div className={styles.ghostRow}>
+              <div
+                className={styles.ghostRow}
+                style={workspaceListWidth ? { width: `${workspaceListWidth}px` } : undefined}
+              >
                 <span className={styles.itemIcon}>{activeWs.icon}</span>
                 <span>{activeWs.name}</span>
               </div>
@@ -225,7 +336,14 @@ export const ManagePanel: React.FC<ManagePanelProps> = ({ visible, onCancel }) =
       ) : (
         <ul className={styles.entityList}>
           {workspaces.map((w) => (
-            <EntityEditRow key={w.id} id={w.id} name={w.name} icon={w.icon} onSave={updateWorkspace} />
+            <EntityEditRow
+              key={w.id}
+              id={w.id}
+              name={w.name}
+              icon={w.icon}
+              onSave={updateWorkspace}
+              actions={<WorkspaceDeleteAction name={w.name} onDelete={() => handleDeleteWorkspace(w.id)} disabled={deletingWsId !== null} />}
+            />
           ))}
         </ul>
       )}

@@ -123,6 +123,28 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
     await user.click(screen.getByRole('tab', { name: '书签 0' }));
     expect(screen.queryByText('当前窗口没有其他标签页')).not.toBeInTheDocument();
   });
+
+  it('标签页 Cmd/Ctrl + 左键 → 在当前窗口最右侧后台创建 URL', async () => {
+    const user = userEvent.setup();
+    const query = vi.fn().mockResolvedValue([{ index: 0 }, { index: 4 }]);
+    const create = vi.fn().mockResolvedValue(undefined);
+    (globalThis as unknown as { chrome: unknown }).chrome = { tabs: { query, create } };
+    const openTabs: OpenTab[] = [{ url: 'https://github.com', tabId: 7, lastAccessed: 0, title: 'GitHub' }];
+
+    render(<Content openTabs={openTabs} />);
+    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    const openButton = screen.getByRole('button', { name: '打开标签页 GitHub' });
+    await user.keyboard('[MetaLeft>]');
+    await user.click(openButton);
+    await user.keyboard('[/MetaLeft]');
+
+    expect(query).toHaveBeenCalledWith({ currentWindow: true });
+    await waitFor(() => expect(create).toHaveBeenCalledWith({
+      url: 'https://github.com',
+      active: false,
+      index: 5,
+    }));
+  });
 });
 
 describe('Content 添加书签反馈', () => {

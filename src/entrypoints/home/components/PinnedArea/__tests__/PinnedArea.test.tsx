@@ -41,6 +41,12 @@ beforeEach(() => {
   usePinnedTabs.setState({ pinnedTabs: [], loading: false });
   // listByWorkspace 默认返回空，单测按需 override
   vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([]);
+  (globalThis as unknown as { chrome: unknown }).chrome = {
+    tabs: {
+      query: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue(undefined),
+    },
+  };
 });
 
 describe('PinnedArea', () => {
@@ -108,20 +114,20 @@ describe('PinnedArea', () => {
     );
   });
 
-  it('点击 chip → window.open(pin.url)', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+  it('点击 chip → 在当前窗口最右侧创建前台 tab', async () => {
     vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([makePin('p1', 'GitHub', 'https://github.com', 0)]);
 
     renderArea();
     const chip = await screen.findByRole('button', { name: /打开 GitHub/ });
     await userEvent.click(chip);
-    expect(openSpy).toHaveBeenCalledWith('https://github.com', '_blank');
-    openSpy.mockRestore();
+    const tabs = (globalThis as unknown as { chrome: { tabs: { create: ReturnType<typeof vi.fn> } } }).chrome.tabs;
+    await waitFor(() => expect(tabs.create).toHaveBeenCalledWith({
+      url: 'https://github.com', active: true, index: 0,
+    }));
   });
 
   it.each(['{Enter}', ' '])('聚焦 chip 后按 %s → 打开常驻标签', async (key) => {
     const user = userEvent.setup();
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
       makePin('p1', 'GitHub', 'https://github.com', 0),
     ]);
@@ -131,8 +137,10 @@ describe('PinnedArea', () => {
     chip.focus();
     await user.keyboard(key);
 
-    expect(openSpy).toHaveBeenCalledWith('https://github.com', '_blank');
-    openSpy.mockRestore();
+    const tabs = (globalThis as unknown as { chrome: { tabs: { create: ReturnType<typeof vi.fn> } } }).chrome.tabs;
+    await waitFor(() => expect(tabs.create).toHaveBeenCalledWith({
+      url: 'https://github.com', active: true, index: 0,
+    }));
   });
 
   it('点击 × 删除 → deletePinnedTab(id) + chip 消失', async () => {
@@ -150,7 +158,6 @@ describe('PinnedArea', () => {
 
   it('点击删除按钮只删除常驻标签，不打开链接', async () => {
     const user = userEvent.setup();
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     vi.mocked(PinnedTabService.listByWorkspace).mockResolvedValue([
       makePin('p1', 'GitHub', 'https://github.com', 0),
     ]);
@@ -159,8 +166,8 @@ describe('PinnedArea', () => {
     await user.click(await screen.findByRole('button', { name: /取消常驻 GitHub/ }));
 
     expect(PinnedTabService.deletePinnedTab).toHaveBeenCalledWith('p1');
-    expect(openSpy).not.toHaveBeenCalled();
-    openSpy.mockRestore();
+    const tabs = (globalThis as unknown as { chrome: { tabs: { create: ReturnType<typeof vi.fn> } } }).chrome.tabs;
+    expect(tabs.create).not.toHaveBeenCalled();
   });
 
   it('cap 满（8）：「+」按钮 disabled，点击仍触发 Toast 提示', async () => {

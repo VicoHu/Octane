@@ -15,11 +15,24 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: auto;
   justify-content: flex-start;
   font-size: var(--font-sm);
   padding: var(--space-xs) 0;
+}
+
+.displayRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.rowActions {
+  display: inline-flex;
+  flex-shrink: 0;
 }
 
 .itemDisplay:hover {
@@ -83,6 +96,8 @@
   background: var(--card-bg);
   font-size: var(--font-sm);
   color: var(--text-primary);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* M1:isDragging 双层模式——外层 sortableRow 显 placeholder 虚线框,内层 rowInner 隐藏内容占位 */

@@ -159,6 +159,23 @@ describe('TabList — 紧凑列表 + 跨分类去重', () => {
     await user.click(screen.getByRole('button', { name: '打开标签页 B' }));
     expect(onTabClick).toHaveBeenCalledWith(expect.objectContaining({ tabId: 20, index: 1 }));
   });
+
+  it('Cmd/Ctrl + 左键 → 将修饰键事件传给打开入口', async () => {
+    const user = userEvent.setup();
+    const onTabClick = vi.fn();
+    const tab = makeTab({ tabId: 20, url: 'https://b.com', title: 'B' });
+    render(
+      <TabList tabs={[tab]} bookmarks={[]} currentCategoryId="cat-1"
+        onTabClick={onTabClick} onSaveTab={() => {}} pinnedTabs={[]} onPinTab={() => {}} />,
+    );
+
+    const openButton = screen.getByRole('button', { name: '打开标签页 B' });
+    await user.keyboard('[MetaLeft>]');
+    await user.click(openButton);
+    await user.keyboard('[/MetaLeft]');
+
+    expect(onTabClick).toHaveBeenCalledWith(tab, expect.objectContaining({ metaKey: true }));
+  });
 });
 
 describe('TabList — 存为常驻标签', () => {

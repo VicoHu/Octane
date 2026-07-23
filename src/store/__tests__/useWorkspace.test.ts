@@ -346,6 +346,24 @@ describe('useWorkspace — delete 持久化', () => {
     expect(store.lastWorkspaceId).toBe('w2');
   });
 
+  it('删除最后一个工作区 → 进入无工作区空状态', async () => {
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([]);
+    useWorkspace.setState({
+      workspaces: [wsOf('w1')],
+      currentWorkspaceId: 'w1',
+      categories: [catOf('c1', 'w1')],
+      currentCategoryId: 'c1',
+    });
+
+    await useWorkspace.getState().deleteWorkspace('w1');
+
+    expect(useWorkspace.getState().workspaces).toEqual([]);
+    expect(useWorkspace.getState().currentWorkspaceId).toBeNull();
+    expect(useWorkspace.getState().categories).toEqual([]);
+    expect(useWorkspace.getState().currentCategoryId).toBeNull();
+  });
+
   it('删除当前分类 → 回退第一个剩余分类 + persist 更新 map', async () => {
     const { store } = installChromeStorageLocal({ initial: {} });
     cat.deleteCategory.mockResolvedValue(undefined);

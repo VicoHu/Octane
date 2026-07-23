@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ManagePanel } from '../../ManagePanel';
 import { useWorkspace } from '@/store/useWorkspace';
@@ -102,6 +102,33 @@ describe('ManagePanel — 工作区与分类管理', () => {
     await user.click(screen.getByRole('button', { name: '取消' }));
 
     expect(updateWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('删除工作区前显示永久删除确认，取消不删除', async () => {
+    const user = userEvent.setup();
+    const deleteWorkspace = vi.fn().mockResolvedValue(undefined);
+    useWorkspace.setState({ deleteWorkspace });
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '删除工作区 主工作区' }));
+    expect(await screen.findByText(/永久删除工作区「主工作区」及其全部内容/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '取消' }));
+
+    expect(deleteWorkspace).not.toHaveBeenCalled();
+    expect(screen.getByText('主工作区')).toBeInTheDocument();
+  });
+
+  it('确认删除工作区 → 调用级联删除并保留管理弹窗', async () => {
+    const user = userEvent.setup();
+    const deleteWorkspace = vi.fn().mockResolvedValue(undefined);
+    useWorkspace.setState({ deleteWorkspace });
+    render(<ManagePanel visible={true} onCancel={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '删除工作区 主工作区' }));
+    await user.click(screen.getByRole('button', { name: '删除工作区' }));
+
+    await waitFor(() => expect(deleteWorkspace).toHaveBeenCalledWith('w1'));
+    expect(await screen.findByText('管理工作区与分类')).toBeInTheDocument();
   });
 });
 

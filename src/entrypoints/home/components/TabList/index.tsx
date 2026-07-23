@@ -17,7 +17,7 @@ interface TabListProps {
   bookmarks: Bookmark[];
   /** 当前选中分类;未选则禁用保存 */
   currentCategoryId?: string;
-  onTabClick: (tab: OpenTab) => void;
+  onTabClick: (tab: OpenTab, event?: React.MouseEvent<HTMLButtonElement>) => void;
   onSaveTab: (tab: OpenTab) => void;
   /** 当前工作区常驻标签(前置 dedup 数据源) */
   pinnedTabs: PinnedTab[];
@@ -60,7 +60,13 @@ export const TabList: React.FC<TabListProps> = ({
             tab={tab}
             saved={saved}
             canSave={canSave}
-            onTabClick={() => onTabClick(tab)}
+            onTabClick={(event) => {
+              if (event.metaKey || event.ctrlKey) {
+                onTabClick(tab, event);
+              } else {
+                onTabClick(tab);
+              }
+            }}
             onSave={() => onSaveTab(tab)}
             pinned={pinnedTabs.some((p) => normalizePinnedTabUrl(p.url) === normalizePinnedTabUrl(tab.url))}
             canPin={!atCap}
@@ -76,7 +82,7 @@ interface TabCardProps {
   tab: OpenTab;
   saved: boolean;
   canSave: boolean;
-  onTabClick: () => void;
+  onTabClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onSave: () => void;
   pinned: boolean;
   canPin: boolean;
