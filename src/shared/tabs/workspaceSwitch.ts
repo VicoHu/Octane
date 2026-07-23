@@ -18,6 +18,7 @@ import type { TabEntry } from '@/shared/types';
 import { saveTabSession, getTabSession } from '@/services/TabSessionService';
 import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspaceBinding';
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
+import { findGroupByIdentity } from '@/shared/tabs/tabGroupIdentity';
 import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
@@ -54,6 +55,8 @@ interface ChromeTab {
   pinned?: boolean;
   /** 浏览器 tab 位置（0 起），archive 时作为 order 落盘 */
   index?: number;
+  /** 所属 tabGroup id（-1 / 缺省 = 无组，hide 模式按此过滤当前 ws 组）。 */
+  groupId?: number;
 }
 
 interface ChromeLike {
@@ -67,6 +70,26 @@ interface ChromeLike {
       active?: boolean;
     }): Promise<unknown>;
     remove(id: number): Promise<unknown>;
+    /** hide 模式：恢复时切换激活态 / discard 后唤起（后续 task 用）。 */
+    update(id: number, props: { active?: boolean }): Promise<unknown>;
+    /** hide-discard 模式：丢弃 tab 内存（不关闭，保留占位）。 */
+    discard(id: number): Promise<unknown>;
+    /** hide 模式：把散 tab 并入当前 ws 组（restore 重组用）。 */
+    group(opts: {
+      tabIds: number[];
+      groupId?: number;
+      createProperties?: { windowId: number };
+    }): Promise<number>;
+    /** hide 模式：解散组（切换回 close 或清理用）。 */
+    ungroup(tabIds: number[]): Promise<unknown>;
+  };
+  tabGroups: {
+    get(gid: number): Promise<{ id: number; windowId: number; title?: string }>;
+    query(info: { windowId?: number }): Promise<{ id: number; windowId: number; title?: string }[]>;
+    update(
+      gid: number,
+      props: { collapsed?: boolean; title?: string; color?: string },
+    ): Promise<unknown>;
   };
 }
 
@@ -101,8 +124,51 @@ function toEntry(tab: ChromeTab): TabEntry {
 }
 
 /**
- * 归档窗口内当前工作区的标签：query → 过滤可恢复 → saveTabSession。
- * 返回可恢复 tab 的 id 集供 dispose；任何异常返回 null——硬屏障信号（调用方据此不 dispose）。
+ * 隔离模式（内部，与 TabIsolationSetting 三档对应：close 全窗关 / hide-discard 保留壳丢内存 / hide 保留可见）。
+ * archiveByMode 只区分 close（全窗 restorable）与 hide（按 groupId 过滤当前 ws 组 + 散 tab）；
+ * hide-discard 与 hide 在 archive 阶段同路径（差异在 dispose/restore，后续 task）。
+ */
+export type TabIsolationMode = 'close' | 'hide-discard' | 'hide';
+
+/**
+ * 按 mode 归档窗口内当前 ws 的 tab（archiveByMode）。
+ * - close：全窗 restorable tab（v1 行为）。
+ * - hide / hide-discard：当前 ws 标识组（findGroupByIdentity 回找）的 tab + 散 tab
+ *   （groupId=-1/null，含 pinned，视为当前 ws），**不取别 ws 组**（防污染）。
+ *   找不到当前 ws 组时只收散 tab（兜底前保全，不任选别组防关错）。
+ * 任何异常返回 null（硬屏障信号，调用方不 dispose）。返回 {tabs: {id, entry}[]} 供 dispose/restore。
+ */
+export async function archiveByMode(
+  c: ChromeLike,
+  windowId: number,
+  fromId: string,
+  mode: TabIsolationMode,
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<{ tabs: { id: number; entry: TabEntry }[] } | null> {
+  try {
+    const tabs = await c.tabs.query({ windowId });
+    const restorable = tabs.filter(isRestorable);
+    let mine: ChromeTab[];
+    if (mode === 'close') {
+      mine = restorable;
+    } else {
+      // hide / hide-discard：只收当前 ws 组 + 散 tab（groupId -1/null），不取别 ws 组
+      const gid = await findGroupByIdentity(windowId, fromId);
+      mine = restorable.filter((t) => t.groupId === gid || t.groupId === -1 || t.groupId == null);
+    }
+    const entries = mine.map((t) => ({ id: t.id!, entry: toEntry(t) }));
+    await saveTabSession(fromId, entries.map((e) => e.entry));
+    onProgress?.({ phase: 'archive', count: entries.length, total: entries.length });
+    return { tabs: entries };
+  } catch {
+    return null; // 硬屏障
+  }
+}
+
+/**
+ * 归档窗口内当前工作区的标签（v1 close-only 入口，保持调用点签名 `{id}[]` 不变）。
+ * v1.1：内部委托 archiveByMode(c, ..., 'close', ...)，close 路径行为与 v1 完全一致。
+ * 任何异常返回 null——硬屏障信号（调用方据此不 dispose）。
  */
 async function archive(
   windowId: number,
@@ -111,15 +177,8 @@ async function archive(
 ): Promise<{ id: number }[] | null> {
   const c = getChrome();
   if (!c) return null;
-  try {
-    const tabs = await c.tabs.query({ windowId });
-    const restorable = tabs.filter(isRestorable);
-    await saveTabSession(fromId, restorable.map(toEntry));
-    onProgress?.({ phase: 'archive', count: restorable.length, total: restorable.length });
-    return restorable.map((t) => ({ id: t.id! }));
-  } catch {
-    return null; // 硬屏障：归档失败，不返回处置集
-  }
+  const r = await archiveByMode(c, windowId, fromId, 'close', onProgress);
+  return r ? r.tabs.map((t) => ({ id: t.id })) : null;
 }
 
 /** 关闭窗口内 content tab（dispose）。ids 来自 archive 的可恢复集（已排除 home）。部分失败不阻断。 */

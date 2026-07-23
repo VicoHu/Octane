@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { requestWorkspaceSwitch, switchWorkspaceBySetting, countRestorableTabsInWindow, type SwitchProgress } from '../workspaceSwitch';
+import {
+  requestWorkspaceSwitch,
+  switchWorkspaceBySetting,
+  countRestorableTabsInWindow,
+  archiveByMode,
+  type SwitchProgress,
+} from '../workspaceSwitch';
 
 type QueryInfo = { currentWindow?: boolean; windowId?: number; url?: string };
 
@@ -279,5 +285,106 @@ describe('switchWorkspaceBySetting — 返回 SwitchResult（T4 切换结果 Toa
 
     expect(result.fromId).toBeNull();
     expect(result.closedCount).toBe(0);
+  });
+});
+
+// archiveByMode（T3）：close 全窗 restorable；hide 按 groupId 过滤当前 ws 组 + 散 tab（不污染别 ws 组）。
+// 使用 T0 setup.ts 注入的 stub（globalThis.chrome.__testTabs / __testGroups 种子）。
+// 注：本文件其它 describe 用 mockChromeWithStorage 整体替换 globalThis.chrome，会使 T0 stub
+// 的 `t.query ?? ...` 守卫保留旧 vi.fn 而非读 __testTabs。故此处 beforeEach 装一份新鲜
+// Map 驱动的 chrome（与 setup.ts 同构），保证自包含不受前测污染。
+describe('archiveByMode', () => {
+  beforeEach(() => {
+    const groups = new Map<number, any>();
+    const tabsStore = new Map<number, any>();
+    let nextGroupId = 100;
+    const c: any = {
+      tabs: {
+        query: async (info: { windowId?: number } = {}) =>
+          Array.from(tabsStore.values()).filter(
+            (t) => info.windowId == null || t.windowId === info.windowId,
+          ),
+        create: async () => undefined,
+        remove: async () => undefined,
+        update: async () => undefined,
+        discard: async () => undefined,
+        group: async (opts: { tabIds: number[]; groupId?: number; createProperties?: { windowId: number } }) => {
+          let gid = opts.groupId;
+          if (gid == null) {
+            gid = nextGroupId++;
+            groups.set(gid, { id: gid, windowId: opts.createProperties?.windowId ?? -1, title: '', color: 'grey', collapsed: false });
+          }
+          for (const tid of opts.tabIds) {
+            const tab = tabsStore.get(tid);
+            if (tab) tab.groupId = gid;
+          }
+          return gid;
+        },
+        ungroup: async () => undefined,
+      },
+      tabGroups: {
+        get: async (gid: number) => {
+          const g = groups.get(gid);
+          if (!g) throw new Error(`Group ${gid} not found`);
+          return { ...g };
+        },
+        query: async (info: { windowId?: number } = {}) =>
+          Array.from(groups.values()).filter(
+            (g) => info.windowId == null || g.windowId === info.windowId,
+          ),
+        update: async () => undefined,
+      },
+      runtime: { getURL: (p: string) => `chrome-extension://octane/${p.replace(/^\//, '')}` },
+      storage: {
+        local: {
+          get: async () => ({}),
+          set: async () => {},
+          remove: async () => {},
+        },
+      },
+      __testTabs: tabsStore,
+      __testGroups: groups,
+    };
+    (globalThis as unknown as { chrome: unknown }).chrome = c;
+    // 当前 ws（ws-a）的组（gid=10）含 2 tab；别 ws（ws-b）折叠组（gid=11）含 1 tab；散 tab 1 个
+    groups.set(10, { id: 10, windowId: 1, title: '工作 ·aaaa1111', color: 'grey', collapsed: false });
+    groups.set(11, { id: 11, windowId: 1, title: '学习 ·bbbb2222', color: 'grey', collapsed: true });
+    tabsStore.set(1, { id: 1, windowId: 1, url: 'https://a1.com', groupId: 10 });
+    tabsStore.set(2, { id: 2, windowId: 1, url: 'https://a2.com', groupId: 10 });
+    tabsStore.set(3, { id: 3, windowId: 1, url: 'https://b1.com', groupId: 11 }); // 别 ws，不应归档
+    tabsStore.set(4, { id: 4, windowId: 1, url: 'https://loose.com', groupId: -1 }); // 散 tab，视为当前 ws
+  });
+
+  it('hide：只归档当前 ws 组 + 散 tab（不污染别 ws 组）', async () => {
+    const c = (globalThis as any).chrome;
+    const result = await archiveByMode(c, 1, 'aaaa1111-0000-0000', 'hide');
+    expect(result).not.toBeNull();
+    const urls = result!.tabs.map((t: any) => t.entry.url).sort();
+    expect(urls).toEqual(['https://a1.com', 'https://a2.com', 'https://loose.com']);
+    // 别 ws tab 不在
+    expect(urls).not.toContain('https://b1.com');
+  });
+
+  it('hide：找不到当前 ws 组时，散 tab 仍归档（兜底前保全）', async () => {
+    const c = (globalThis as any).chrome;
+    const result = await archiveByMode(c, 1, 'zzzz9999-0000-0000', 'hide'); // 无此 ws 组
+    expect(result!.tabs.map((t: any) => t.entry.url)).toEqual(['https://loose.com']);
+  });
+
+  it('close：归档全窗 restorable tab（v1 行为不变）', async () => {
+    const c = (globalThis as any).chrome;
+    const result = await archiveByMode(c, 1, 'aaaa1111-0000-0000', 'close');
+    expect(result!.tabs.map((t: any) => t.entry.url).sort()).toEqual([
+      'https://a1.com', 'https://a2.com', 'https://b1.com', 'https://loose.com',
+    ]);
+  });
+
+  it('query 抛错 → null（硬屏障）', async () => {
+    const c = (globalThis as any).chrome;
+    const orig = c.tabs.query;
+    c.tabs.query = async () => { throw new Error('boom'); };
+    const result = await archiveByMode(c, 1, 'aaaa1111-0000-0000', 'hide');
+    expect(result).toBeNull();
+    c.tabs.query = orig;
   });
 });
