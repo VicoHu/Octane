@@ -41,7 +41,7 @@ export function AboutSection() {
         <Row label="作者" value="VicoHu" onClick={() => open(AUTHOR_URL)} />
         <Row label="开源仓库" value="VicoHu/Octane" onClick={() => open(REPO_URL)} />
         <Row label="技术问题反馈" value="GitHub Issues" onClick={() => open(ISSUES_URL)} />
-        <Row label="社区讨论/反馈" value="Discuss" onClick={() => open(DISCUSS_URL)} />
+        <Row label="社区讨论/反馈" value="Discuss论坛" onClick={() => open(DISCUSS_URL)} />
       </div>
 
       <UpdateStatus channel={channel} pendingVersion={pendingVersion} onOpen={open} />
