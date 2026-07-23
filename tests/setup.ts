@@ -52,6 +52,87 @@ beforeEach(() => {
       remove: async () => {},
     };
   }
+
+  // T0: hide 模式依赖 chrome.tabGroups + tabs.group/ungroup/discard/update。
+  // WXT fake-browser 未实现这些（memory wxt-fake-browser-test-stub），注入最小内存实现。
+  // FIFO：fake-browser reset 先，本 beforeEach 后，故覆盖 reset。
+  // 测试自建 chrome mock 覆盖时自行补全（参考 installChromeStorageLocal 范式）。
+  if (c) {
+    const chromeAny = c as Record<string, any>;
+    // tabGroups 内存态：groupId → {id, windowId, title, color, collapsed}
+    const groups = new Map<number, any>();
+    let nextGroupId = 1;
+    chromeAny.tabGroups = {
+      get: async (gid: number) => {
+        const g = groups.get(gid);
+        if (!g) throw new Error(`Group ${gid} not found`);
+        return { ...g };
+      },
+      query: async (info: { windowId?: number } = {}) =>
+        Array.from(groups.values()).filter(
+          (g) => info.windowId == null || g.windowId === info.windowId,
+        ),
+      update: async (gid: number, props: Partial<{ collapsed: boolean; title: string; color: string }>) => {
+        const g = groups.get(gid);
+        if (!g) throw new Error(`Group ${gid} not found`);
+        Object.assign(g, props);
+        return { ...g };
+      },
+    };
+    // tabs 内存态：tabId → {id, windowId, url, groupId, active, pinned, ...}
+    const tabsStore = new Map<number, any>();
+    let nextTabId = 1;
+    // chrome.tabs 可能已由 fake-browser 提供部分；补齐 group/ungroup/discard/update/query/create/remove。
+    chromeAny.tabs = chromeAny.tabs ?? {};
+    const t = chromeAny.tabs;
+    t.query = t.query ?? (async (info: any = {}) =>
+      Array.from(tabsStore.values()).filter(
+        (tab: any) =>
+          (info.windowId == null || tab.windowId === info.windowId),
+      ));
+    t.create = t.create ?? (async (props: any) => {
+      const id = nextTabId++;
+      const tab = { id, groupId: -1, active: false, ...props };
+      tabsStore.set(id, tab);
+      return { ...tab };
+    });
+    t.remove = t.remove ?? (async (id: number) => {
+      tabsStore.delete(id);
+    });
+    t.update = t.update ?? (async (id: number, props: any) => {
+      const tab = tabsStore.get(id);
+      if (!tab) throw new Error(`Tab ${id} not found`);
+      Object.assign(tab, props);
+      return { ...tab };
+    });
+    t.discard = async (id: number) => {
+      const tab = tabsStore.get(id);
+      if (!tab) throw new Error(`Tab ${id} not found`);
+      if (tab.active) throw new Error('Cannot discard active tab');
+      return { ...tab, discarded: true };
+    };
+    t.group = async (opts: { tabIds: number[]; groupId?: number; createProperties?: { windowId: number } }) => {
+      let gid = opts.groupId;
+      if (gid == null) {
+        gid = nextGroupId++;
+        groups.set(gid, { id: gid, windowId: opts.createProperties?.windowId ?? -1, title: '', color: 'grey', collapsed: false });
+      }
+      for (const tid of opts.tabIds) {
+        const tab = tabsStore.get(tid);
+        if (tab) tab.groupId = gid;
+      }
+      return gid;
+    };
+    t.ungroup = async (tabIds: number[]) => {
+      for (const tid of tabIds) {
+        const tab = tabsStore.get(tid);
+        if (tab) tab.groupId = -1;
+      }
+    };
+    // 暴露给测试重置/种子（测试通过 globalThis.chrome.tabs 访问）
+    (chromeAny as any).__testGroups = groups;
+    (chromeAny as any).__testTabs = tabsStore;
+  }
 });
 
 afterEach(() => {
