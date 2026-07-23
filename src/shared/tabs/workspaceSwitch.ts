@@ -99,6 +99,8 @@ interface ChromeLike {
     }): Promise<number>;
     /** hide 模式：解散组（切换回 close 或清理用）。 */
     ungroup(tabIds: number[]): Promise<unknown>;
+    /** hide 排序修复：解散/重开当前 ws 普通 tab 后移到窗口末尾（折叠组之后，当前 tab 最右）。 */
+    move(tabIds: number[], props: { index: number }): Promise<unknown>;
   };
   tabGroups: {
     get(gid: number): Promise<{ id: number; windowId: number; title?: string }>;
@@ -326,6 +328,26 @@ export async function disposeByMode(
 }
 
 /**
+ * 把指定 tab 移到窗口末尾（hide 排序修复）。
+ *
+ * 用户预期稳定序：[pinned] [其他 ws 折叠组] [当前 ws 普通 tab]（当前 tab 最右）。
+ * 当前 ws tab 解散/重开后停在历史位置（常靠前，因该 ws 组历史紧贴 pinned），把其他折叠组
+ * 挤到身后 → 真机 QA bug。此处显式移到所有 tab 末尾（index 传 tab 总数，Chrome clamp 到末尾）。
+ *
+ * ids 须为非 pinned tab（pinned 禁入组 / 兜底重建 pinned 单独处理，pinned 区不参与 move）。
+ * move 抛错静默——排序是尽力而为，tab 已正确归组/散开，仅位置非最优，不阻断切换。
+ */
+async function moveTabsToEnd(c: ChromeLike, windowId: number, ids: number[]): Promise<void> {
+  if (!ids.length) return;
+  try {
+    const allTabs = await c.tabs.query({ windowId });
+    await c.tabs.move(ids, { index: allTabs.length });
+  } catch {
+    /* 排序失败不阻断：tab 已归组/散开，仅位置非最优 */
+  }
+}
+
+/**
  * 按 mode 恢复目标 ws。返回 `{ opened, failed, groupId }`。
  *
  * - close：openTabsInWindow（v1）。
@@ -369,7 +391,10 @@ export async function restoreByMode(
       (t) => t.groupId === gid && t.id != null,
     );
     if (groupTabs.length) {
-      await c.tabs.ungroup(groupTabs.map((t) => t.id!));
+      const ids = groupTabs.map((t) => t.id!);
+      await c.tabs.ungroup(ids);
+      // 排序修复：解散后当前 ws 普通 tab（组内皆非 pinned）移到窗口末尾（折叠组之后，当前 tab 最右）
+      await moveTabsToEnd(c, windowId, ids);
     }
     onProgress?.({ phase: 'restore', count: 0, total: 0 });
     return { opened: [], failed: [], groupId: null };
@@ -381,6 +406,7 @@ export async function restoreByMode(
   }
   const opened: number[] = [];
   const failed: TabEntry[] = [];
+  const nonPinnedOpened: number[] = []; // 排序修复：仅非 pinned 移末尾（pinned 留 pinned 区不 move）
   for (const t of session.tabs) {
     try {
       const created = (await c.tabs.create({
@@ -390,12 +416,18 @@ export async function restoreByMode(
         index: t.order,
         active: false,
       })) as { id?: number } | undefined;
-      if (created?.id != null) opened.push(created.id);
-      else failed.push(t);
+      if (created?.id != null) {
+        opened.push(created.id);
+        if (!t.pinned) nonPinnedOpened.push(created.id);
+      } else {
+        failed.push(t);
+      }
     } catch {
       failed.push(t);
     }
   }
+  // 排序修复：兜底重开的非 pinned tab 移到窗口末尾（折叠组之后，当前 tab 最右）
+  await moveTabsToEnd(c, windowId, nonPinnedOpened);
   onProgress?.({ phase: 'restore', count: opened.length, total: session.tabs.length });
   return { opened, failed, groupId: null };
 }

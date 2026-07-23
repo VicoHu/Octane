@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 ### Fixed
 - 管理弹窗拖拽工作区时 overlay 横向瞬移：shadcn Dialog 居中 transform 捕获了 `position:fixed` 基准，DragOverlay 改 portal 到 `document.body` 修复。
 - 打开标签页失败（`chrome.tabs.create` reject）原先无反馈，现提示「打开失败」（与删除工作区一致）。
+- hide 模式（折叠·保状态）切回工作区时其他工作区折叠标签组排到了当前标签之后：`chrome.tabs.ungroup` 解散组后 tab 停在历史位置（常紧贴固定标签），现把当前工作区普通标签移到所有折叠组之后（固定标签 → 折叠组 → 当前标签）。
 
 ### Internal
 - agent issue 工作流配置（gh CLI + triage labels + 单上下文仓库 domain 指引）。
