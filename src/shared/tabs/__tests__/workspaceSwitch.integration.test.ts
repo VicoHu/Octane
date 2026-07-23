@@ -253,38 +253,41 @@ function sessionUrls(c: any, wsId: string): string[] {
 describe('T10 集成 v1.1 — hide 模式承重用例', () => {
   beforeEach(() => installHideIntegrationStub());
 
-  // 用例 1：hide 往返（核心隔离正确性）
-  it('hide 往返：A→B 折叠 A 组 → B→A 展开 A 组（tab 不关，count 不变）', async () => {
+  // 用例 1：hide 往返（核心隔离正确性 + 问题1 组名）
+  it('hide 往返：A→B 收 A 组（建组 title 含名）→ B→A 解散 A 组（tab 释放散开）', async () => {
     const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
-    // ws-a 组（gid 10，含 a.com）+ ws-b 组（gid 20，含 b.com）
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: false });
+    // 新模型：当前 ws-a 切回态（tab 1 散）+ ws-b 切走态（组 20 折叠，tab 2 在组）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10, index: 0 });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1, index: 0 });
     c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
 
-    // A→B（hide）：折叠 A 组 + 展开 B 组
-    const r1 = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide');
+    // A→B（hide）：dispose 收 A 散 tab 建组折叠（title 含 ws 名 A）+ restore B 解散组 20
+    const r1 = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide', { fromName: 'A' });
     expect(r1.fromId).toBe(WS_A);
-    expect(c.__testGroups.get(10).collapsed).toBe(true); // A 组折叠
-    expect(c.__testGroups.get(20).collapsed).toBe(false); // B 组展开
+    // 问题1：新建 A 组 title 含工作区名（非空名 ·aaaaaaaa）
+    const aGroup: any = Array.from(c.__testGroups.values()).find((g: any) => g.title === 'A ·aaaaaaaa');
+    expect(aGroup).toBeDefined();
+    expect(aGroup.collapsed).toBe(true); // A 组折叠
+    // B tab 散开（restore B ungroup 组 20）
+    expect(c.__testTabs.get(2).groupId).toBe(-1);
     // tab 未关（hide 保留 tab，区别于 close 的 remove）
     expect(c.__testTabs.has(1)).toBe(true);
     expect(c.__testTabs.has(2)).toBe(true);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
 
-    // B→A（hide）：折叠 B 组 + 展开 A 组
-    const r2 = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide');
+    // B→A（hide）：dispose 收 B 散 tab 建组折叠 + restore A 解散 A 组（tab 释放散开）
+    const r2 = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide', { fromName: 'B' });
     expect(r2.fromId).toBe(WS_B);
-    expect(c.__testGroups.get(10).collapsed).toBe(false); // A 组展开（切回）
-    expect(c.__testGroups.get(20).collapsed).toBe(true); // B 组折叠
+    // A tab 散开（切回 A 解散，新模型核心）
+    expect(c.__testTabs.get(1).groupId).toBe(-1);
     // tab 全程未关
     expect(c.__testTabs.has(1)).toBe(true);
     expect(c.__testTabs.has(2)).toBe(true);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
   });
 
-  // 用例 2：重启标识失效 → 兜底 restore 重开（TabSession.A）
-  it('重启标识失效：A 组消失 → 切回 A 走兜底 restore 重开（TabSession.A）', async () => {
+  // 用例 2：重启标识失效 → 兜底 restore 重开（tab 散开，新模型不建组）
+  it('重启标识失效：A 组消失 → 切回 A 走兜底 restore 重开（tab 散开，不建组）', async () => {
     const c = installHideIntegrationStub({
       'windowWorkspaceBinding.1': WS_B,
       [`tabSession.${WS_A}`]: {
@@ -295,75 +298,68 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
         savedAt: 1,
       },
     });
-    // 仅 ws-b 组存在（ws-a 组重启后消失）
-    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: false });
-    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
+    // 当前 ws-b 切回态（tab 2 散）；ws-a 组重启后消失（无组）
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: -1, index: 0 });
 
-    // B→A（hide）：restore ws-a 时 findGroupByIdentity 找不到 → 兜底 restore 重开
-    const r = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide');
+    // B→A（hide）：restore ws-a 时 findGroupByIdentity 找不到 → 兜底 restore 重开（散开）
+    const r = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide', { fromName: 'B' });
     expect(r.fromId).toBe(WS_B);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
 
-    // 兜底 restore：从 TabSession.ws-a 重开 2 个 tab
+    // 兜底 restore：从 TabSession.ws-a 重开 2 个 tab，散开（groupId=-1，新模型不建组）
     const opened = Array.from(c.__testTabs.values()).filter(
       (t: any) => t.url === 'https://a1.com' || t.url === 'https://a2.com',
     );
     expect(opened.length).toBe(2);
-    // 新建标识组（title 含 ` ·aaaaaaaa`，collapsed=false）
-    const newGroup: any = Array.from(c.__testGroups.values()).find(
-      (g: any) => g.title === 'A ·aaaaaaaa',
-    );
-    expect(newGroup).toBeDefined();
-    expect(newGroup.collapsed).toBe(false);
+    expect(opened.every((t: any) => t.groupId === -1)).toBe(true);
+    // 新模型：不新建 A 标识组
+    expect(Array.from(c.__testGroups.values()).some((g: any) => g.title === 'A ·aaaaaaaa')).toBe(false);
   });
 
-  // 用例 3：用户改 title 删标识 → 兜底 restore 重建
-  it('改 title 删标识：A 组 title 删 ·hash → 切回 A 兜底 restore 重建', async () => {
+  // 用例 3：用户改 title 删标识 → 兜底 restore 重开（tab 散开，不建组）
+  it('改 title 删标识：A 组 title 删 ·hash → 切回 A 兜底 restore 重开（散开，不建组）', async () => {
     const c = installHideIntegrationStub({
       'windowWorkspaceBinding.1': WS_B,
       [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://a.com', pinned: false, order: 0 }], savedAt: 1 },
     });
-    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: false });
-    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
+    // 当前 ws-b 切回态（tab 2 散）
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: -1, index: 0 });
     // A 组存在但 title 被用户改了（删 ` ·aaaaaaaa` 后缀）→ findGroupByIdentity 回找不到
     c.__testGroups.set(10, { id: 10, windowId: 1, title: '我的工作', color: 'grey', collapsed: true });
     c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a-old.com', groupId: 10, index: 0 });
 
-    // B→A（hide）：findGroupByIdentity(ws-a) 找不到 title 匹配 → 兜底 restore 重建
-    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide');
+    // B→A（hide）：findGroupByIdentity(ws-a) 找不到 title 匹配 → 兜底 restore 重开（散开）
+    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide', { fromName: 'B' });
 
-    // 新建标识组（title=`A ·aaaaaaaa`，区别于用户改的「我的工作」）
-    const newGroup: any = Array.from(c.__testGroups.values()).find(
-      (g: any) => g.title === 'A ·aaaaaaaa',
-    );
-    expect(newGroup).toBeDefined();
-    expect(newGroup.collapsed).toBe(false);
-    // 从 TabSession 重开 a.com（非组里的旧 a-old.com）
-    expect(Array.from(c.__testTabs.values()).some((t: any) => t.url === 'https://a.com')).toBe(true);
+    // 兜底 restore 重开 a.com（散开 groupId=-1），不建新标识组（区别于用户改的「我的工作」旧组）
+    const reopened: any = Array.from(c.__testTabs.values()).find((t: any) => t.url === 'https://a.com');
+    expect(reopened).toBeDefined();
+    expect(reopened.groupId).toBe(-1);
+    expect(Array.from(c.__testGroups.values()).some((g: any) => g.title === 'A ·aaaaaaaa')).toBe(false);
   });
 
-  // 用例 4：undo generation — 组结构变化拒绝 undo
-  it('undo generation：A→B(hide) → 删 B 组 → undo 拒绝（binding 不回滚）', async () => {
+  // 用例 4：undo 总是反向（组临时无 generation 校验）
+  it('undo 总是反向：A→B(hide) → 删 B 组 → undo 仍切回 A（不 Toast 拒绝）', async () => {
     const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: false });
+    // 当前 ws-a 切回态（tab 1 散）+ ws-b 切走态（组 20 折叠，tab 2 在组）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10, index: 0 });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1, index: 0 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
 
     const { Toast } = await import('@/components/ui/toast');
     const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
 
-    const r = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide');
+    const r = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide', { fromName: 'A' });
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
     errorSpy.mockClear();
 
-    // 组结构变化：删目标组 20（findGroupByIdentity 回找不到 → gid=null !== targetGroupId=20）
+    // 人为删目标 ws-b 的切走态组（新模型组临时，undo 不校验组结构）
     c.__testGroups.delete(20);
     await r.undo();
 
-    // undo 拒绝：binding 未回滚 + Toast 提示 + 源组未被展开
-    expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
-    expect(errorSpy).toHaveBeenCalledWith('工作区已变化，无法撤销，可手动切回');
-    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    // 新模型：undo 总是反向切换 → binding 回源 ws-a，不 Toast「工作区已变化」
+    expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
+    expect(errorSpy).not.toHaveBeenCalledWith('工作区已变化，无法撤销，可手动切回');
     errorSpy.mockRestore();
   });
 
@@ -437,65 +433,78 @@ describe('T10 集成 v1.1 — hide 模式承重用例', () => {
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
   });
 
-  // 用例 8：discard 档切回 — A→B(hide-discard) discard → B→A 展开
-  it('discard 档切回：A→B(hide-discard) discard A 组 tab → B→A 展开（tab 保留，重载语义）', async () => {
+  // 用例 8：discard 档切回 — A→B(hide-discard) discard → B→A 解散（tab 散开保留）
+  it('discard 档切回：A→B(hide-discard) discard A 组 tab → B→A 解散（tab 散开保留）', async () => {
     const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: false });
+    // 当前 ws-a 切回态（tab 1 散）+ ws-b 切走态（组 20 折叠，tab 2 在组）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10, index: 0 });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1, index: 0 });
     c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
 
-    // A→B（hide-discard）：折叠 A 组 + discard A 组 tab
-    const r1 = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide-discard');
+    // A→B（hide-discard）：dispose 收 A 散 tab 建组折叠 + discard + restore B 解散组 20
+    const r1 = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide-discard', { fromName: 'A' });
     expect(r1.fromId).toBe(WS_A);
-    expect(c.__testGroups.get(10).collapsed).toBe(true);
-    expect(c.__testGroups.get(20).collapsed).toBe(false);
-    // A 组 tab 被 discard（丢内存保留占位）
+    // A tab 被 discard（丢内存保留占位）+ 入新建折叠组
     expect(c.__testTabs.get(1).discarded).toBe(true);
-    // tab 未关（discard ≠ remove）
-    expect(c.__testTabs.has(1)).toBe(true);
+    expect(c.__testTabs.get(1).groupId).not.toBe(-1);
+    // B tab 散开（restore B ungroup 组 20）
+    expect(c.__testTabs.get(2).groupId).toBe(-1);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
 
-    // B→A（hide-discard）：折叠 B 组 + discard B 组 tab + 展开 A 组
-    const r2 = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide-discard');
+    // B→A（hide-discard）：dispose 收 B 散 tab 建组折叠 + discard + restore A 解散（tab 散开）
+    const r2 = await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide-discard', { fromName: 'B' });
     expect(r2.fromId).toBe(WS_B);
-    expect(c.__testGroups.get(10).collapsed).toBe(false); // A 组切回展开
-    expect(c.__testGroups.get(20).collapsed).toBe(true);
-    // B 组 tab 被 discard
-    expect(c.__testTabs.get(2).discarded).toBe(true);
-    // A 组 tab 仍存在（Chrome 语义：展开时 discarded tab 重载，stub 不模拟重载但 tab 保留）
+    // A tab 散开（切回 A 解散，新模型核心）
+    expect(c.__testTabs.get(1).groupId).toBe(-1);
+    // tab 未关（discard ≠ remove）
     expect(c.__testTabs.has(1)).toBe(true);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
   });
 
-  // 用例 9：hide 往返 pinned tab 正常路径 — dispose remove 后 restore 重建（不丢）
-  // 回归 b75591e review Fix#1：restoreByMode hide 命中组路径曾遗漏重建 pinned，
-  // 导致 pinned 在 hide 往返静默丢失（dispose remove + restore 只 expand 组）。
-  it('hide 往返 pinned：A→B remove P → B→A 命中组展开 + 重建 pinned P（不丢失）', async () => {
+  // 用例 9：hide 往返 pinned — dispose remove 后 restore 重建（切回解散 a.com 散开）
+  // 回归 b75591e review Fix#1：restoreByMode hide 命中组路径曾遗漏重建 pinned。
+  it('hide 往返 pinned：A→B remove P → B→A 解散 a.com（散开）+ 重建 pinned P（不丢失）', async () => {
     const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
-    // ws-a：pinned P（mail.com，散 tab groupId=-1）+ 组 10 普通 A（a.com）
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa', color: 'grey', collapsed: false });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://mail.com', groupId: -1, pinned: true, index: 0 });
-    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://a.com', groupId: 10, index: 1 });
-    // ws-b：组 20 普通 B（b.com）
+    // 当前 ws-a 切回态：pinned P 散 + a.com 散；ws-b 切走态：组 20 折叠（b.com）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://mail.com', groupId: -1, pinned: true, index: 0 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://a.com', groupId: -1, index: 1 });
     c.__testTabs.set(3, { id: 3, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
 
-    // A→B（hide）：archive 两（P + A）+ dispose remove P（C4b pinned 禁入组）+ 折叠组 10
-    await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide');
+    // A→B（hide）：archive（P + a.com）+ dispose remove P（C4b pinned 禁入组）+ 收 a.com 建组折叠
+    await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide', { fromName: 'A' });
     // pinned P 被 remove（dispose remove pinned，不折叠）
     expect(Array.from(c.__testTabs.values()).some((t: any) => t.url === 'https://mail.com')).toBe(false);
-    expect(c.__testGroups.get(10).collapsed).toBe(true);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_B);
 
-    // B→A（hide）：findGroupByIdentity 命中组 10 → 展开 + 重建 pinned P
-    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide');
+    // B→A（hide）：findGroupByIdentity 命中 A 组 → ungroup a.com（散开）+ 重建 pinned P
+    await requestWorkspaceSwitch(WS_A, 'A', 1, 'hide', { fromName: 'B' });
     // pinned P 重建（切回后存在 + pinned:true，不丢失）
     const pinnedP: any = Array.from(c.__testTabs.values()).find((t: any) => t.url === 'https://mail.com');
     expect(pinnedP).toBeDefined();
     expect(pinnedP.pinned).toBe(true);
-    // 组 10 展开
-    expect(c.__testGroups.get(10).collapsed).toBe(false);
+    // a.com 散开（切回 A 解散，新模型核心）
+    const aTab: any = Array.from(c.__testTabs.values()).find((t: any) => t.url === 'https://a.com');
+    expect(aTab.groupId).toBe(-1);
     expect(c.__testStorage['windowWorkspaceBinding.1']).toBe(WS_A);
+  });
+
+  // 用例 10：undo 不泄漏正向 onProgress（QA bug4：避 switching state 卡死）
+  it('undo 不触发正向切换的 onProgress（防 buildUndo 复用正向 onProgress 重设 switching 致按钮卡 disabled）', async () => {
+    const c = installHideIntegrationStub({ 'windowWorkspaceBinding.1': WS_A });
+    c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbbbbbb', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1, index: 0 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20, index: 0 });
+
+    let progCount = 0;
+    const onProgress = () => { progCount++; };
+    const r = await requestWorkspaceSwitch(WS_B, 'B', 1, 'hide', { fromName: 'A', onProgress });
+    const switchCount = progCount;
+    expect(switchCount).toBeGreaterThan(0); // 正向切换发了进度事件
+
+    await r.undo();
+
+    // undo 不触发正向 onProgress（防 switching state 泄漏卡死）
+    expect(progCount).toBe(switchCount);
   });
 });

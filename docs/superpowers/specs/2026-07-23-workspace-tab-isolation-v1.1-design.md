@@ -10,7 +10,7 @@ Status: DESIGN — CEO + CODEX CLEARED，待用户 review 定稿 → writing-pla
 
 ## 背景与范围
 
-v1（close-only + 手动切换）已 ship 0.2.0.0。v1.1 在「切换行为」设置加两档 hide（折叠），实现「软隔离」：离开工作区时 tab **不关**，折叠为标签组（+ 可选 discard 释放内存），切回时展开。这是用户原始诉求①「切换时隔离（关闭或隐藏，不绝对）」里「隐藏」一支的落地——v1 受 C1（无 chrome.tabs.hide）只交付 close，v1.1 用「折叠 tabGroup + discard」近似 hide。
+v1（close-only + 手动切换）已 ship 0.2.0.0。v1.1 在「切换行为」设置加两档 hide（折叠），实现「软隔离」：离开工作区时 tab **不关**，折叠为标签组（+ 可选 discard 释放内存），切回时**解散组、tab 释放到顶层**（组仅作切走态临时收纳）。这是用户原始诉求①「切换时隔离（关闭或隐藏，不绝对）」里「隐藏」一支的落地——v1 受 C1（无 chrome.tabs.hide）只交付 close，v1.1 用「折叠 tabGroup + discard」近似 hide。
 
 **v1.1 范围 = 切换行为 2 档 → 4 档**：
 
@@ -18,8 +18,8 @@ v1（close-only + 手动切换）已 ship 0.2.0.0。v1.1 在「切换行为」�
 |---|---|---|
 | 不隔离（默认） | `off` | 保留所有标签（v1，不变） |
 | 自动关闭与恢复 | `close` | 离开关闭，返回重开（v1，不变） |
-| **折叠·省内存** | `hide-discard` | 离开折叠为标签组 + discard；返回展开重新加载（页面状态不保留） |
-| **折叠·保状态** | `hide` | 离开折叠为标签组；返回展开（页面状态保留，占用内存） |
+| **折叠·省内存** | `hide-discard` | 离开折叠为标签组 + discard；返回解散释放 tab（重新加载，页面状态不保留） |
+| **折叠·保状态** | `hide` | 离开折叠为标签组；返回解散释放 tab（页面状态保留，占用内存） |
 
 **NOT in v1.1**（移入 TODOS.md）：
 - 自动归档（Arc 式 alarms + 窗口 lastActive，跑 MV3 SW）→ 用户决定 v1.1 只做 hide，推迟。
@@ -28,11 +28,11 @@ v1（close-only + 手动切换）已 ship 0.2.0.0。v1.1 在「切换行为」�
 
 ## hide 模型
 
-「tab 不关」前提下的必然结构：**同一窗口多个工作区的标签组共存**（Workona 式）。切走工作区 → 折叠其标签组（discard 档额外卸载内存）；切回 → 展开。tab 全程不消失，区别于 close 档的 remove/重开。
+「tab 不关」前提下的必然结构：**同一窗口多个工作区的标签组共存**（Workona 式）。切走工作区 → 折叠其标签组（discard 档额外卸载内存）；切回 → **解散组、tab 释放到顶层**（组仅作切走态临时收纳，回到工作区即拆）。tab 全程不消失，区别于 close 档的 remove/重开。
 
-切回恢复语义：
-- 折叠·保状态（hide）：tab 未 discard，展开即恢复，**页面运行时态保留**（表单输入/滚动位置等）。
-- 折叠·省内存（hide-discard）：tab 已 discard，展开后用户激活时重新加载（页面状态不保留，与 close 档一致）。
+切回恢复语义（切回 = 解散组、tab 释放到顶层）：
+- 折叠·保状态（hide）：tab 未 discard，解散释放后即恢复，**页面运行时态保留**（表单输入/滚动位置等）。
+- 折叠·省内存（hide-discard）：tab 已 discard，解散释放后用户激活时重新加载（页面状态不保留，与 close 档一致）。
 
 ## Constraints（继承 v1 + hide 特有）
 
@@ -49,7 +49,7 @@ v1（close-only + 手动切换）已 ship 0.2.0.0。v1.1 在「切换行为」�
 
 **Chrome group membership = tab 的当前工作区归属；散 tab（无 group）= 当前 binding 工作区。**
 
-- hide 模式窗口内 tab 分：当前 ws 的标识组（展开）+ 别 ws 的标识组（折叠）+ 散 tab。
+- hide 模式窗口内 tab 分：当前 ws 的 tab（切回态**散开**，切回即解散组）+ 别 ws 的标识组（折叠）+ 散 tab。
 - archive 只取**当前 ws 标识组的 tab + 散 tab**（散 tab 视为当前 ws 用户新开/拖出的）。
 - 用户跨组拖拽（把 A 的 tab 拖进 B 组）= **主动重分配归属**，archive 尊重新归属（该 tab 归 B，archive A 时不取）。自洽，不需独立 tab ownership 表。
 
@@ -97,11 +97,11 @@ performSwitch(toId, W, mode):
        · pinned tab（除 home）无法折叠 → remove（C4b），切回 restore 重开 pinned
   3. restore（返回 {opened, failed}；binding 只在目标组达到可接受状态后写）        # codex #6
      - close：openTabsInWindow（按 session 重开，active:false）
-     - hide-discard/hide：标识回找取 toId 组 → 存在则 tabGroups.update(collapsed:false) 展开
-       · 不存在则 openTabsInWindow 重开 + tabs.group 建组 + update(title=标识, collapsed:false)
+     - hide-discard/hide：标识回找取 toId 组 → 存在则 tabs.ungroup（解散组、tab 释放到顶层 groupId=-1）
+       · 不存在则 openTabsInWindow 重开（不建组，tab 散开；组仅切走态临时收纳）
        · restore 单个 create 失败 → 记 failed，不阻断其余；最终失败集非空 → 保留 session、进 repair 态、Toast 提示
   4. writeBinding(W, toId)（仅 2/3 成功后）
-  5. undo token = {mode, fromId, toId, 操作快照}（含实际 discard 集 / openedIds / groupId 快照）
+  5. undo token = {fromId, toId, fromName, toName, mode}（undo = 反向切换，见 undo 段）
 ```
 
 **两条关键正确性约束**：
@@ -110,33 +110,34 @@ performSwitch(toId, W, mode):
 
 **实现约束**（eng-review CQ1，控圈复杂度）：performSwitch 保持线性编排（archive→dispose→restore→binding），按 mode 拆子函数 `archiveByMode`/`disposeByMode`/`restoreByMode`（内部 close/hide 分流），避免 performSwitch 内联 4 档分支致圈复杂度 >5。tabGroup 标识逻辑（wsHash 派生 + title 格式化/解析 + 标识回找）独立 `src/shared/tabs/tabGroupIdentity.ts`，不混进 performSwitch。
 
-**hide 模式状态机**（eng-review A1，per window）：
+**hide 模式状态机**（eng-review A1，per window；新模型「组」仅切走态临时收纳，切回即解散）：
 ```
- [binding=X · X组展开]
+ [binding=X · X tab 散开（切回态）]
       │ 切走→Y
       ▼
- archive X（X标识组 tab + 散 tab）──失败──▶ 硬屏障：不折叠/discard，停留 X，Toast 报错
+ archive X（X 散 tab + 散 tab）──失败──▶ 硬屏障：不折叠/discard，停留 X，Toast 报错
       │ 成功
       ▼
- 散 tab tabs.group 入 X 组 ▶ 折叠 X 组 [+discard 档逐 tab discard]
+ 散 tab tabs.group 建 X 组 ▶ 折叠 X 组 [+discard 档逐 tab discard]
       │
       ▼
- restore Y：标识回找 Y 组 ──命中──▶ expand（collapsed:false）
-      │                       └─未命中─▶ 兜底 restore（TabSession.Y 重开 + tabs.group 建组 + update 标识）+ 清 Octane 孤儿组
+ restore Y：标识回找 Y 组 ──命中──▶ ungroup（解散 Y 组，tab 释放到顶层 groupId=-1）
+      │                       └─未命中─▶ 兜底 restore（TabSession.Y 重开，不建组，tab 散开）+ 清 Octane 孤儿组
       │ 成功（{opened,failed}，failed 非空进 repair）
       ▼
- binding=Y ──undo(gen 校验组结构)──▶ 折叠 Y 组 + 展开 X 组 + binding=X
-                                   └─组结构已变─▶ 拒绝 undo，Toast「工作区已变化，可手动切回」
+ binding=Y ──undo（反向切换）──▶ archive Y + dispose Y（建组折叠）+ restore X（解散）+ binding=X
+                              （组临时，无 generation 校验，undo 总是反向）
 ```
 
-## undo（codex #7：入队 + generation）
+## undo（v1.1 rev：入队 + 反向切换；组临时后弃 generation 校验）
 
-undo 走**同一 per-window 串行队列**（不绕过），带 generation token：
-- token 记 fromId/toId/mode/源组与目标组 groupId 快照/成员 tabId 快照/实际 discard 集。
-- undo 执行前校验组结构未变（groupId 仍存在、成员一致）→ 变化则**拒绝 undo**，Toast 提示「工作区已变化，无法撤销，可手动切回」。
-- undo 语义（按 mode 反转）：
-  - close：dispose 本次 restore 集 + restore 源 session + 回滚 binding。
-  - hide-discard/hide：collapse 目标组 + expand 源组 + 回滚 binding（hide 档源组 tab 状态保留；hide-discard 档源组已 discard，展开后重载）。
+undo 走**同一 per-window 串行队列**（不绕过）。新模型「组」仅切走态临时收纳（切回即解散），原 generation 校验失效，改为**反向切换**：
+- token = {fromId, toId, fromName, toName, mode}。
+- undo = 反向切换（切回源 ws）：手动编排 archive/dispose/restore（不走 performSwitch，避免其 queueUndo 嵌套产生 phantom undo）。源/目标互换：反向源 = 原目标 toId（切回态 tab 散），反向目标 = 原源 fromId（切走态组折叠）。
+- undo 语义（按 mode，反向 archive/dispose/restore + 回滚 binding）：
+  - close：archive 当前 + remove + restore 源 session + 回滚 binding。
+  - hide-discard/hide：archive 当前（散 tab）+ dispose（建组折叠，hide-discard 档 discard）+ restore 源（解散组、tab 散开）+ 回滚 binding。
+- 组结构变化不再拒绝 undo（组本就临时，undo 总是反向重建/解散）。
 
 ## 跨档切换（codex #3：tension 2 normalize）
 
@@ -148,8 +149,8 @@ undo 走**同一 per-window 串行队列**（不绕过），带 generation token
 ## 设置 UI（WorkspaceTabsSection）
 
 RadioGroup 2 档 → 4 档。新两档文案（rev5 用户语言「离开时…返回时…」）：
-- **折叠·省内存** — 离开时折叠为标签组并释放内存，返回时展开重新加载（页面状态不保留）。
-- **折叠·保状态** — 离开时折叠为标签组但保留页面状态，返回时直接展开（占用内存）。
+- **折叠·省内存** — 离开时折叠为标签组并释放内存，返回时解散释放 tab（重新加载，页面状态不保留）。
+- **折叠·保状态** — 离开时折叠为标签组但保留页面状态，返回时解散释放 tab（占用内存）。
 
 切换确认门控：
 - `off → 任一归档档`（close/hide-discard/hide）：弹首启 AlertDialog（复用 `countRestorableTabsInWindow`）。
@@ -174,14 +175,14 @@ RadioGroup 2 档 → 4 档。新两档文案（rev5 用户语言「离开时…�
 - **归属语义**：archive 按标识组 + 散 tab 过滤（hide 不污染别 ws session）；跨组拖拽后 archive 尊重新归属。
 - **编排层**：4 档 archive/dispose/restore 分流；切换前激活 home；散 tab 收纳入组；pinned tab（除 home）remove 处理；discard 部分失败降级 hide + token 记实际。
 - **失败状态机**（codex #5/#6）：collapse/group/discard 失败 → 不更新 binding；restore 单 create 失败 → failed 集 + repair；archive 硬屏障（hide 模式 archive 失败也不 collapse/discard）。
-- **undo**（codex #7）：undo 入 per-window 队列；generation 校验组结构变化拒绝 undo；hide 保状态 vs discard 重载。
+- **undo**（v1.1 rev）：undo 入 per-window 队列；新模型组临时，undo = 反向切换（总是反转，不拒绝）；hide 保状态 vs discard 重载。
 - **跨档**（codex #3）：hide→close normalize 清非当前 ws 组；hide→close→hide 往返无污染；off↔hide↔close 全组合 + 旧 v1 session 兼容。
-- **集成**：折叠/展开往返 / 重启标识失效兜底 restore / 用户改 title 删标识 → 兜底 / 手动解散组 / 多窗口独立 / 同 ws 多窗最后归档胜出（已知限制）/ incognito 不纳入。
+- **集成**：折叠/解散往返（切回 ungroup 释放 tab）/ 重启标识失效兜底 restore（不建组）/ 用户改 title 删标识 → 兜底 / 手动解散组 / 多窗口独立 / 同 ws 多窗最后归档胜出（已知限制）/ incognito 不纳入。
 - **manifest**（codex #10）：wxt.config 加 tabGroups；tabs.group/ungroup/discard/tabGroups.* fake-browser stub 扩展（参考 memory wxt-fake-browser-test-stub）。
 
 ## Success Criteria
 
-- hide 档切走折叠、切回展开，tab 不关；多 ws 共存互不污染。
+- hide 档切走折叠、切回解散组（tab 释放到顶层），tab 不关；多 ws 共存互不污染。
 - 折叠·省内存 档离开后 tab 内存释放；返回重新加载。
 - 折叠·保状态 档返回时页面状态保留。
 - 标识失效（重启/改 title）后兜底 restore 不丢 tab；孤儿组（ws 删除）被清理。

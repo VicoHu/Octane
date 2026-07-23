@@ -85,7 +85,7 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     );
   });
 
-  it('T4：关闭 tab（N>0）→ 弹结果 Toast（action 切回，非撤销）', async () => {
+  it('T4：关闭 tab（N>0）→ 弹结果 Toast（仅通知，无切回 action）', async () => {
     installChrome({ tabIsolationSetting: 'close' }, 5);
     useWorkspace.setState({
       workspaces: [
@@ -102,11 +102,11 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     await switchWorkspace('ws-b');
 
     expect(Toast.success).toHaveBeenCalledTimes(1);
-    const input = vi.mocked(Toast.success).mock.calls[0]![0] as unknown as { content: string; action: { label: string } };
+    const input = vi.mocked(Toast.success).mock.calls[0]![0] as unknown as { content: string; action?: undefined };
     expect(input.content).toContain('工作区B');
     expect(input.content).toContain('3');
     expect(input.content).toContain('已关闭');
-    expect(input.action.label).toBe('切回「工作区A」');
+    expect(input.action).toBeUndefined(); // 仅通知，无切回按钮
   });
 
   // T8 fix②：Toast 文案动词按 setting 适配（hide=已折叠 / hide-discard=已折叠并释放 / close=已关闭）
@@ -161,7 +161,7 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     expect(Toast.success).not.toHaveBeenCalled();
   });
 
-  it('T4 切回 action：undo 后同步 store currentWorkspaceId 到 fromId（修复 AppRail active 不切换）', async () => {
+  it('T4：切回 action 已移除（仅通知，无 undo 入口）', async () => {
     installChrome({ tabIsolationSetting: 'close' }, 5);
     useWorkspace.setState({
       workspaces: [
@@ -170,15 +170,12 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
       ],
       currentWorkspaceId: 'ws-b',
     });
-    const undo = vi.fn(async () => {});
-    vi.mocked(switchWorkspaceBySetting).mockResolvedValue({ undo, fromId: 'ws-a', closedCount: 3 });
+    vi.mocked(switchWorkspaceBySetting).mockResolvedValue({ undo: vi.fn(), fromId: 'ws-a', closedCount: 3 });
 
     await switchWorkspace('ws-b');
 
-    const input = vi.mocked(Toast.success).mock.calls[0]![0] as { action: { onClick: () => void } };
-    input.action.onClick();
-    await waitFor(() => expect(useWorkspace.getState().currentWorkspaceId).toBe('ws-a'));
-    expect(undo).toHaveBeenCalled();
+    const input = vi.mocked(Toast.success).mock.calls[0]![0] as { action?: undefined };
+    expect(input.action).toBeUndefined(); // 切回按钮已移除，仅通知
   });
 
   // ===== T8：切换进度 state（switching）=====

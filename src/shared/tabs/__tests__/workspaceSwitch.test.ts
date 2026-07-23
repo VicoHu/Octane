@@ -512,7 +512,7 @@ describe('disposeByMode', () => {
         { id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } },
         { id: 3, entry: { url: 'https://loose.com', pinned: false, order: 1 } },
       ];
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'close', toDispose as any);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'close', toDispose as any);
       expect(r.ok).toBe(true);
       expect(c.__testTabs.has(1)).toBe(false);
       expect(c.__testTabs.has(3)).toBe(false);
@@ -527,7 +527,7 @@ describe('disposeByMode', () => {
         { id: 3, entry: { url: 'https://loose.com', pinned: false, order: 1 } },
         { id: 4, entry: { url: 'https://pinned.com', pinned: true, order: 2 } },
       ];
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', toDispose as any);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'hide', toDispose as any);
       expect(r.ok).toBe(true);
       // 补丁 1：激活 home tab（避 discard active 失败 + 避抢焦点）
       expect(c.tabs.update).toHaveBeenCalledWith(2, { active: true });
@@ -544,7 +544,7 @@ describe('disposeByMode', () => {
     it('hide-discard：折叠 + discard 非 active tab', async () => {
       const c = (globalThis as any).chrome;
       const toDispose = [{ id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } }];
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide-discard', toDispose as any);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'hide-discard', toDispose as any);
       expect(r.ok).toBe(true);
       expect(c.__testGroups.get(10).collapsed).toBe(true);
       // home 被 active 后 tab 1 非 active → discard 成功
@@ -555,18 +555,18 @@ describe('disposeByMode', () => {
       const c = (globalThis as any).chrome;
       c.__testGroups.clear(); // 清掉组 10 模拟无现有 ws 组
       const toDispose = [{ id: 3, entry: { url: 'https://loose.com', pinned: false, order: 0 } }];
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', toDispose as any);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'hide', toDispose as any);
       expect(r.ok).toBe(true);
-      // 新建组 title=标识（空名 + wsHash），collapsed=true
+      // 新建组 title=标识（ws 名 + wsHash），collapsed=true（问题1：组名含工作区名）
       const groups = Array.from(c.__testGroups.values());
-      expect(groups.some((g: any) => g.title === ' ·aaaa1111' && g.collapsed === true)).toBe(true);
+      expect(groups.some((g: any) => g.title === '工作 ·aaaa1111' && g.collapsed === true)).toBe(true);
     });
 
     it('collapse 失败 → ok=false（调用方不更新 binding）', async () => {
       const c = (globalThis as any).chrome;
       const orig = c.tabGroups.update;
       c.tabGroups.update = async () => { throw new Error('boom'); };
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', []);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'hide', []);
       expect(r.ok).toBe(false);
       c.tabGroups.update = orig;
     });
@@ -576,7 +576,7 @@ describe('disposeByMode', () => {
       const orig = c.tabs.discard;
       c.tabs.discard = async () => { throw new Error('cannot discard'); };
       const toDispose = [{ id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } }];
-      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide-discard', toDispose as any);
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', '工作', 'hide-discard', toDispose as any);
       expect(r.ok).toBe(true); // discard 失败不阻断
       c.tabs.discard = orig;
     });
@@ -593,48 +593,47 @@ describe('restoreByMode', () => {
       const c = (globalThis as any).chrome;
       const { saveTabSession } = await import('@/services/TabSessionService');
       await saveTabSession('cccc3333-0000-0000', [{ url: 'https://x.com', pinned: false, order: 0 }]);
-      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'close');
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', 'close');
       expect(r.opened.length).toBe(1);
       expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://x.com' }));
     });
   });
 
   describe('hide / hide-discard 档', () => {
-    it('命中标识组 → expand（不重开）+ 返回 groupId（补丁 2）', async () => {
+    it('命中标识组 → ungroup（tab 释放到顶层 groupId=-1，不重开）+ 返回 groupId=null', async () => {
       const c = (globalThis as any).chrome;
       c.__testGroups.set(20, { id: 20, windowId: 1, title: '目标 ·cccc3333', color: 'grey', collapsed: true });
-      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      // 组 20 含 tab 1（切走折叠态）；切回 → ungroup 释放 tab 到顶层
+      c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://x.com', groupId: 20 });
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', 'hide');
       expect(r.opened).toEqual([]);
-      // 补丁 2：返回 groupId 供 T6 undo generation 校验组结构
-      expect(r.groupId).toBe(20);
-      expect(c.__testGroups.get(20).collapsed).toBe(false);
+      // 新模型：切回解散组（tab 释放到顶层），不再 expand
+      expect(r.groupId).toBeNull();
+      expect(c.__testTabs.get(1).groupId).toBe(-1);
       // 不重开 tab
       expect(c.tabs.create).not.toHaveBeenCalled();
     });
 
-    it('未命中 → 兜底 restore 重开 + 建组（title=标识）+ 返回 groupId（补丁 2）', async () => {
+    it('未命中 → 兜底 restore 重开 tab（不建组，tab 散开 groupId=-1）', async () => {
       const c = (globalThis as any).chrome;
       const { saveTabSession } = await import('@/services/TabSessionService');
       await saveTabSession('cccc3333-0000-0000', [{ url: 'https://x.com', pinned: false, order: 0 }]);
-      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', 'hide');
       expect(r.opened.length).toBe(1);
-      // 补丁 2：新建组也返回 groupId
-      expect(r.groupId).not.toBeNull();
-      // 新组 title = 标识，collapsed=false
-      const groups = await c.tabGroups.query({ windowId: 1 });
-      expect(groups.some((g: any) => g.title === '目标 ·cccc3333')).toBe(true);
-      expect(groups.some((g: any) => g.id === r.groupId && g.collapsed === false)).toBe(true);
+      // 新模型：兜底重开不建组（tab 散开）
+      expect(r.groupId).toBeNull();
+      expect(c.__testTabs.get(r.opened[0]).groupId).toBe(-1);
     });
 
     it('未命中且无 TabSession → 空（无 tab 可恢复，groupId=null）', async () => {
       const c = (globalThis as any).chrome;
-      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', 'hide');
       expect(r.opened).toEqual([]);
       expect(r.failed).toEqual([]);
       expect(r.groupId).toBeNull();
     });
 
-    it('兜底 restore：session 含 pinned tab → pinned 不入组（C4b），非 pinned 入组', async () => {
+    it('兜底 restore：pinned 与非 pinned 重开后均散开（新模型不建组）', async () => {
       const c = (globalThis as any).chrome;
       const { saveTabSession } = await import('@/services/TabSessionService');
       // session.tabs = [pinned, 非 pinned]；opened[i] 与 session.tabs[i] 按序对应
@@ -642,17 +641,16 @@ describe('restoreByMode', () => {
         { url: 'https://pinned.com', pinned: true, order: 0 },
         { url: 'https://plain.com', pinned: false, order: 1 },
       ]);
-      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', 'hide');
       // opened 含两者（pinned 重开仍计入）
       expect(r.opened.length).toBe(2);
-      // pinned tab（首个重开，id 最小）不入组：groupId === -1
       const pinnedId = r.opened[0];
       const plainId = r.opened[1];
+      // 新模型：兜底不建组，pinned 与非 pinned 均散开（groupId=-1）
+      expect(r.groupId).toBeNull();
       expect(c.__testTabs.get(pinnedId).pinned).toBe(true);
       expect(c.__testTabs.get(pinnedId).groupId).toBe(-1);
-      // 非 pinned tab 入新组
-      expect(r.groupId).not.toBeNull();
-      expect(c.__testTabs.get(plainId).groupId).toBe(r.groupId);
+      expect(c.__testTabs.get(plainId).groupId).toBe(-1);
     });
   });
 });
@@ -756,35 +754,36 @@ describe('performSwitch — undo generation 校验 + 入队（T6）', () => {
     installDisposeRestoreStub();
   });
 
-  it('组结构未变 → undo 反转（hide：collapse 目标 + expand 源 + 回滚 binding）', async () => {
+  it('undo 反向切换：hide 切回源 ws（源 tab 散开 = 切回解散，目标 tab 入折叠组）+ 回滚 binding', async () => {
     const c = (globalThis as any).chrome;
-    // 源 ws-a 组（展开）+ 目标 ws-b 组（折叠）；tab 1 在源组
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    // 新模型：当前 ws-a 切回态（tab 1 散）+ ws-b 切走态（组 20 折叠，tab 2 在组）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
     const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
     await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
 
     const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
     expect(r.fromId).toBe('aaaa1111-0000-0000');
-    // 切换后：源组折叠、目标组展开、binding=ws-b
-    expect(c.__testGroups.get(10).collapsed).toBe(true);
-    expect(c.__testGroups.get(20).collapsed).toBe(false);
+    // A→B 后：A tab 入新建折叠组（dispose 收散 tab 建组），B tab 散（restore ungroup 组 20）
+    expect(c.__testTabs.get(1).groupId).not.toBe(-1);
+    expect(c.__testTabs.get(2).groupId).toBe(-1);
     expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
 
     await r.undo();
 
-    // undo 反转：目标组折叠、源组展开、binding 回 ws-a
-    expect(c.__testGroups.get(20).collapsed).toBe(true);
-    expect(c.__testGroups.get(10).collapsed).toBe(false);
+    // undo 反向切回 A：A tab 散（切回解散），B tab 入折叠组（dispose 收散 tab 建组）
+    expect(c.__testTabs.get(1).groupId).toBe(-1);
+    expect(c.__testTabs.get(2).groupId).not.toBe(-1);
     expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
   });
 
-  it('组结构变化（目标组被删）→ undo 拒绝 + Toast + binding 不回滚', async () => {
+  it('undo 总是反向（组临时无 generation 校验）：删目标组后 undo 仍切回源 + 不 Toast 拒绝', async () => {
     const c = (globalThis as any).chrome;
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    // 当前 ws-a 切回态（tab 1 散）+ ws-b 切走态（组 20 折叠，tab 2 在组）
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
     const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
     await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
     // 仅 spy Toast.error（命令式 API），不整体 mock 模块
@@ -795,41 +794,31 @@ describe('performSwitch — undo generation 校验 + 入队（T6）', () => {
     expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
     errorSpy.mockClear();
 
-    // 组结构变化：删目标组 20（findGroupByIdentity 将回找不到 → gid=null !== targetGroupId=20）
+    // 人为删目标 ws-b 的切走态组（新模型组临时，undo 不校验组结构）
     c.__testGroups.delete(20);
     await r.undo();
 
-    // undo 拒绝：Toast 提示 + binding 未回滚（仍 ws-b）+ 源组未被展开（未反转）
-    expect(errorSpy).toHaveBeenCalledWith('工作区已变化，无法撤销，可手动切回');
-    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
-    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    // 新模型：undo 总是反向切换 → binding 回源 ws-a，不 Toast「工作区已变化」
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
+    expect(errorSpy).not.toHaveBeenCalledWith('工作区已变化，无法撤销，可手动切回');
     errorSpy.mockRestore();
   });
 
-  it('undo 走 per-window 串行队列：undo 进行中，下一次切换 archive 等待', async () => {
+  it('undo 走 per-window 串行队列：undo 进行中，下一次切换等 undo 完成后才生效', async () => {
     const c = (globalThis as any).chrome;
-    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
     c.__testGroups.set(20, { id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
-    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
-    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 20 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
     await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
 
     const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'hide');
 
-    // 计数 archive 的 tabs.query（undo 不调 tabs.query，仅切换 archive 会调）
-    let queryCount = 0;
-    const origQuery = c.tabs.query;
-    c.tabs.query = async (info: any) => {
-      queryCount++;
-      return origQuery(info);
-    };
-    const queryBefore = queryCount;
-
-    // 让 undo 反转路径的 collapse 目标组（gid=20, collapsed:true）挂起
+    // 让 undo 反向 performSwitch 的 dispose 建组折叠（tabGroups.update collapsed:true）挂起
     let resolveUndo!: () => void;
     const origUpdate = c.tabGroups.update;
     c.tabGroups.update = async (gid: number, props: any) => {
-      if (gid === 20 && props?.collapsed === true) {
+      if (props?.collapsed === true) {
         await new Promise<void>((res) => {
           resolveUndo = res;
         });
@@ -837,19 +826,19 @@ describe('performSwitch — undo generation 校验 + 入队（T6）', () => {
       return origUpdate(gid, props);
     };
 
-    // 启动 undo（不 await）→ 进入 inflight 并挂起
+    // 启动 undo（不 await）→ 反向切换的 dispose 折叠挂起 → undo 进行中
     const undoP = r.undo();
     await new Promise((rr) => setTimeout(rr, 0));
 
-    // undo 进行中：下一次切换应排队，archive 未执行（tabs.query 未增）
+    // undo 进行中：启动下一次切换，但其 binding 未生效（排队等 undo 完成）
     const switchP = requestWorkspaceSwitch('cccc3333-0000-0000', 'C', 1, 'close');
     await new Promise((rr) => setTimeout(rr, 0));
-    expect(queryCount).toBe(queryBefore);
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000'); // 仍 ws-b（切换未到 binding）
 
-    // 解除 undo → undo 完成 → 切换 archive 才执行
+    // 解除 undo → undo 完成（binding 回 ws-a）→ 排队的切换执行（binding → ws-c）
     resolveUndo();
     await Promise.all([undoP, switchP]);
-    expect(queryCount).toBeGreaterThan(queryBefore);
+    expect(await getWorkspaceBinding(1)).toBe('cccc3333-0000-0000');
   });
 
   it('close 档 undo：dispose 本次 opened + restore 源 session + 回滚 binding', async () => {

@@ -90,34 +90,24 @@ export async function switchWorkspace(toId: string): Promise<void> {
     // toName 由 store 派生（供 restoreByMode 建 group title；fallback toId）
     const workspaces = useWorkspace.getState().workspaces;
     const toName = workspaces.find((w) => w.id === toId)?.name ?? toId;
+    // fromName = 当前工作区名（离开时 dispose 建组 title 用）；对应 fromId（binding = 当前 ws）
+    const currentWsId = useWorkspace.getState().currentWorkspaceId;
+    const fromName = workspaces.find((w) => w.id === currentWsId)?.name ?? '';
     const result = await switchWorkspaceBySetting({
       toId,
       toName,
+      fromName,
       setting,
       windowId,
       selectWorkspace: useWorkspace.getState().selectWorkspace,
       onProgress,
     });
-    // T4：归档了 tab（N>0）→ 弹切换结果 Toast（action「切回」非"撤销"——完整反转切换）
-    if (result.closedCount > 0 && result.fromId) {
-      const fromName = workspaces.find((w) => w.id === result.fromId)?.name ?? result.fromId;
-      // T8 fix②：动词按 setting 适配（closedCount 语义=受影响 tab 数，不变）
+    // T4：归档了 tab（N>0）→ 弹切换结果 Toast（仅通知，无切回按钮）
+    if (result.closedCount > 0) {
+      // 动词按 setting 适配（closedCount 语义=受影响 tab 数）
       const verb =
         setting === 'close' ? '已关闭' : setting === 'hide-discard' ? '已折叠并释放' : '已折叠';
-      Toast.success({
-        content: `已切换到「${toName}」，${verb} ${result.closedCount} 个标签`,
-        action: {
-          label: `切回「${fromName}」`,
-          // undo 回滚 tab/binding，再 selectWorkspace(fromId) 同步 store 选中态
-          //（undo 不碰 store，不补则 AppRail active 停留 toId）
-          onClick: () => {
-            void result.undo().then(() => {
-              const fid = result.fromId;
-              if (fid) void useWorkspace.getState().selectWorkspace(fid);
-            });
-          },
-        },
-      });
+      Toast.success({ content: `已切换到「${toName}」，${verb} ${result.closedCount} 个标签` });
     }
   } finally {
     if (loadingTimer) clearTimeout(loadingTimer);

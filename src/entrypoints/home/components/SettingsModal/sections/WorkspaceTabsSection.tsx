@@ -93,7 +93,7 @@ export function WorkspaceTabsSection() {
           <span className="flex flex-col gap-0.5">
             <span className="text-sm font-medium">折叠·省内存</span>
             <span id="iso-hide-d-desc" className="text-sm text-muted-foreground">
-              离开时折叠为标签组并释放内存，返回时展开重新加载（页面状态不保留）。
+              离开时折叠为标签组并释放内存，返回时还原标签重新加载（页面状态不保留）。
             </span>
           </span>
         </label>
@@ -102,7 +102,7 @@ export function WorkspaceTabsSection() {
           <span className="flex flex-col gap-0.5">
             <span className="text-sm font-medium">折叠·保状态</span>
             <span id="iso-hide-desc" className="text-sm text-muted-foreground">
-              离开时折叠为标签组但保留页面状态，返回时直接展开（占用内存）。
+              离开时折叠为标签组但保留页面状态，返回时还原标签（占用内存）。
             </span>
           </span>
         </label>
