@@ -105,7 +105,51 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     const input = vi.mocked(Toast.success).mock.calls[0]![0] as unknown as { content: string; action: { label: string } };
     expect(input.content).toContain('工作区B');
     expect(input.content).toContain('3');
+    expect(input.content).toContain('已关闭');
     expect(input.action.label).toBe('切回「工作区A」');
+  });
+
+  // T8 fix②：Toast 文案动词按 setting 适配（hide=已折叠 / hide-discard=已折叠并释放 / close=已关闭）
+  it('T8 fix②：hide 模式 Toast 含「已折叠」（非「已关闭」）', async () => {
+    installChrome({ tabIsolationSetting: 'hide' }, 5);
+    useWorkspace.setState({
+      workspaces: [
+        { id: 'ws-a', name: '工作区A', icon: '📁', createdAt: 0, order: 0 },
+        { id: 'ws-b', name: '工作区B', icon: '🔬', createdAt: 0, order: 1 },
+      ],
+    });
+    vi.mocked(switchWorkspaceBySetting).mockResolvedValue({
+      undo: vi.fn(),
+      fromId: 'ws-a',
+      closedCount: 3,
+    });
+
+    await switchWorkspace('ws-b');
+
+    expect(Toast.success).toHaveBeenCalledTimes(1);
+    const input = vi.mocked(Toast.success).mock.calls[0]![0] as unknown as { content: string };
+    expect(input.content).toContain('已折叠');
+    expect(input.content).not.toContain('已关闭');
+  });
+
+  it('T8 fix②：hide-discard 模式 Toast 含「已折叠并释放」', async () => {
+    installChrome({ tabIsolationSetting: 'hide-discard' }, 5);
+    useWorkspace.setState({
+      workspaces: [
+        { id: 'ws-a', name: '工作区A', icon: '📁', createdAt: 0, order: 0 },
+        { id: 'ws-b', name: '工作区B', icon: '🔬', createdAt: 0, order: 1 },
+      ],
+    });
+    vi.mocked(switchWorkspaceBySetting).mockResolvedValue({
+      undo: vi.fn(),
+      fromId: 'ws-a',
+      closedCount: 2,
+    });
+
+    await switchWorkspace('ws-b');
+
+    const input = vi.mocked(Toast.success).mock.calls[0]![0] as unknown as { content: string };
+    expect(input.content).toContain('已折叠并释放');
   });
 
   it('T4：N=0（未关 tab）→ 不弹 Toast', async () => {
@@ -149,8 +193,8 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
 
     await switchWorkspace('ws-b');
 
-    // 进度期间 switching 非 null（toId + onProgress 更新的 phase/count/total）
-    expect(switchingDuringProgress).toEqual({ toId: 'ws-b', phase: 'dispose', count: 2, total: 5 });
+    // 进度期间 switching 非 null（toId + setting + onProgress 更新的 phase/count/total）
+    expect(switchingDuringProgress).toEqual({ toId: 'ws-b', phase: 'dispose', count: 2, total: 5, setting: 'close' });
     // 完成后清
     expect(useWorkspace.getState().switching).toBeNull();
   });
@@ -161,6 +205,38 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     await switchWorkspace('ws-b');
 
     expect(useWorkspace.getState().switching).toBeNull();
+  });
+
+  // T8 fix①：hide 模式也触发进度门控（switching state + onProgress），不遗漏
+  it('T8 fix①：hide 切换设/更新/清 switching state（进度门控覆盖 hide）', async () => {
+    installChrome({ tabIsolationSetting: 'hide' }, 5);
+    useWorkspace.setState({ switching: null });
+    let switchingDuringProgress: unknown = undefined;
+    vi.mocked(switchWorkspaceBySetting).mockImplementation(async (params) => {
+      params.onProgress?.({ phase: 'dispose', count: 2, total: 5 });
+      switchingDuringProgress = useWorkspace.getState().switching;
+      return NOOP_RESULT;
+    });
+
+    await switchWorkspace('ws-b');
+
+    // hide 模式也应触发 switching state（修复前 onProgress=undefined → switching 留 null）
+    expect(switchingDuringProgress).toEqual({ toId: 'ws-b', phase: 'dispose', count: 2, total: 5, setting: 'hide' });
+    expect(useWorkspace.getState().switching).toBeNull();
+  });
+
+  it('T8 fix①：hide-discard 切换也触发进度门控', async () => {
+    installChrome({ tabIsolationSetting: 'hide-discard' }, 5);
+    useWorkspace.setState({ switching: null });
+    let onProgressCalled = false;
+    vi.mocked(switchWorkspaceBySetting).mockImplementation(async (params) => {
+      if (params.onProgress) onProgressCalled = true;
+      return NOOP_RESULT;
+    });
+
+    await switchWorkspace('ws-b');
+
+    expect(onProgressCalled).toBe(true);
   });
 });
 
@@ -185,6 +261,22 @@ describe('LoadingToastContent — T8 Progress 进度条（订阅 switching）', 
 
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByText(/保存当前标签/)).toBeInTheDocument();
+  });
+
+  // T8 fix附带：dispose 阶段文案按 setting 适配（hide=正在折叠 / hide-discard=正在折叠并释放 / close=正在关闭）
+  it('dispose 阶段 hide 模式显示「正在折叠」文案（非「正在关闭」）', () => {
+    useWorkspace.setState({ switching: { toId: 'w1', phase: 'dispose', count: 2, total: 5, setting: 'hide' } });
+    render(<LoadingToastContent toId="w1" />);
+
+    expect(screen.getByText(/折叠当前标签 2\/5/)).toBeInTheDocument();
+    expect(screen.queryByText(/关闭当前标签/)).not.toBeInTheDocument();
+  });
+
+  it('dispose 阶段 hide-discard 模式显示「正在折叠并释放」文案', () => {
+    useWorkspace.setState({ switching: { toId: 'w1', phase: 'dispose', count: 1, total: 3, setting: 'hide-discard' } });
+    render(<LoadingToastContent toId="w1" />);
+
+    expect(screen.getByText(/折叠并释放当前标签 1\/3/)).toBeInTheDocument();
   });
 });
 
