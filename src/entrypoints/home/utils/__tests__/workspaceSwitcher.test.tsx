@@ -5,6 +5,7 @@ import { installChromeStorageLocal } from '@/test/storageMock';
 vi.mock('@/shared/tabs/workspaceSwitch', () => ({
   switchWorkspaceBySetting: vi.fn(),
   requestWorkspaceSwitch: vi.fn(),
+  normalizeOnModeChange: vi.fn(async () => undefined),
 }));
 vi.mock('@/components/ui/toast', () => ({
   Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), loading: vi.fn(), close: vi.fn() },
@@ -13,11 +14,11 @@ vi.mock('@/services/CategoryService', () => ({
   listCategories: vi.fn(async () => []),
 }));
 
-import { render, screen, waitFor } from '@testing-library/react';
-import { switchWorkspaceBySetting, type SwitchResult } from '@/shared/tabs/workspaceSwitch';
+import { render, screen, waitFor, renderHook, act } from '@testing-library/react';
+import { switchWorkspaceBySetting, normalizeOnModeChange, type SwitchResult } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/store/useWorkspace';
-import { switchWorkspace, LoadingToastContent } from '../workspaceSwitcher';
+import { switchWorkspace, LoadingToastContent, useTabIsolationSetting } from '../workspaceSwitcher';
 
 const NOOP_RESULT: SwitchResult = { undo: vi.fn(), fromId: null, closedCount: 0 };
 
@@ -163,5 +164,54 @@ describe('LoadingToastContent — T8 Progress 进度条（订阅 switching）', 
 
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.getByText(/保存当前标签/)).toBeInTheDocument();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T7: useTabIsolationSetting.updateSetting —— setting 变更为 close 时调 normalize
+// hide→close 清非当前 ws 组（窗口回归 close 干净语义）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('useTabIsolationSetting — T7 normalize 调用（hide→close 触发）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('updateSetting(close)：调 normalizeOnModeChange(windowId, close)', async () => {
+    installChrome({}, 5);
+
+    const { result } = renderHook(() => useTabIsolationSetting());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.updateSetting('close');
+    });
+
+    expect(normalizeOnModeChange).toHaveBeenCalledWith(5, 'close');
+  });
+
+  it('updateSetting(hide)：不调 normalizeOnModeChange（非 close 档）', async () => {
+    installChrome({}, 5);
+
+    const { result } = renderHook(() => useTabIsolationSetting());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.updateSetting('hide');
+    });
+
+    expect(normalizeOnModeChange).not.toHaveBeenCalled();
+  });
+
+  it('updateSetting(off)：不调 normalizeOnModeChange（非 close 档）', async () => {
+    installChrome({}, 5);
+
+    const { result } = renderHook(() => useTabIsolationSetting());
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    await act(async () => {
+      await result.current.updateSetting('off');
+    });
+
+    expect(normalizeOnModeChange).not.toHaveBeenCalled();
   });
 });

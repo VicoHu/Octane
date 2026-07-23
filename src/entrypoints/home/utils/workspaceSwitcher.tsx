@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useWorkspace, getCurrentWindowId } from '@/store/useWorkspace';
-import { switchWorkspaceBySetting, type SwitchProgress } from '@/shared/tabs/workspaceSwitch';
+import { switchWorkspaceBySetting, normalizeOnModeChange, type SwitchProgress } from '@/shared/tabs/workspaceSwitch';
 import { Toast } from '@/components/ui/toast';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -151,6 +151,18 @@ export function useTabIsolationSetting() {
   const updateSetting = useCallback(async (value: TabIsolationSetting) => {
     await setTabIsolationSetting(value);
     setSetting(value);
+    // T7: hide→close normalize（清窗口内非当前 ws 标识组，回归 close 干净语义）。
+    // 非 close 档 no-op；异常静默（不阻断 setting 写入）。
+    if (value === 'close') {
+      const wid = await getCurrentWindowId();
+      if (wid != null) {
+        try {
+          await normalizeOnModeChange(wid, 'close');
+        } catch {
+          /* 容错：normalize 失败不阻断 setting */
+        }
+      }
+    }
   }, []);
 
   return { setting, status, updateSetting };

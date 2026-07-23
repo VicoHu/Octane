@@ -20,7 +20,7 @@ import type { TabEntry } from '@/shared/types';
 import { saveTabSession, getTabSession } from '@/services/TabSessionService';
 import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspaceBinding';
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
-import { findGroupByIdentity, makeGroupTitle } from '@/shared/tabs/tabGroupIdentity';
+import { findGroupByIdentity, makeGroupTitle, wsHash } from '@/shared/tabs/tabGroupIdentity';
 import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
@@ -509,9 +509,12 @@ function buildUndo(
   onProgress?: (p: SwitchProgress) => void,
 ): () => Promise<void> {
   return async () => {
-    // generation 校验：目标组结构未变（groupId 仍存、标识回找一致）
+    // generation 校验：目标组结构未变（groupId 仍存、标识回找一致）。
+    // M1（T7 顺手补）：close 档无 group 概念（targetGroupId=null），跳过校验——
+    // 即使目标 ws 存在残留 hide 标识组（findGroupByIdentity 命中非 null）也不误拒，
+    // 直接反转（dispose opened + restore 源 + 回滚 binding）。
     const gid = await findGroupByIdentity(windowId, snapshot.toId);
-    if (gid !== snapshot.targetGroupId) {
+    if (snapshot.mode !== 'close' && gid !== snapshot.targetGroupId) {
       Toast.error('工作区已变化，无法撤销，可手动切回');
       return;
     }
@@ -608,5 +611,43 @@ export async function countRestorableTabsInWindow(windowId: number): Promise<num
     return tabs.filter(isRestorable).length;
   } catch {
     return 0;
+  }
+}
+
+/**
+ * 跨档 normalize（T7）：hide→close 时清窗口内非当前 ws 标识组（tab 已在各自 session），
+ * 窗口回归 close「只剩当前 ws tab」干净语义，避免 close 全窗 archive 污染。
+ * 其他切档（close→hide / off↔任意）no-op。
+ *
+ * 只清 Octane 管的标识组（title 含 ` ·xxxxxxxx` wsHash 后缀）且非当前绑定 ws；
+ * 用户手动组（无标识格式）不碰。非扩展环境 / 异常静默（不阻断 setting 写入）。
+ */
+export async function normalizeOnModeChange(
+  windowId: number,
+  newMode: TabIsolationSetting,
+): Promise<void> {
+  if (newMode !== 'close') return; // 仅切入 close 触发 normalize
+  const c = getChrome();
+  if (!c) return;
+  try {
+    const currentWs = await getWorkspaceBinding(windowId);
+    const groups = await c.tabGroups.query({ windowId });
+    for (const g of groups) {
+      // Octane 标识组：title 以 ` ·xxxxxxxx`（wsHash 8 hex）结尾
+      const m = g.title?.match(/ ·([0-9a-f]{8})$/);
+      if (!m) continue; // 用户手动组，不碰
+      const hash = m[1]!;
+      // 当前 ws 组保留（wsHash 一致）
+      if (currentWs && wsHash(currentWs) === hash) continue;
+      // 非当前 ws 标识组：remove 其所有 tab（内容已在各自 session）
+      const groupTabs = (await c.tabs.query({ windowId })).filter(
+        (t) => t.groupId === g.id && t.id != null,
+      );
+      for (const t of groupTabs) {
+        try { await c.tabs.remove(t.id!); } catch { /* 部分失败：不阻断 */ }
+      }
+    }
+  } catch {
+    /* 异常静默：不阻断 setting 写入 */
   }
 }

@@ -7,6 +7,7 @@ import {
   archiveByMode,
   disposeByMode,
   restoreByMode,
+  normalizeOnModeChange,
   type SwitchProgress,
 } from '../workspaceSwitch';
 
@@ -868,5 +869,99 @@ describe('performSwitch — undo generation 校验 + 入队（T6）', () => {
     // undo：dispose 本次 opened（b.com）+ restore 源 a.com + binding 回 ws-a
     expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
     expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com' }));
+  });
+
+  // M1（T7 顺手补）：close 模式无 group 概念，buildUndo 跳过 generation 校验。
+  // 即使目标 ws 存在残留 hide 标识组（findGroupByIdentity 命中非 null），
+  // close undo 也不应误拒——直接反转（dispose opened + restore 源 + 回滚 binding）。
+  it('M1: close undo 跳过 generation 校验（目标 ws 有 hide 组残留也不误拒）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    // 目标 ws-b 的残留 hide 标识组（gid=20）—— 若 close undo 仍跑 generation 校验
+    // 则 findGroupByIdentity(ws-b) 命中 20 ≠ targetGroupId(null) → 误拒
+    c.__testGroups.set(20, {
+      id: 20, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: false,
+    });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    const { saveTabSession } = await import('@/services/TabSessionService');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    await saveTabSession('bbbb2222-0000-0000', [{ url: 'https://b.com', pinned: false, order: 0 }]);
+
+    const r = await performSwitch('bbbb2222-0000-0000', 'B', 1, 'close');
+    expect(await getWorkspaceBinding(1)).toBe('bbbb2222-0000-0000');
+
+    await r.undo();
+
+    // M1：close undo 不误拒 → 回滚成功（binding 回源 + 源 tab 重开）
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000');
+    expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://a.com' }));
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T7: normalizeOnModeChange（跨档 normalize：hide→close 清非当前 ws 组）
+// 窗口从 hide 切 close 时，清掉别 ws 的 Octane 标识组 tab（已在各自 session），
+// 回归 close「只剩当前 ws tab」干净语义，防 close 全窗 archive 污染。
+// 复用 installDisposeRestoreStub（Map 驱动 chrome + storage.local 真实往返）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('normalizeOnModeChange — 跨档 normalize（T7）', () => {
+  beforeEach(() => {
+    installDisposeRestoreStub();
+  });
+
+  it('hide→close：清非当前 ws 标识组 tab，保留当前 ws 组 + 用户手动组', async () => {
+    const c = (globalThis as any).chrome;
+    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    // 当前 ws-a 组（gid 10）+ 别 ws-b 折叠组（gid 11）+ 用户手动组（gid 12，无标识格式）
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testGroups.set(11, { id: 11, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testGroups.set(12, { id: 12, windowId: 1, title: '我的收藏', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 11 });
+    c.__testTabs.set(3, { id: 3, windowId: 1, url: 'https://c.com', groupId: 12 });
+
+    await normalizeOnModeChange(1, 'close');
+
+    // 别 ws 组的 tab 被 remove（窗口回归只有当前 ws）
+    expect(c.__testTabs.has(2)).toBe(false);
+    // 当前 ws 组 + 用户手动组的 tab 保留（不碰）
+    expect(c.__testTabs.has(1)).toBe(true);
+    expect(c.__testTabs.has(3)).toBe(true);
+  });
+
+  it('close→hide：no-op（不 remove 任何 tab）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(11, { id: 11, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 11 });
+
+    await normalizeOnModeChange(1, 'hide');
+
+    expect(c.__testTabs.has(2)).toBe(true); // 未被 remove
+  });
+
+  it('close→off：no-op（不 remove 任何 tab）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(11, { id: 11, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 11 });
+
+    await normalizeOnModeChange(1, 'off');
+
+    expect(c.__testTabs.has(2)).toBe(true); // 未被 remove
+  });
+
+  it('无当前 ws 绑定：清所有 Octane 标识组（无当前 ws 可保留）', async () => {
+    const c = (globalThis as any).chrome;
+    // 不 setWorkspaceBinding → currentWs=null → 所有标识组都视为非当前
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testGroups.set(11, { id: 11, windowId: 1, title: 'B ·bbbb2222', color: 'grey', collapsed: true });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'https://b.com', groupId: 11 });
+
+    await normalizeOnModeChange(1, 'close');
+
+    // 无当前 ws → 所有标识组 tab 都被清
+    expect(c.__testTabs.has(1)).toBe(false);
+    expect(c.__testTabs.has(2)).toBe(false);
   });
 });
