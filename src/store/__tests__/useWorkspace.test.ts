@@ -20,6 +20,7 @@ const cat = vi.hoisted(() => ({
 vi.mock('@/services/CategoryService', () => cat);
 
 import { useWorkspace } from '@/store/useWorkspace';
+import { IDENTITY_SUFFIX } from '@/shared/tabs/tabGroupIdentity';
 
 const wsOf = (id: string, name = 'WS', order = 0) =>
   ({ id, name, icon: '📁', createdAt: 1, order }) as never;
@@ -483,6 +484,94 @@ describe('useWorkspace — T3 reorder(乐观重排 + 失败回滚)', () => {
     const list = useWorkspace.getState().workspaces;
     expect(list.map((w) => w.id)).toEqual(['w1', 'w2']);
     expect(list.map((w) => w.order)).toEqual([0, 1]);
+  });
+});
+
+describe('useWorkspace — T9 deleteWorkspace 清 hide 孤儿组（隐私）', () => {
+  /** 装 tabGroups/tabs/windows 内存 stub（installChromeStorageLocal 覆盖了 T0 stub）。 */
+  function withTabGroupStub(windows: number[]) {
+    const c = (globalThis as Record<string, unknown>).chrome as Record<string, any>;
+    const groups = new Map<number, any>();
+    const tabsStore = new Map<number, any>();
+    c.tabGroups = {
+      query: async (info: { windowId?: number } = {}) =>
+        Array.from(groups.values()).filter(
+          (g) => info.windowId == null || g.windowId === info.windowId,
+        ),
+    };
+    c.tabs = {
+      query: async (info: { windowId?: number } = {}) =>
+        Array.from(tabsStore.values()).filter(
+          (t) => info.windowId == null || t.windowId === info.windowId,
+        ),
+      remove: async (id: number) => {
+        tabsStore.delete(id);
+      },
+    };
+    c.windows = {
+      getAll: async () => windows.map((id) => ({ id })),
+    };
+    return { groups, tabsStore };
+  }
+
+  it('删 ws：该 ws 的 hide 标识组内 tab 被 remove；别 ws 的组不碰', async () => {
+    installChromeStorageLocal({ initial: {} });
+    const { groups, tabsStore } = withTabGroupStub([1, 2]);
+
+    // 窗口 1：wDel 的 hide 标识组（tab 1）+ 无关 tab（tab 2）
+    groups.set(10, {
+      id: 10,
+      windowId: 1,
+      title: `X${IDENTITY_SUFFIX('wDel')}`,
+      color: 'grey',
+      collapsed: true,
+    });
+    tabsStore.set(1, { id: 1, windowId: 1, url: 'https://x.com', groupId: 10 });
+    tabsStore.set(2, { id: 2, windowId: 1, url: 'https://y.com', groupId: -1 });
+    // 窗口 2：别 ws(wKeep) 的标识组（tab 3）—— 不应被清
+    groups.set(20, {
+      id: 20,
+      windowId: 2,
+      title: `Y${IDENTITY_SUFFIX('wKeep')}`,
+      color: 'grey',
+      collapsed: true,
+    });
+    tabsStore.set(3, { id: 3, windowId: 2, url: 'https://z.com', groupId: 20 });
+
+    useWorkspace.setState({
+      workspaces: [wsOf('wDel'), wsOf('wKeep')],
+      currentWorkspaceId: 'wKeep',
+    });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+
+    await useWorkspace.getState().deleteWorkspace('wDel');
+
+    // wDel 标识组的 tab 1 被 remove；窗口 1 无关 tab 2 保留；窗口 2 别 ws 的 tab 3 不碰
+    expect(tabsStore.has(1)).toBe(false);
+    expect(tabsStore.has(2)).toBe(true);
+    expect(tabsStore.has(3)).toBe(true);
+  });
+
+  it('windows.getAll 抛错 → 不阻断 delete（非扩展环境/部分失败容错）', async () => {
+    installChromeStorageLocal({ initial: {} });
+    const c = (globalThis as Record<string, unknown>).chrome as Record<string, any>;
+    c.windows = {
+      getAll: async () => {
+        throw new Error('chrome unavailable');
+      },
+    };
+
+    useWorkspace.setState({
+      workspaces: [wsOf('wDel'), wsOf('wKeep')],
+      currentWorkspaceId: 'wKeep',
+    });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+
+    // 主流程（rebind / fallback / 清 session）仍完成；hide 清理静默吞错
+    await expect(useWorkspace.getState().deleteWorkspace('wDel')).resolves.toBeUndefined();
+    expect(useWorkspace.getState().workspaces.map((w) => w.id)).toEqual(['wKeep']);
   });
 });
 

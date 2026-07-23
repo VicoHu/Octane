@@ -54,16 +54,32 @@
 
 - **仓库 License 待确认**：仓库根暂无 LICENSE 文件。「关于」Tab 是否显示 License 项、显示何值，待确认仓库实际 License 类型后决定（可能需补 LICENSE 文件）。来源：关于 Tab + 新版本检测特性设计（2026-07-22，`docs/superpowers/specs/2026-07-22-about-tab-update-check-design.md`）。
 
-## 工作区标签隔离 v1.1 — hide 模式 + 自动归档
+## 工作区标签隔离 v1.1 — hide 模式（折叠·省内存 / 折叠·保状态）
 
-> **方案文件（恢复上下文必读）**：`docs/superpowers/specs/2026-07-22-workspace-tab-isolation-design.md` — 读 `## NOT in scope` 段（v1.1 两项）+ `## Constraints` C3（tabGroups 三硬伤）/ C5（MV3 SW ~30s 回收）+ `## UI/UX Design (rev 5)`（设置分区 hide 第三档）。
-> v1（close-only + 手动切换）已 ship **0.2.0.0**（PR#41，2026-07-23）。memory：`[[workspace-tab-isolation-design]]`（施工进度 + 测试范式）。
+> **设计文档（已定稿）**：`docs/superpowers/specs/2026-07-23-workspace-tab-isolation-v1.1-design.md` — /plan-ceo-review HOLD + codex outside voice 10 findings（2 CRITICAL + 5 MAJOR + 3 MINOR）全采纳。
+> v1（close-only）已 ship **0.2.0.0**（PR#41，2026-07-23）。memory：`[[workspace-tab-isolation-design]]`（施工进度 + 测试范式）。
 
-v1.1 两项独立需求（设计文档 NOT in scope 明确）：
+v1.1 = 切换行为 2 档 → 4 档（加 hide 两档）。设计核心决策：
+- **title 拼 workspaceId 哈希标识**（`工作区名 ·wsId前8hex`）作 tabGroup 稳定唯一标识；去 storage 映射；C3 两路径回找（标识回找 → 兜底 restore）；ws 删除时清该 ws 标识组（孤儿组）。
+- **归属语义**（codex #2）：Chrome group membership = 工作区归属；散 tab = 当前 binding ws；跨组拖拽 = 主动重分配。
+- **失败状态机**（codex #5/#6）：切换前激活 pinned home；dispose/restore 失败不更新 binding；restore 返回 {opened,failed} 原子性；discard 部分失败降级 hide + token 记实际。
+- **undo 入队**（codex #7）：走 per-window 串行队列 + generation token，组结构变化拒绝 undo。
+- **跨档 normalize**（codex #3）：hide→close 清非当前 ws 标识组，窗口回归 close 语义。
+- pinned tab（除 home）归档档下 remove 处理（Chrome 禁 pinned 入组，C4b）；incognito 不纳入。
+- 相关：`src/shared/tabs/workspaceSwitch.ts`（performSwitch 加 mode 分支 + 失败状态机）/ `src/entrypoints/home/components/SettingsModal/sections/WorkspaceTabsSection.tsx`（RadioGroup 4 档）/ `src/shared/tabIsolationSetting.ts`（加 `'hide-discard'|'hide'`）/ `wxt.config.ts`（加 `tabGroups` 权限）。
 
-- **hide 模式（tabGroups 折叠 + discard）**：「软隔离」——离开工作区不关 tab，折叠 tabGroup + discard（释放内存但保留 tab，切回即恢复）。需先解决 **C3 三硬伤**：tabGroup `groupId` 易失（刷新/崩溃后重生成，不稳定）、抖动（分组视觉跳变）、跨窗口分组语义。新增 `tabGroups` 权限（低风险，v1 无新权限）。设置分区 RadioGroup 加第三档「隐藏（折叠）」。
-  - 相关：`src/shared/tabs/workspaceSwitch.ts`（archive/dispose/restore 编排复用，加 hide 分支替代 dispose）、`src/entrypoints/home/components/SettingsModal/sections/WorkspaceTabsSection.tsx`（RadioGroup 加「隐藏」选项 + AlertDialog 确认）、`tabIsolationSetting`（type 加 `'hide'`）。
-- **自动归档（Arc 式 alarms）**：离开工作区自动归档（不需手动切换触发）——`chrome.alarms` 定时 + 窗口 `lastActive` 检测，跑 MV3 service worker（非 home 页）。复杂度独立（**C5**：SW ~30s 回收，需 alarms 唤醒 + 归档逻辑可在 SW 跑）。
-  - 相关：`src/entrypoints/background.ts`（alarms 注册 + 监听）、`src/shared/tabs/workspaceSwitch.ts`（`archive` 抽出为可复用 helper，SW 与 home 共用）。
+### 推迟项（记此，后续评估）
+- **自动归档**（Arc 式 alarms + 窗口 lastActive，跑 MV3 SW）：用户决定 v1.1 只做 hide，推迟。相关 `src/entrypoints/background.ts`（alarms 注册 + 监听）+ `src/shared/tabs/workspaceSwitch.ts`（archive 抽出 SW/home 共用 helper）。
+- **同 ws 多窗 session 隔离**（TabSession key 加 windowId）：/plan-ceo-review tension 3 备选方案。v1.1 暂继承 v1「同 ws 多窗最后归档胜出」已知限制（多窗同 ws 低频）；后续据用户反馈评估是否做。
 
-> **不在 v1.1**：lazy restore（v1.x，大 session 性能，占位点击载入）、多窗口同 ws 会话合并去重（v1.2）、跨设备 tab 会话备份恢复（不做，rev4：设备本地临时）。详见设计文档 NOT in scope。
+### final review deferred（v1.1 实现小债务，非阻塞，后续 polish）
+- **T0 stub 保真度**：`tests/setup.ts` `tabs.discard` 未写回 store（discarded 状态 query 查不到）/ `ungroup` 不清空孤儿 group。T10 套件自建 stub 规避，未来测试若依赖 setup.ts 保真度需补。
+- **normalizeOnModeChange O(n²)**：`src/shared/tabs/workspaceSwitch.ts` 每组全表扫 `tabs.query`。规模小（<20 组），可提 query 到循环外。
+- **incognito defense-in-depth**：archive/dispose 未过滤 incognito（ChromeTab 无字段）。实际不触发（incognito tab 不在 normal 窗口）。spec 边界已声明，零触发概率。
+- **restore throw 死胡同注释**：`performSwitch` restore 抛错返回 `noopUndo`（无 undo），注释说「undo 兜底」不准。边缘场景，注释修正即可。
+- **dispose pinned 序 + Toast 文案**（ship pre-landing review finding 2，非阻塞）：`disposeByMode` hide 路径先 remove pinned 再 group/collapse，折叠失败时 pinned 已关（session 留底，切回可重建，**不丢数据**），但 Toast「切换中止：无法收起当前标签，已保留」对 pinned 不准。根治需调序（先折叠成功再关 pinned）或修 Toast 为「已归档，可手动切回恢复」。
+- **dormant undo stale snapshot 风险**（ship pre-landing review finding 3）：`buildUndo`（undo 反向切换，60 行）去 Toast 切回按钮后**无 UI 入口**（仅测试调，覆盖完整含失败状态机）。保留；若未来恢复切回按钮，需补 generation/绑定校验或改用「undo = 切回 snapshot.fromId 的 fresh performSwitch」，避快连切 A→B→C 后旧 snapshot undo 致 C tab 孤立。
+- **incognito 显式守卫**（ship pre-landing review finding 4，补充）：`T9 deleteWorkspace` + `normalizeOnModeChange` 遍历窗口无 `w.incognito` 守卫（Chrome 默认扩展不进隐身故安全，显式 `if (w.incognito) continue` 更稳）。
+- **SwitchProgress 缺 setting 字段**（ship pre-landing review finding 5）：`SwitchProgress` 类型无 `setting`，但 store switching state + `progressLabel` 依赖它做动词适配。跨边界契约靠结构子集而非类型；可加 `setting?: TabIsolationSetting` 使契约显式。
+
+> **不在 v1.1**：lazy restore（v1.x）/ 跨设备 tab 会话备份（不做，设备本地临时）。详见 v1.1 设计文档 + v1 设计文档 NOT in scope。

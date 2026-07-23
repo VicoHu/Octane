@@ -7,10 +7,12 @@ import { WorkspaceTabsSection } from '../WorkspaceTabsSection';
 describe('WorkspaceTabsSection — 工作区标签隔离设置分区', () => {
   beforeEach(() => installChromeStorageLocal({}));
 
-  it('渲染两选项文案', () => {
+  it('渲染四档选项文案', () => {
     render(<WorkspaceTabsSection />);
     expect(screen.getByText('不隔离（默认）')).toBeInTheDocument();
     expect(screen.getByText('自动关闭与恢复')).toBeInTheDocument();
+    expect(screen.getByText('折叠·省内存')).toBeInTheDocument();
+    expect(screen.getByText('折叠·保状态')).toBeInTheDocument();
   });
 
   it('storage 无 key（默认 off）→ 加载完成后「不隔离」选中', async () => {
@@ -78,5 +80,54 @@ describe('WorkspaceTabsSection — 工作区标签隔离设置分区', () => {
     await user.click(screen.getByRole('button', { name: '开启隔离' }));
 
     await waitFor(() => expect(store['tabIsolationSetting']).toBe('close'));
+  });
+
+  // ===== T8：off→任一归档档弹首启 / 归档互切不弹 / confirm 写对应 value =====
+  it('off→hide-discard + 本窗有可归档 tab → 弹确认 Dialog', async () => {
+    installWindowWithTabs([{ id: 1, url: 'https://a.com', index: 0 }]);
+    const user = userEvent.setup();
+    render(<WorkspaceTabsSection />);
+    await waitFor(() => expect(screen.getByRole('radio', { name: /不隔离/ })).toBeChecked());
+
+    await user.click(screen.getByRole('radio', { name: /折叠·省内存/ }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/1 个标签/);
+  });
+
+  it('off→hide + 本窗有可归档 tab → 弹确认 Dialog', async () => {
+    installWindowWithTabs([{ id: 1, url: 'https://a.com', index: 0 }]);
+    const user = userEvent.setup();
+    render(<WorkspaceTabsSection />);
+    await waitFor(() => expect(screen.getByRole('radio', { name: /不隔离/ })).toBeChecked());
+
+    await user.click(screen.getByRole('radio', { name: /折叠·保状态/ }));
+
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(/1 个标签/);
+  });
+
+  it('off→hide 确认「开启隔离」→ 写入 storage hide（非硬编码 close）', async () => {
+    const { store } = installWindowWithTabs([{ id: 1, url: 'https://a.com', index: 0 }]);
+    const user = userEvent.setup();
+    render(<WorkspaceTabsSection />);
+    await waitFor(() => expect(screen.getByRole('radio', { name: /不隔离/ })).toBeChecked());
+
+    await user.click(screen.getByRole('radio', { name: /折叠·保状态/ }));
+    await screen.findByRole('alertdialog');
+    await user.click(screen.getByRole('button', { name: '开启隔离' }));
+
+    await waitFor(() => expect(store['tabIsolationSetting']).toBe('hide'));
+  });
+
+  it('close→hide（归档互切）→ 不弹 Dialog，直接写入', async () => {
+    const { store } = installWindowWithTabs([{ id: 1, url: 'https://a.com', index: 0 }]);
+    store['tabIsolationSetting'] = 'close'; // 模拟已开 close
+    const user = userEvent.setup();
+    render(<WorkspaceTabsSection />);
+    await waitFor(() => expect(screen.getByRole('radio', { name: /自动关闭与恢复/ })).toBeChecked());
+
+    await user.click(screen.getByRole('radio', { name: /折叠·保状态/ }));
+
+    await waitFor(() => expect(store['tabIsolationSetting']).toBe('hide'));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
 });

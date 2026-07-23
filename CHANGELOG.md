@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.2.1.0] - 2026-07-23
+
+### Added
+- **hide 模式（折叠隔离）**：切换行为 2 档 → 4 档，加「折叠·省内存」（hide-discard）/「折叠·保状态」（hide）。离开工作区时 tab 不关、折叠为标签组（+ 可选 discard 释放内存），切回时解散组、tab 释放到标签栏顶层。
+- **tabGroup 稳定标识**：组 title 拼 workspaceId 哈希（`工作区名 ·xxxxxxxx`），跨重启稳定、重名唯一；标识回找 + 兜底 restore 两路径容错。
+- **undo 反向切换**：切换后可反向切回源工作区（组临时，切回即解散，无 generation 校验）。
+- **deleteWorkspace 清孤儿 hide 组**（隐私：不留已删 ws 的 hide tab URL/组）。
+- 新增 `tabGroups` 权限（折叠/解散/discard/group）。
+
+### Changed
+- **hide 切回语义**：切回工作区 = 解散组、tab 释放到顶层（组仅作切走态临时收纳），非展开。
+- 切换结果 Toast：仅通知，去掉「切回」按钮。
+
+### Fixed
+- 组名缺工作区名（dispose 建组 title 硬编码空串 → fromName 由 store 派生传入）。
+- undo 切换卡死（undo 不复用正向 onProgress，防 switching state 泄漏致按钮 disabled）。
+
 ## [0.2.0.0] - 2026-07-23
 
 ### Added

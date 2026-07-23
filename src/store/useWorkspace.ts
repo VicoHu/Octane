@@ -16,7 +16,9 @@ import {
   listAllBindings,
 } from '@/shared/windowWorkspaceBinding';
 import { clearTabSession } from '@/services/TabSessionService';
+import { findGroupByIdentity } from '@/shared/tabs/tabGroupIdentity';
 import type { SwitchPhase } from '@/shared/tabs/workspaceSwitch';
+import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
 
 interface WorkspaceState {
   workspaces: Workspace[];
@@ -25,7 +27,7 @@ interface WorkspaceState {
   currentCategoryId: string | null;
   loading: boolean;
   /** 切换中的工作区进度（T8 进度反馈：入口 aria-disabled + 目标项 Spinner + loading Toast/Progress）；null=空闲。 */
-  switching: { toId: string; phase: SwitchPhase; count: number; total: number } | null;
+  switching: { toId: string; phase: SwitchPhase; count: number; total: number; setting?: TabIsolationSetting } | null;
 
   loadWorkspaces: () => Promise<void>;
   createWorkspace: (name: string, icon: string) => Promise<void>;
@@ -215,6 +217,25 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
     // 隐私：清已删 ws 的 tab 会话（不留已删 ws 的 tab URL）
     await clearTabSession(id);
+
+    // T9：清该 ws 的 hide 标识组（孤儿组，隐私：不留已删 ws 的 hide tab URL/组）
+    // 扫所有窗口，命中标识组则 remove 组内 tab（Chrome 自动清空组）。
+    // try/catch 容错：非扩展环境 / 部分窗口失败不阻断 delete 主流程。
+    try {
+      const wins = await chrome.windows.getAll();
+      for (const w of wins) {
+        if (w.id == null) continue;
+        const gid = await findGroupByIdentity(w.id, id);
+        if (gid != null) {
+          const tabs = await chrome.tabs.query({ windowId: w.id });
+          for (const t of tabs.filter((t) => t.groupId === gid && t.id != null)) {
+            await chrome.tabs.remove(t.id!);
+          }
+        }
+      }
+    } catch {
+      // 静默：非扩展环境 / 部分失败，不阻断 delete
+    }
 
     const wasCurrent = get().currentWorkspaceId === id;
     if (wasCurrent) {

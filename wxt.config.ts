@@ -10,7 +10,7 @@ export default defineConfig({
   manifest: {
     name: 'Octane',
     description: '不止存网址——给书签加上下文笔记，侧栏随当前网页自动联动；本地加密，自有云同步。',
-    permissions: ['storage', 'tabs', 'sidePanel', 'favicon'],
+    permissions: ['storage', 'tabs', 'tabGroups', 'sidePanel', 'favicon'],
     host_permissions: ['https://*.aliyuncs.com/*', 'https://*.myqcloud.com/*', 'https://dav.jianguoyun.com/*'],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'",

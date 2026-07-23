@@ -29,3 +29,17 @@ describe('tabIsolationSetting — 隔离开关 storage.local CRUD', () => {
     expect(await getTabIsolationSetting()).toBe('off');
   });
 });
+
+describe('tabIsolationSetting hide 档', () => {
+  it('getTabIsolationSetting 接受 hide-discard / hide（默认 off）', async () => {
+    installChromeStorageLocal({});
+    const { getTabIsolationSetting, setTabIsolationSetting } = await import('../tabIsolationSetting');
+    await setTabIsolationSetting('hide-discard');
+    expect(await getTabIsolationSetting()).toBe('hide-discard');
+    await setTabIsolationSetting('hide');
+    expect(await getTabIsolationSetting()).toBe('hide');
+    // 非法值回退 off
+    await setTabIsolationSetting('unknown' as never);
+    expect(await getTabIsolationSetting()).toBe('off');
+  });
+});

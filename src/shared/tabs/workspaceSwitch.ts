@@ -10,7 +10,9 @@
  * 【安全锚】（设计 Assignment）：archive 失败时 chrome.tabs.remove 绝不被调用——
  * 绝不无归档关闭 tab，防丢数据。此 invariant 有专门回归测试守护。
  *
- * v1 范围：close-only。per-window busy 串行队列 / 进度事件 / undo 为后续（T2 余 + T4/T8）。
+ * v1.1：performSwitch 加 mode（close/hide/hide-discard）+ 失败状态机（archive/dispose/restore
+ * 三失败路径，M2 restore try/catch）。undo = buildUndo（反向切换，切回源 ws）包
+ * queuedUndo（走 per-window 串行队列，防 undo 与下一次切换交错）。
  *
  * chrome 引用在函数体内读取（参考 focusOrCreateHomeTab.ts），测试覆盖 chrome 后生效。
  */
@@ -18,6 +20,7 @@ import type { TabEntry } from '@/shared/types';
 import { saveTabSession, getTabSession } from '@/services/TabSessionService';
 import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspaceBinding';
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
+import { findGroupByIdentity, makeGroupTitle, wsHash } from '@/shared/tabs/tabGroupIdentity';
 import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
@@ -32,12 +35,25 @@ export interface SwitchProgress {
   total: number;
 }
 
-/** 切换选项：onProgress 进度回调（T8 两层进度反馈消费）。 */
+/** 切换选项：onProgress 进度回调（T8 两层进度反馈消费）+ fromName 源工作区名（建组 title）。 */
 export interface SwitchOptions {
   onProgress?: (progress: SwitchProgress) => void;
+  /** 源工作区名（离开时 dispose 建组 title 用）；上层 workspaceSwitcher 从 store 派生传入。 */
+  fromName?: string;
 }
 
-/** 切换结果：undo 回滚本次切换（dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+/** 切换快照（v1.1 undo）：新模型「组」临时（切回即解散），无 generation 校验。
+ *  undo = 反向 performSwitch（切回源 ws）；fromName/toName 供反向 dispose/restore 建组 title。 */
+interface UndoSnapshot {
+  fromId: string;
+  toId: string;
+  /** 源/目标工作区名：正向 dispose（源）+ restore（目标）建组 title；undo 反向时互换。 */
+  fromName: string;
+  toName: string;
+  mode: TabIsolationMode;
+}
+
+/** 切换结果：undo 回滚本次切换（反向切换：archive 当前 + dispose + restore 源 + 回滚 binding）。
  *  fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）。 */
 export interface SwitchResult {
   undo: () => Promise<void>;
@@ -54,9 +70,13 @@ interface ChromeTab {
   pinned?: boolean;
   /** 浏览器 tab 位置（0 起），archive 时作为 order 落盘 */
   index?: number;
+  /** 所属 tabGroup id（-1 / 缺省 = 无组，hide 模式按此过滤当前 ws 组）。 */
+  groupId?: number;
 }
 
 interface ChromeLike {
+  /** runtime.getURL（补丁：dispose hide 激活 home tab 时派生 home url）。可选防御。 */
+  runtime?: { getURL(path: string): string };
   tabs: {
     query(info: { windowId?: number }): Promise<ChromeTab[]>;
     create(props: {
@@ -67,6 +87,26 @@ interface ChromeLike {
       active?: boolean;
     }): Promise<unknown>;
     remove(id: number): Promise<unknown>;
+    /** hide 模式：恢复时切换激活态 / discard 后唤起（后续 task 用）。 */
+    update(id: number, props: { active?: boolean }): Promise<unknown>;
+    /** hide-discard 模式：丢弃 tab 内存（不关闭，保留占位）。 */
+    discard(id: number): Promise<unknown>;
+    /** hide 模式：把散 tab 并入当前 ws 组（restore 重组用）。 */
+    group(opts: {
+      tabIds: number[];
+      groupId?: number;
+      createProperties?: { windowId: number };
+    }): Promise<number>;
+    /** hide 模式：解散组（切换回 close 或清理用）。 */
+    ungroup(tabIds: number[]): Promise<unknown>;
+  };
+  tabGroups: {
+    get(gid: number): Promise<{ id: number; windowId: number; title?: string }>;
+    query(info: { windowId?: number }): Promise<{ id: number; windowId: number; title?: string }[]>;
+    update(
+      gid: number,
+      props: { collapsed?: boolean; title?: string; color?: string },
+    ): Promise<unknown>;
   };
 }
 
@@ -101,24 +141,44 @@ function toEntry(tab: ChromeTab): TabEntry {
 }
 
 /**
- * 归档窗口内当前工作区的标签：query → 过滤可恢复 → saveTabSession。
- * 返回可恢复 tab 的 id 集供 dispose；任何异常返回 null——硬屏障信号（调用方据此不 dispose）。
+ * 隔离模式（内部，与 TabIsolationSetting 三档对应：close 全窗关 / hide-discard 保留壳丢内存 / hide 保留可见）。
+ * archiveByMode 只区分 close（全窗 restorable）与 hide（按 groupId 过滤当前 ws 组 + 散 tab）；
+ * hide-discard 与 hide 在 archive 阶段同路径（差异在 dispose/restore，后续 task）。
  */
-async function archive(
+export type TabIsolationMode = 'close' | 'hide-discard' | 'hide';
+
+/**
+ * 按 mode 归档窗口内当前 ws 的 tab（archiveByMode）。
+ * - close：全窗 restorable tab（v1 行为）。
+ * - hide / hide-discard：当前 ws 标识组（findGroupByIdentity 回找）的 tab + 散 tab
+ *   （groupId=-1/null，含 pinned，视为当前 ws），**不取别 ws 组**（防污染）。
+ *   找不到当前 ws 组时只收散 tab（兜底前保全，不任选别组防关错）。
+ * 任何异常返回 null（硬屏障信号，调用方不 dispose）。返回 {tabs: {id, entry}[]} 供 dispose/restore。
+ */
+export async function archiveByMode(
+  c: ChromeLike,
   windowId: number,
   fromId: string,
+  mode: TabIsolationMode,
   onProgress?: (p: SwitchProgress) => void,
-): Promise<{ id: number }[] | null> {
-  const c = getChrome();
-  if (!c) return null;
+): Promise<{ tabs: { id: number; entry: TabEntry }[] } | null> {
   try {
     const tabs = await c.tabs.query({ windowId });
     const restorable = tabs.filter(isRestorable);
-    await saveTabSession(fromId, restorable.map(toEntry));
-    onProgress?.({ phase: 'archive', count: restorable.length, total: restorable.length });
-    return restorable.map((t) => ({ id: t.id! }));
+    let mine: ChromeTab[];
+    if (mode === 'close') {
+      mine = restorable;
+    } else {
+      // hide / hide-discard：只收当前 ws 组 + 散 tab（groupId -1/null），不取别 ws 组
+      const gid = await findGroupByIdentity(windowId, fromId);
+      mine = restorable.filter((t) => t.groupId === gid || t.groupId === -1 || t.groupId == null);
+    }
+    const entries = mine.map((t) => ({ id: t.id!, entry: toEntry(t) }));
+    await saveTabSession(fromId, entries.map((e) => e.entry));
+    onProgress?.({ phase: 'archive', count: entries.length, total: entries.length });
+    return { tabs: entries };
   } catch {
-    return null; // 硬屏障：归档失败，不返回处置集
+    return null; // 硬屏障
   }
 }
 
@@ -168,71 +228,329 @@ async function openTabsInWindow(
 const noopUndo = async () => {};
 
 /**
- * 切换窗口的工作区：归档当前 → 关闭 content tab → 恢复目标 → 更新绑定。
- * archive 失败时绝不 dispose（硬屏障），Toast 报错后中止——绝不无归档关闭 tab。
- * 返回 undo 回调（T4：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding）。
+ * 查窗口内 home tab（runtime.getURL 派生 url）并激活。查不到 / update 失败静默
+ *（home 可能未开，补丁不阻断主流程）。
+ *
+ * 补丁目的：dispose hide/hide-discard 开头先把 active 切到 home，避免
+ * ① active tab 在待折叠组里致 discard 抛错；② 切换过程抢用户焦点。
  */
-async function performSwitch(
-  toId: string,
+async function activateHomeIfPresent(c: ChromeLike, windowId: number): Promise<void> {
+  try {
+    const homeUrl = c.runtime?.getURL('home.html');
+    if (!homeUrl) return;
+    const tabs = await c.tabs.query({ windowId });
+    const home = tabs.find((t) => t.id != null && t.url === homeUrl);
+    if (home?.id != null) await c.tabs.update(home.id, { active: true });
+  } catch {
+    /* home 未开 / update 失败：静默，不阻断 dispose */
+  }
+}
+
+/**
+ * 按 mode 处置（dispose）。返回 `{ ok }`：false=关键失败（collapse/group 抛错），
+ * 调用方据此不更新 binding。
+ *
+ * - close：remove（v1 disposeTabs，部分失败不阻断）。
+ * - hide / hide-discard：补丁激活 home → pinned（除 home，archive 已排除）remove
+ *   → 散 tab（groupId=-1/null 的 restorable 非 pinned）tabs.group 纳入当前 ws 组
+ *   （无组则建组 + update title=makeGroupTitle('', fromId)）→ collapse 组
+ *   → hide-discard 档逐 tab discard（单 tab 失败 try/catch 跳过，部分失败不阻断 ok）。
+ *
+ * archive 已排除 home / isInternalPage；toDispose 的 id 是 restorable tab。
+ */
+export async function disposeByMode(
+  c: ChromeLike,
   windowId: number,
+  fromId: string,
+  fromName: string,
+  mode: TabIsolationMode,
+  toDispose: { id: number; entry: TabEntry }[],
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<{ ok: boolean }> {
+  if (mode === 'close') {
+    await disposeTabs(c, toDispose.map((t) => t.id), onProgress);
+    return { ok: true };
+  }
+  // hide / hide-discard
+  try {
+    // 补丁：先激活 home tab（避 active tab 在待折叠组致 discard 失败 + 避抢焦点）
+    await activateHomeIfPresent(c, windowId);
+
+    // pinned tab 无法入组（Chrome 限制 C4b）→ remove（archive 已排除 home，toDispose 不含 home）
+    const pinnedIds = toDispose.filter((t) => t.entry.pinned).map((t) => t.id);
+    for (const id of pinnedIds) {
+      try { await c.tabs.remove(id); } catch { /* 部分失败不阻断 */ }
+    }
+
+    // 散 tab（groupId=-1/null 的 restorable 非 pinned；isRestorable 自动排除 home 等内部页）
+    // → 纳入当前 ws 组
+    const existingGid = await findGroupByIdentity(windowId, fromId);
+    const allTabs = await c.tabs.query({ windowId });
+    const looseTabIds = allTabs
+      .filter(
+        (t) =>
+          t.id != null &&
+          (t.groupId === -1 || t.groupId == null) &&
+          isRestorable(t) &&
+          !t.pinned,
+      )
+      .map((t) => t.id!);
+
+    let gid = existingGid;
+    if (gid == null && looseTabIds.length) {
+      // 无当前 ws 组但有散 tab → 建组 + update 标识
+      gid = await c.tabs.group({ tabIds: looseTabIds, createProperties: { windowId } });
+      await c.tabGroups.update(gid, { title: makeGroupTitle(fromName, fromId), color: 'grey' });
+    } else if (gid != null && looseTabIds.length) {
+      await c.tabs.group({ tabIds: looseTabIds, groupId: gid });
+    }
+
+    if (gid != null) {
+      // collapse 组（关键失败 → 外层 catch → ok=false）
+      await c.tabGroups.update(gid, { collapsed: true });
+      if (mode === 'hide-discard') {
+        // 逐 tab discard：active/受限 tab 抛错 try/catch 跳过，部分失败不阻断 ok
+        const groupTabs = (await c.tabs.query({ windowId })).filter(
+          (t) => t.groupId === gid && t.id != null,
+        );
+        for (const t of groupTabs) {
+          try { await c.tabs.discard(t.id!); } catch { /* active/受限 tab 跳过 */ }
+        }
+      }
+    }
+    onProgress?.({ phase: 'dispose', count: toDispose.length, total: toDispose.length });
+    return { ok: true };
+  } catch {
+    return { ok: false }; // collapse/group 关键失败 → 调用方不更新 binding
+  }
+}
+
+/**
+ * 按 mode 恢复目标 ws。返回 `{ opened, failed, groupId }`。
+ *
+ * - close：openTabsInWindow（v1）。
+ * - hide / hide-discard：标识回找命中 → tabs.ungroup（解散组，tab 释放到顶层 groupId=-1）；
+ *   未命中 → 兜底 restore（TabSession 重开，tab 散开不建组）。
+ *
+ * 补丁：返回值含 groupId（新模型恒 null，组切回即解散）。
+ * binding 只在调用方确认 opened/failed 可接受后写（见 performSwitch）。
+ */
+export async function restoreByMode(
+  c: ChromeLike,
+  windowId: number,
+  toId: string,
+  mode: TabIsolationMode,
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<{ opened: number[]; failed: TabEntry[]; groupId: number | null }> {
+  if (mode === 'close') {
+    const session = await getTabSession(toId);
+    const opened = session ? await openTabsInWindow(c, windowId, session.tabs, onProgress) : [];
+    return { opened, failed: [], groupId: null };
+  }
+  // hide / hide-discard
+  const gid = await findGroupByIdentity(windowId, toId);
+  if (gid != null) {
+    // 重建 dispose 时 remove 的 pinned tab（C4b：pinned 禁入组，dispose remove，restore 重开）。
+    const session = await getTabSession(toId);
+    if (session) {
+      const existing = await c.tabs.query({ windowId });
+      for (const t of session.tabs) {
+        if (t.pinned && !existing.some((e) => e.url === t.url && e.pinned)) {
+          try {
+            await c.tabs.create({ url: t.url, pinned: true, windowId, active: false });
+          } catch {
+            /* 部分失败：不阻断 ungroup */
+          }
+        }
+      }
+    }
+    // 新模型：切回解散组（tab 释放到顶层 groupId=-1），不再 expand（组仅作切走态临时收纳）
+    const groupTabs = (await c.tabs.query({ windowId })).filter(
+      (t) => t.groupId === gid && t.id != null,
+    );
+    if (groupTabs.length) {
+      await c.tabs.ungroup(groupTabs.map((t) => t.id!));
+    }
+    onProgress?.({ phase: 'restore', count: 0, total: 0 });
+    return { opened: [], failed: [], groupId: null };
+  }
+  // 兜底 restore：重开 tab（新模型不建组，tab 散开 groupId=-1；组仅切走态临时收纳）
+  const session = await getTabSession(toId);
+  if (!session || !session.tabs.length) {
+    return { opened: [], failed: [], groupId: null };
+  }
+  const opened: number[] = [];
+  const failed: TabEntry[] = [];
+  for (const t of session.tabs) {
+    try {
+      const created = (await c.tabs.create({
+        url: t.url,
+        pinned: t.pinned,
+        windowId,
+        index: t.order,
+        active: false,
+      })) as { id?: number } | undefined;
+      if (created?.id != null) opened.push(created.id);
+      else failed.push(t);
+    } catch {
+      failed.push(t);
+    }
+  }
+  onProgress?.({ phase: 'restore', count: opened.length, total: session.tabs.length });
+  return { opened, failed, groupId: null };
+}
+
+/**
+ * 切换窗口的工作区：归档当前 → 关闭 content tab → 恢复目标 → 更新绑定。
+ * v1.1：按 mode 委托 archiveByMode/disposeByMode/restoreByMode，引入失败状态机。
+ *
+ * 失败状态机（核心）：
+ * - archive null（硬屏障）→ 不 dispose + 不更新 binding + fromId:null。
+ * - dispose ok=false（hide 折叠/建组关键失败）→ 不 restore + 不更新 binding + fromId:null。
+ * - restore 抛错（M2 try/catch 兜底 group/update 抛错）→ 不更新 binding + fromId:null
+ *   （源已 dispose 的中间态由 undo/手动切回兜底）。
+ * - restore failed 非空（部分 tab 重开失败）→ 仍更新 binding（部分成功）+ Toast「未完成 N 个」。
+ *
+ * archive 失败时绝不 dispose（硬屏障），Toast 报错后中止——绝不无归档关闭 tab。
+ * undo = buildUndo 包 queuedUndo（T6）：反向切换（切回源 ws）→ 回滚 binding，
+ * 走 per-window 串行队列防与下一次切换交错。
+ */
+export async function performSwitch(
+  toId: string,
+  toName: string,
+  windowId: number,
+  mode: TabIsolationMode,
   options?: SwitchOptions,
 ): Promise<SwitchResult> {
   const onProgress = options?.onProgress;
+  const fromName = options?.fromName ?? '';
   const c = getChrome();
   if (!c) return { undo: noopUndo, fromId: null, closedCount: 0 };
   const fromId = await getWorkspaceBinding(windowId);
   if (!fromId || fromId === toId) return { undo: noopUndo, fromId: null, closedCount: 0 };
 
-  // 1. archive（失败 = 硬屏障，不动 tab）
-  const toDispose = await archive(windowId, fromId, onProgress);
-  if (toDispose === null) {
+  // 1. archive（硬屏障：失败绝不再向下走，绝不无归档关闭 tab）
+  const archived = await archiveByMode(c, windowId, fromId, mode, onProgress);
+  if (archived === null) {
     Toast.error('切换中止：无法保存当前标签');
     return { undo: noopUndo, fromId: null, closedCount: 0 };
   }
 
-  // 2. dispose（保 home：toDispose 已排除 home tab）
-  await disposeTabs(c, toDispose.map((t) => t.id), onProgress);
-
-  // 3. restore 目标工作区标签（active:false 防闪烁）；记 openedIds 供 undo
-  const targetSession = await getTabSession(toId);
-  let openedIds: number[] = [];
-  if (targetSession) {
-    openedIds = await openTabsInWindow(c, windowId, targetSession.tabs, onProgress);
+  // 2. dispose（hide：collapse/建组关键失败 ok=false → 不更新 binding）
+  const disposed = await disposeByMode(c, windowId, fromId, fromName, mode, archived.tabs, onProgress);
+  if (!disposed.ok) {
+    Toast.error('切换中止：无法收起当前标签，已保留');
+    return { undo: noopUndo, fromId: null, closedCount: 0 };
   }
 
-  // 4. 更新窗口绑定
+  // 3. restore 目标 ws（M2：try/catch 兜底 restoreByMode 内 group/update 抛错；
+  //    restoreByMode close 路径的 openTabsInWindow 抛错也在此兜住）
+  let restored: { opened: number[]; failed: TabEntry[]; groupId: number | null } = {
+    opened: [],
+    failed: [],
+    groupId: null,
+  };
+  try {
+    restored = await restoreByMode(c, windowId, toId, mode, onProgress);
+  } catch {
+    // restore 抛错（非 failed 非空）→ 不更新 binding；源已 dispose 的中间态由 undo/手动切回兜底
+    Toast.error('切换未完成：恢复目标标签时出错');
+    return { undo: noopUndo, fromId: null, closedCount: 0 };
+  }
+
+  // 4. 更新绑定（dispose.ok 后；restore failed 非空仍更新 = 部分成功）
   await setWorkspaceBinding(windowId, toId);
   onProgress?.({ phase: 'done', count: 0, total: 0 });
 
-  // undo：dispose 本次 restore 集 → restore 原工作区 → 回滚 binding（仅 token 存活期有效）
-  // fromId/closedCount 供 T4 切换结果 Toast（「已切换到 X / 已关闭 N / 切回 Y」）
-  return {
-    undo: async () => {
-      if (openedIds.length) await disposeTabs(c, openedIds);
-      const prevSession = await getTabSession(fromId);
-      if (prevSession) await openTabsInWindow(c, windowId, prevSession.tabs);
-      await setWorkspaceBinding(windowId, fromId);
-    },
-    fromId,
-    closedCount: toDispose.length,
-  };
+  if (restored.failed.length) {
+    Toast.error(`切换未完成：还有 ${restored.failed.length} 个标签未恢复`);
+  }
+
+  // T6: buildUndo（反向切换）包 queuedUndo（走 per-window 串行队列）
+  // undo = 反向切换（切回源 ws）：新模型「组」临时（切回即解散），无 generation 校验。
+  const snapshot: UndoSnapshot = { fromId, toId, fromName, toName, mode };
+  const undo = queueUndo(windowId, buildUndo(c, windowId, snapshot));
+  return { undo, fromId, closedCount: archived.tabs.length };
 }
 
 // per-window 串行队列（rev4 #2）：同窗并发切换按序执行，防 archive/dispose 交错覆盖 session/关错 tab。
-// 不同窗口各自独立 inflight，互不阻塞。
+// 不同窗口各自独立 inflight，互不阻塞。undo（queuedUndo）也走本队列，防 undo 与下一次切换交错。
 const inflight = new Map<number, Promise<void>>();
+
+/**
+ * 把 undo 包进 per-window 串行队列（T6）。undo 不绕过 inflight，防 undo 与下一次切换
+ * 交错（archive/dispose/undo 互相覆盖 session 或关错 tab）。模式与 requestWorkspaceSwitch 同构。
+ */
+function queueUndo(windowId: number, undoFn: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    const prev = inflight.get(windowId) ?? Promise.resolve();
+    const task = prev.then(undoFn, undoFn); // Promise<void>
+    const voidTask = task.then(noopUndo, noopUndo);
+    inflight.set(windowId, voidTask);
+    try {
+      await task;
+    } finally {
+      if (inflight.get(windowId) === voidTask) inflight.delete(windowId);
+    }
+  };
+}
+
+/**
+ * 构造 undo 函数（v1.1）：反向切换（切回源 ws）。新模型「组」临时（切回即解散），无 generation 校验。
+ *
+ * undo = 手动编排 archive/dispose/restore（不走 performSwitch，避免 queueUndo 嵌套 phantom undo）。
+ * 源/目标互换：反向源 = 原目标 toId（切回态 tab 散）；反向目标 = 原源 fromId（切走态组折叠）。
+ *
+ * 失败状态机（对称 performSwitch）：archive null / dispose ok=false / restore throw → Toast + 不回滚 binding。
+ */
+function buildUndo(
+  c: ChromeLike,
+  windowId: number,
+  snapshot: UndoSnapshot,
+  onProgress?: (p: SwitchProgress) => void,
+): () => Promise<void> {
+  return async () => {
+    // 新模型「组」临时（切回即解散），无 generation 校验。
+    // undo = 反向切换（切回源 ws）：手动编排 archive/dispose/restore，不走 performSwitch
+    // （避免其末尾 queueUndo 嵌套产生 phantom undo）。源/目标互换：
+    // 反向源 = 原目标 toId（当前 binding，切回态 tab 散）；反向目标 = 原源 fromId（切走态组折叠）。
+    const archived = await archiveByMode(c, windowId, snapshot.toId, snapshot.mode, onProgress);
+    if (archived === null) {
+      Toast.error('撤销失败：无法保存当前标签');
+      return;
+    }
+    const disposed = await disposeByMode(
+      c, windowId, snapshot.toId, snapshot.toName, snapshot.mode, archived.tabs, onProgress,
+    );
+    if (!disposed.ok) {
+      Toast.error('撤销失败：无法收起当前标签');
+      return;
+    }
+    try {
+      await restoreByMode(c, windowId, snapshot.fromId, snapshot.mode, onProgress);
+    } catch {
+      Toast.error('撤销未完成：恢复标签时出错');
+      return;
+    }
+    await setWorkspaceBinding(windowId, snapshot.fromId);
+    onProgress?.({ phase: 'done', count: 0, total: 0 });
+  };
+}
 
 /**
  * 切换窗口的工作区（单命令入口，AppRail/Sidebar 共用）。selectWorkspace 保持纯 UI。
  * 同窗并发请求串行化排队；archive 硬屏障保证绝不无归档关闭 tab。
- * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费）。
+ * toName 由上层（能访问 store）传入，供 restoreByMode 建 group title。
+ * options.onProgress 发各阶段进度（T8 消费）；返回 undo 回调（T4 消费；T6 buildUndo 包 queuedUndo）。
  */
 export async function requestWorkspaceSwitch(
   toId: string,
+  toName: string,
   windowId: number,
+  mode: TabIsolationMode,
   options?: SwitchOptions,
 ): Promise<SwitchResult> {
-  const run = () => performSwitch(toId, windowId, options);
+  const run = () => performSwitch(toId, toName, windowId, mode, options);
   const prev = inflight.get(windowId) ?? Promise.resolve();
   const task = prev.then(run, run); // Promise<SwitchResult>
   const voidTask = task.then(noopUndo, noopUndo);
@@ -245,28 +563,48 @@ export async function requestWorkspaceSwitch(
 }
 
 /**
- * 门控分流（T3）：按隔离设置决定切换走 tab 编排（close）还是纯 UI（off）。
+ * 门控分流（T3 + T8）：按隔离设置决定切换走 tab 编排（close/hide-discard/hide）还是纯 UI（off）。
  *
- * - close + windowId：先 requestWorkspaceSwitch（archive/dispose/restore + 更新 binding），
- *   再 selectWorkspace。requestWorkspaceSwitch 只改 binding/session 不动 store 选中态，
- *   不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
+ * - close/hide-discard/hide + windowId：先 requestWorkspaceSwitch（archive/dispose/restore +
+ *   更新 binding），再 selectWorkspace。requestWorkspaceSwitch 只改 binding/session 不动 store
+ *   选中态，不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
+ *   T5 M1：切换失败（result.fromId===null：archive/dispose/restore 抛错）→ 不调 selectWorkspace
+ *   （保持 UI 停 fromId，与 binding 一致；否则 UI 高亮切 toId 但 binding 停 fromId 不一致）。
  * - off 或 windowId=null（非扩展环境）：仅 selectWorkspace（当前行为，不碰 tab）。
  *
+ * toName 由上层（switchWorkspace）传入，供 restoreByMode 建 group title。
+ * setting→mode 映射：close→'close' / hide-discard→'hide-discard' / hide→'hide' / off→null。
  * selectWorkspace 注入（store 方法），保持本模块不依赖 store。
  */
 export async function switchWorkspaceBySetting(params: {
   toId: string;
+  toName: string;
+  /** 源工作区名（离开时 dispose 建组 title 用）；上层 workspaceSwitcher 从 store 派生传入。 */
+  fromName?: string;
   setting: TabIsolationSetting;
   windowId: number | null;
   selectWorkspace: (id: string) => Promise<void>;
   onProgress?: (p: SwitchProgress) => void;
 }): Promise<SwitchResult> {
-  const { toId, setting, windowId, selectWorkspace, onProgress } = params;
-  if (setting === 'close' && windowId != null) {
-    const result = await requestWorkspaceSwitch(toId, windowId, onProgress ? { onProgress } : undefined);
-    await selectWorkspace(toId);
+  const { toId, toName, fromName, setting, windowId, selectWorkspace, onProgress } = params;
+  // setting→mode 映射：off→null（纯 UI），其余三档走 tab 编排
+  const mode =
+    setting === 'close' ? 'close'
+    : setting === 'hide-discard' ? 'hide-discard'
+    : setting === 'hide' ? 'hide'
+    : null;
+  if (mode && windowId != null) {
+    const opts: SwitchOptions = {};
+    if (onProgress) opts.onProgress = onProgress;
+    if (fromName) opts.fromName = fromName;
+    const result = await requestWorkspaceSwitch(toId, toName, windowId, mode, opts);
+    // T5 M1：切换失败（fromId===null）→ 不调 selectWorkspace（UI 停 fromId 与 binding 一致）
+    if (result.fromId != null) {
+      await selectWorkspace(toId);
+    }
     return result;
   }
+  // off 或非扩展环境（windowId=null）：纯 selectWorkspace（当前行为，不碰 tab）
   await selectWorkspace(toId);
   return { undo: noopUndo, fromId: null, closedCount: 0 };
 }
@@ -284,5 +622,43 @@ export async function countRestorableTabsInWindow(windowId: number): Promise<num
     return tabs.filter(isRestorable).length;
   } catch {
     return 0;
+  }
+}
+
+/**
+ * 跨档 normalize（T7）：hide→close 时清窗口内非当前 ws 标识组（tab 已在各自 session），
+ * 窗口回归 close「只剩当前 ws tab」干净语义，避免 close 全窗 archive 污染。
+ * 其他切档（close→hide / off↔任意）no-op。
+ *
+ * 只清 Octane 管的标识组（title 含 ` ·xxxxxxxx` wsHash 后缀）且非当前绑定 ws；
+ * 用户手动组（无标识格式）不碰。非扩展环境 / 异常静默（不阻断 setting 写入）。
+ */
+export async function normalizeOnModeChange(
+  windowId: number,
+  newMode: TabIsolationSetting,
+): Promise<void> {
+  if (newMode !== 'close') return; // 仅切入 close 触发 normalize
+  const c = getChrome();
+  if (!c) return;
+  try {
+    const currentWs = await getWorkspaceBinding(windowId);
+    const groups = await c.tabGroups.query({ windowId });
+    for (const g of groups) {
+      // Octane 标识组：title 以 ` ·xxxxxxxx`（wsHash 8 hex）结尾
+      const m = g.title?.match(/ ·([0-9a-f]{8})$/);
+      if (!m) continue; // 用户手动组，不碰
+      const hash = m[1]!;
+      // 当前 ws 组保留（wsHash 一致）
+      if (currentWs && wsHash(currentWs) === hash) continue;
+      // 非当前 ws 标识组：remove 其所有 tab（内容已在各自 session）
+      const groupTabs = (await c.tabs.query({ windowId })).filter(
+        (t) => t.groupId === g.id && t.id != null,
+      );
+      for (const t of groupTabs) {
+        try { await c.tabs.remove(t.id!); } catch { /* 部分失败：不阻断 */ }
+      }
+    }
+  } catch {
+    /* 异常静默：不阻断 setting 写入 */
   }
 }
