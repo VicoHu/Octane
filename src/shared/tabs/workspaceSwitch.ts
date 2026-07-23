@@ -18,7 +18,7 @@ import type { TabEntry } from '@/shared/types';
 import { saveTabSession, getTabSession } from '@/services/TabSessionService';
 import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspaceBinding';
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
-import { findGroupByIdentity } from '@/shared/tabs/tabGroupIdentity';
+import { findGroupByIdentity, makeGroupTitle } from '@/shared/tabs/tabGroupIdentity';
 import { Toast } from '@/components/ui/toast';
 
 declare const chrome: unknown;
@@ -60,6 +60,8 @@ interface ChromeTab {
 }
 
 interface ChromeLike {
+  /** runtime.getURL（补丁：dispose hide 激活 home tab 时派生 home url）。可选防御。 */
+  runtime?: { getURL(path: string): string };
   tabs: {
     query(info: { windowId?: number }): Promise<ChromeTab[]>;
     create(props: {
@@ -225,6 +227,169 @@ async function openTabsInWindow(
 }
 
 const noopUndo = async () => {};
+
+/**
+ * 查窗口内 home tab（runtime.getURL 派生 url）并激活。查不到 / update 失败静默
+ *（home 可能未开，补丁不阻断主流程）。
+ *
+ * 补丁目的：dispose hide/hide-discard 开头先把 active 切到 home，避免
+ * ① active tab 在待折叠组里致 discard 抛错；② 切换过程抢用户焦点。
+ */
+async function activateHomeIfPresent(c: ChromeLike, windowId: number): Promise<void> {
+  try {
+    const homeUrl = c.runtime?.getURL('home.html');
+    if (!homeUrl) return;
+    const tabs = await c.tabs.query({ windowId });
+    const home = tabs.find((t) => t.id != null && t.url === homeUrl);
+    if (home?.id != null) await c.tabs.update(home.id, { active: true });
+  } catch {
+    /* home 未开 / update 失败：静默，不阻断 dispose */
+  }
+}
+
+/**
+ * 按 mode 处置（dispose）。返回 `{ ok }`：false=关键失败（collapse/group 抛错），
+ * 调用方据此不更新 binding。
+ *
+ * - close：remove（v1 disposeTabs，部分失败不阻断）。
+ * - hide / hide-discard：补丁激活 home → pinned（除 home，archive 已排除）remove
+ *   → 散 tab（groupId=-1/null 的 restorable 非 pinned）tabs.group 纳入当前 ws 组
+ *   （无组则建组 + update title=makeGroupTitle('', fromId)）→ collapse 组
+ *   → hide-discard 档逐 tab discard（单 tab 失败 try/catch 跳过，部分失败不阻断 ok）。
+ *
+ * archive 已排除 home / isInternalPage；toDispose 的 id 是 restorable tab。
+ */
+export async function disposeByMode(
+  c: ChromeLike,
+  windowId: number,
+  fromId: string,
+  mode: TabIsolationMode,
+  toDispose: { id: number; entry: TabEntry }[],
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<{ ok: boolean }> {
+  if (mode === 'close') {
+    await disposeTabs(c, toDispose.map((t) => t.id), onProgress);
+    return { ok: true };
+  }
+  // hide / hide-discard
+  try {
+    // 补丁：先激活 home tab（避 active tab 在待折叠组致 discard 失败 + 避抢焦点）
+    await activateHomeIfPresent(c, windowId);
+
+    // pinned tab 无法入组（Chrome 限制 C4b）→ remove（archive 已排除 home，toDispose 不含 home）
+    const pinnedIds = toDispose.filter((t) => t.entry.pinned).map((t) => t.id);
+    for (const id of pinnedIds) {
+      try { await c.tabs.remove(id); } catch { /* 部分失败不阻断 */ }
+    }
+
+    // 散 tab（groupId=-1/null 的 restorable 非 pinned；isRestorable 自动排除 home 等内部页）
+    // → 纳入当前 ws 组
+    const existingGid = await findGroupByIdentity(windowId, fromId);
+    const allTabs = await c.tabs.query({ windowId });
+    const looseTabIds = allTabs
+      .filter(
+        (t) =>
+          t.id != null &&
+          (t.groupId === -1 || t.groupId == null) &&
+          isRestorable(t) &&
+          !t.pinned,
+      )
+      .map((t) => t.id!);
+
+    let gid = existingGid;
+    if (gid == null && looseTabIds.length) {
+      // 无当前 ws 组但有散 tab → 建组 + update 标识
+      gid = await c.tabs.group({ tabIds: looseTabIds, createProperties: { windowId } });
+      await c.tabGroups.update(gid, { title: makeGroupTitle('', fromId), color: 'grey' });
+    } else if (gid != null && looseTabIds.length) {
+      await c.tabs.group({ tabIds: looseTabIds, groupId: gid });
+    }
+
+    if (gid != null) {
+      // collapse 组（关键失败 → 外层 catch → ok=false）
+      await c.tabGroups.update(gid, { collapsed: true });
+      if (mode === 'hide-discard') {
+        // 逐 tab discard：active/受限 tab 抛错 try/catch 跳过，部分失败不阻断 ok
+        const groupTabs = (await c.tabs.query({ windowId })).filter(
+          (t) => t.groupId === gid && t.id != null,
+        );
+        for (const t of groupTabs) {
+          try { await c.tabs.discard(t.id!); } catch { /* active/受限 tab 跳过 */ }
+        }
+      }
+    }
+    onProgress?.({ phase: 'dispose', count: toDispose.length, total: toDispose.length });
+    return { ok: true };
+  } catch {
+    return { ok: false }; // collapse/group 关键失败 → 调用方不更新 binding
+  }
+}
+
+/**
+ * 按 mode 恢复目标 ws。返回 `{ opened, failed, groupId }`。
+ *
+ * - close：openTabsInWindow（v1）。
+ * - hide / hide-discard：标识回找命中 → expand（collapsed:false）；未命中 → 兜底 restore
+ *   （TabSession 重开 + tabs.group 建组 + tabGroups.update(title=makeGroupTitle,
+ *   collapsed:false)）。
+ *
+ * 补丁：返回值含 groupId（供 T6 undo generation 校验组结构）。
+ * binding 只在调用方确认 opened/failed 可接受后写（见 performSwitch）。
+ */
+export async function restoreByMode(
+  c: ChromeLike,
+  windowId: number,
+  toId: string,
+  toName: string,
+  mode: TabIsolationMode,
+  onProgress?: (p: SwitchProgress) => void,
+): Promise<{ opened: number[]; failed: TabEntry[]; groupId: number | null }> {
+  if (mode === 'close') {
+    const session = await getTabSession(toId);
+    const opened = session ? await openTabsInWindow(c, windowId, session.tabs, onProgress) : [];
+    return { opened, failed: [], groupId: null };
+  }
+  // hide / hide-discard
+  const gid = await findGroupByIdentity(windowId, toId);
+  if (gid != null) {
+    await c.tabGroups.update(gid, { collapsed: false }); // expand
+    onProgress?.({ phase: 'restore', count: 0, total: 0 });
+    return { opened: [], failed: [], groupId: gid };
+  }
+  // 兜底 restore：重开 + 建组
+  const session = await getTabSession(toId);
+  if (!session || !session.tabs.length) {
+    return { opened: [], failed: [], groupId: null };
+  }
+  const opened: number[] = [];
+  const failed: TabEntry[] = [];
+  for (const t of session.tabs) {
+    try {
+      const created = (await c.tabs.create({
+        url: t.url,
+        pinned: t.pinned,
+        windowId,
+        index: t.order,
+        active: false,
+      })) as { id?: number } | undefined;
+      if (created?.id != null) opened.push(created.id);
+      else failed.push(t);
+    } catch {
+      failed.push(t);
+    }
+  }
+  let newGid: number | null = null;
+  if (opened.length) {
+    newGid = await c.tabs.group({ tabIds: opened, createProperties: { windowId } });
+    await c.tabGroups.update(newGid, {
+      title: makeGroupTitle(toName, toId),
+      color: 'grey',
+      collapsed: false,
+    });
+  }
+  onProgress?.({ phase: 'restore', count: opened.length, total: session.tabs.length });
+  return { opened, failed, groupId: newGid };
+}
 
 /**
  * 切换窗口的工作区：归档当前 → 关闭 content tab → 恢复目标 → 更新绑定。

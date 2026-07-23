@@ -4,6 +4,8 @@ import {
   switchWorkspaceBySetting,
   countRestorableTabsInWindow,
   archiveByMode,
+  disposeByMode,
+  restoreByMode,
   type SwitchProgress,
 } from '../workspaceSwitch';
 
@@ -386,5 +388,249 @@ describe('archiveByMode', () => {
     const result = await archiveByMode(c, 1, 'aaaa1111-0000-0000', 'hide');
     expect(result).toBeNull();
     c.tabs.query = orig;
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// T4: disposeByMode + restoreByMode（hide 核心 dispose/restore）
+// 自 contained Map-driven chrome stub（参考 archiveByMode 测试同构），含 Map-backed
+// storage.local（TabSession 真实往返）+ vi.fn 的 update/create（验证两个补丁）。
+// ──────────────────────────────────────────────────────────────────────────
+
+/** 装一份新鲜 Map 驱动的 chrome（tabs/groups/storage 全真实往返），返回实例供断言。 */
+function installDisposeRestoreStub() {
+  const groups = new Map<number, any>();
+  const tabsStore = new Map<number, any>();
+  const storageStore: Record<string, unknown> = {};
+  let nextGroupId = 100;
+  let nextTabId = 1000;
+  const c: any = {
+    runtime: { getURL: (p: string) => `chrome-extension://octane/${p.replace(/^\//, '')}` },
+    tabs: {
+      query: async (info: { windowId?: number } = {}) =>
+        Array.from(tabsStore.values()).filter(
+          (t) => info.windowId == null || t.windowId === info.windowId,
+        ),
+      create: vi.fn(async (props: any) => {
+        const id = nextTabId++;
+        const tab = { id, groupId: -1, active: false, ...props };
+        tabsStore.set(id, tab);
+        return { ...tab };
+      }),
+      remove: async (id: number) => { tabsStore.delete(id); },
+      update: vi.fn(async (id: number, props: any) => {
+        const tab = tabsStore.get(id);
+        if (!tab) throw new Error(`Tab ${id} not found`);
+        Object.assign(tab, props);
+        return { ...tab };
+      }),
+      discard: async (id: number) => {
+        const tab = tabsStore.get(id);
+        if (!tab) throw new Error(`Tab ${id} not found`);
+        if (tab.active) throw new Error('Cannot discard active tab');
+        tab.discarded = true;
+        return { ...tab };
+      },
+      group: async (opts: any) => {
+        let gid = opts.groupId;
+        if (gid == null) {
+          gid = nextGroupId++;
+          groups.set(gid, {
+            id: gid, windowId: opts.createProperties?.windowId ?? -1,
+            title: '', color: 'grey', collapsed: false,
+          });
+        }
+        for (const tid of opts.tabIds) {
+          const tab = tabsStore.get(tid);
+          if (tab) tab.groupId = gid;
+        }
+        return gid;
+      },
+      ungroup: async (tabIds: number[]) => {
+        for (const tid of tabIds) {
+          const tab = tabsStore.get(tid);
+          if (tab) tab.groupId = -1;
+        }
+      },
+    },
+    tabGroups: {
+      get: async (gid: number) => {
+        const g = groups.get(gid);
+        if (!g) throw new Error(`Group ${gid} not found`);
+        return { ...g };
+      },
+      query: async (info: { windowId?: number } = {}) =>
+        Array.from(groups.values()).filter(
+          (g) => info.windowId == null || g.windowId === info.windowId,
+        ),
+      update: async (gid: number, props: any) => {
+        const g = groups.get(gid);
+        if (!g) throw new Error(`Group ${gid} not found`);
+        Object.assign(g, props);
+        return { ...g };
+      },
+    },
+    storage: {
+      local: {
+        get: async (keys: string | string[]) => {
+          const arr = Array.isArray(keys) ? keys : [keys];
+          const out: Record<string, unknown> = {};
+          for (const k of arr) if (k in storageStore) out[k] = storageStore[k];
+          return out;
+        },
+        set: async (data: Record<string, unknown>) => { Object.assign(storageStore, data); },
+        remove: async (keys: string | string[]) => {
+          const arr = Array.isArray(keys) ? keys : [keys];
+          for (const k of arr) delete storageStore[k];
+        },
+      },
+    },
+    __testTabs: tabsStore,
+    __testGroups: groups,
+    __testStorage: storageStore,
+  };
+  (globalThis as unknown as { chrome: unknown }).chrome = c;
+  return c;
+}
+
+describe('disposeByMode', () => {
+  beforeEach(() => {
+    const c = installDisposeRestoreStub();
+    // 当前 ws（aaaa1111）组 gid=10 含 1 tab；pinned home tab；散 tab；pinned 非 home tab
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: '工作 ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a1.com', groupId: 10 });
+    c.__testTabs.set(2, { id: 2, windowId: 1, url: 'chrome-extension://octane/home.html', groupId: -1, pinned: true });
+    c.__testTabs.set(3, { id: 3, windowId: 1, url: 'https://loose.com', groupId: -1 });
+    c.__testTabs.set(4, { id: 4, windowId: 1, url: 'https://pinned.com', groupId: -1, pinned: true });
+  });
+
+  describe('close 档（v1 回归）', () => {
+    it('close：走 v1 disposeTabs（remove）→ ok=true', async () => {
+      const c = (globalThis as any).chrome;
+      const toDispose = [
+        { id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } },
+        { id: 3, entry: { url: 'https://loose.com', pinned: false, order: 1 } },
+      ];
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'close', toDispose as any);
+      expect(r.ok).toBe(true);
+      expect(c.__testTabs.has(1)).toBe(false);
+      expect(c.__testTabs.has(3)).toBe(false);
+    });
+  });
+
+  describe('hide / hide-discard 档', () => {
+    it('hide：激活 home + 散 tab 入组 + collapse + pinned remove', async () => {
+      const c = (globalThis as any).chrome;
+      const toDispose = [
+        { id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } },
+        { id: 3, entry: { url: 'https://loose.com', pinned: false, order: 1 } },
+        { id: 4, entry: { url: 'https://pinned.com', pinned: true, order: 2 } },
+      ];
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', toDispose as any);
+      expect(r.ok).toBe(true);
+      // 补丁 1：激活 home tab（避 discard active 失败 + 避抢焦点）
+      expect(c.tabs.update).toHaveBeenCalledWith(2, { active: true });
+      // 组折叠
+      expect(c.__testGroups.get(10).collapsed).toBe(true);
+      // pinned tab 被 remove
+      expect(c.__testTabs.has(4)).toBe(false);
+      // 散 tab 纳入组 10
+      expect(c.__testTabs.get(3).groupId).toBe(10);
+      // home tab 未被 dispose（仍存在，isRestorable 自动排除 chrome-extension://）
+      expect(c.__testTabs.has(2)).toBe(true);
+    });
+
+    it('hide-discard：折叠 + discard 非 active tab', async () => {
+      const c = (globalThis as any).chrome;
+      const toDispose = [{ id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } }];
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide-discard', toDispose as any);
+      expect(r.ok).toBe(true);
+      expect(c.__testGroups.get(10).collapsed).toBe(true);
+      // home 被 active 后 tab 1 非 active → discard 成功
+      expect(c.__testTabs.get(1).discarded).toBe(true);
+    });
+
+    it('hide：无现有 ws 组 + 散 tab → 建组（title=标识）+ collapse', async () => {
+      const c = (globalThis as any).chrome;
+      c.__testGroups.clear(); // 清掉组 10 模拟无现有 ws 组
+      const toDispose = [{ id: 3, entry: { url: 'https://loose.com', pinned: false, order: 0 } }];
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', toDispose as any);
+      expect(r.ok).toBe(true);
+      // 新建组 title=标识（空名 + wsHash），collapsed=true
+      const groups = Array.from(c.__testGroups.values());
+      expect(groups.some((g: any) => g.title === ' ·aaaa1111' && g.collapsed === true)).toBe(true);
+    });
+
+    it('collapse 失败 → ok=false（调用方不更新 binding）', async () => {
+      const c = (globalThis as any).chrome;
+      const orig = c.tabGroups.update;
+      c.tabGroups.update = async () => { throw new Error('boom'); };
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide', []);
+      expect(r.ok).toBe(false);
+      c.tabGroups.update = orig;
+    });
+
+    it('discard 单 tab 失败不阻断 ok（部分失败降级）', async () => {
+      const c = (globalThis as any).chrome;
+      const orig = c.tabs.discard;
+      c.tabs.discard = async () => { throw new Error('cannot discard'); };
+      const toDispose = [{ id: 1, entry: { url: 'https://a1.com', pinned: false, order: 0 } }];
+      const r = await disposeByMode(c, 1, 'aaaa1111-0000-0000', 'hide-discard', toDispose as any);
+      expect(r.ok).toBe(true); // discard 失败不阻断
+      c.tabs.discard = orig;
+    });
+  });
+});
+
+describe('restoreByMode', () => {
+  beforeEach(() => {
+    installDisposeRestoreStub();
+  });
+
+  describe('close 档（v1 回归）', () => {
+    it('close：走 v1 openTabsInWindow（重开 tab）', async () => {
+      const c = (globalThis as any).chrome;
+      const { saveTabSession } = await import('@/services/TabSessionService');
+      await saveTabSession('cccc3333-0000-0000', [{ url: 'https://x.com', pinned: false, order: 0 }]);
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'close');
+      expect(r.opened.length).toBe(1);
+      expect(c.tabs.create).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://x.com' }));
+    });
+  });
+
+  describe('hide / hide-discard 档', () => {
+    it('命中标识组 → expand（不重开）+ 返回 groupId（补丁 2）', async () => {
+      const c = (globalThis as any).chrome;
+      c.__testGroups.set(20, { id: 20, windowId: 1, title: '目标 ·cccc3333', color: 'grey', collapsed: true });
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      expect(r.opened).toEqual([]);
+      // 补丁 2：返回 groupId 供 T6 undo generation 校验组结构
+      expect(r.groupId).toBe(20);
+      expect(c.__testGroups.get(20).collapsed).toBe(false);
+      // 不重开 tab
+      expect(c.tabs.create).not.toHaveBeenCalled();
+    });
+
+    it('未命中 → 兜底 restore 重开 + 建组（title=标识）+ 返回 groupId（补丁 2）', async () => {
+      const c = (globalThis as any).chrome;
+      const { saveTabSession } = await import('@/services/TabSessionService');
+      await saveTabSession('cccc3333-0000-0000', [{ url: 'https://x.com', pinned: false, order: 0 }]);
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      expect(r.opened.length).toBe(1);
+      // 补丁 2：新建组也返回 groupId
+      expect(r.groupId).not.toBeNull();
+      // 新组 title = 标识，collapsed=false
+      const groups = await c.tabGroups.query({ windowId: 1 });
+      expect(groups.some((g: any) => g.title === '目标 ·cccc3333')).toBe(true);
+      expect(groups.some((g: any) => g.id === r.groupId && g.collapsed === false)).toBe(true);
+    });
+
+    it('未命中且无 TabSession → 空（无 tab 可恢复，groupId=null）', async () => {
+      const c = (globalThis as any).chrome;
+      const r = await restoreByMode(c, 1, 'cccc3333-0000-0000', '目标', 'hide');
+      expect(r.opened).toEqual([]);
+      expect(r.failed).toEqual([]);
+      expect(r.groupId).toBeNull();
+    });
   });
 });
