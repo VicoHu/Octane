@@ -64,6 +64,27 @@ describe('switchWorkspace — home 门控入口（实时读 setting/windowId + �
     );
   });
 
+  // T8：hide / hide-discard setting 透传 switchWorkspaceBySetting（mode 映射在 shared 层测）
+  it('hide setting：setting=hide 传入 switchWorkspaceBySetting', async () => {
+    installChrome({ tabIsolationSetting: 'hide' }, 5);
+
+    await switchWorkspace('ws-b');
+
+    expect(switchWorkspaceBySetting).toHaveBeenCalledWith(
+      expect.objectContaining({ toId: 'ws-b', setting: 'hide', windowId: 5 }),
+    );
+  });
+
+  it('hide-discard setting：setting=hide-discard 传入 switchWorkspaceBySetting', async () => {
+    installChrome({ tabIsolationSetting: 'hide-discard' }, 5);
+
+    await switchWorkspace('ws-a');
+
+    expect(switchWorkspaceBySetting).toHaveBeenCalledWith(
+      expect.objectContaining({ toId: 'ws-a', setting: 'hide-discard', windowId: 5 }),
+    );
+  });
+
   it('T4：关闭 tab（N>0）→ 弹结果 Toast（action 切回，非撤销）', async () => {
     installChrome({ tabIsolationSetting: 'close' }, 5);
     useWorkspace.setState({

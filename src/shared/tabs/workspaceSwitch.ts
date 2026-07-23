@@ -563,15 +563,17 @@ export async function requestWorkspaceSwitch(
 }
 
 /**
- * 门控分流（T3）：按隔离设置决定切换走 tab 编排（close）还是纯 UI（off）。
+ * 门控分流（T3 + T8）：按隔离设置决定切换走 tab 编排（close/hide-discard/hide）还是纯 UI（off）。
  *
- * - close + windowId：先 requestWorkspaceSwitch（archive/dispose/restore + 更新 binding），
- *   再 selectWorkspace。requestWorkspaceSwitch 只改 binding/session 不动 store 选中态，
- *   不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
+ * - close/hide-discard/hide + windowId：先 requestWorkspaceSwitch（archive/dispose/restore +
+ *   更新 binding），再 selectWorkspace。requestWorkspaceSwitch 只改 binding/session 不动 store
+ *   选中态，不调 selectWorkspace 则 UI 高亮与分类停留在旧工作区。
+ *   T5 M1：切换失败（result.fromId===null：archive/dispose/restore 抛错）→ 不调 selectWorkspace
+ *   （保持 UI 停 fromId，与 binding 一致；否则 UI 高亮切 toId 但 binding 停 fromId 不一致）。
  * - off 或 windowId=null（非扩展环境）：仅 selectWorkspace（当前行为，不碰 tab）。
  *
  * toName 由上层（switchWorkspace）传入，供 restoreByMode 建 group title。
- * mode 暂硬编码 'close'（v1 行为不变）；hide/hide-discard 映射在 T8 由 setting→mode 转换接入。
+ * setting→mode 映射：close→'close' / hide-discard→'hide-discard' / hide→'hide' / off→null。
  * selectWorkspace 注入（store 方法），保持本模块不依赖 store。
  */
 export async function switchWorkspaceBySetting(params: {
@@ -583,17 +585,27 @@ export async function switchWorkspaceBySetting(params: {
   onProgress?: (p: SwitchProgress) => void;
 }): Promise<SwitchResult> {
   const { toId, toName, setting, windowId, selectWorkspace, onProgress } = params;
-  if (setting === 'close' && windowId != null) {
+  // setting→mode 映射：off→null（纯 UI），其余三档走 tab 编排
+  const mode =
+    setting === 'close' ? 'close'
+    : setting === 'hide-discard' ? 'hide-discard'
+    : setting === 'hide' ? 'hide'
+    : null;
+  if (mode && windowId != null) {
     const result = await requestWorkspaceSwitch(
       toId,
       toName,
       windowId,
-      'close',
+      mode,
       onProgress ? { onProgress } : undefined,
     );
-    await selectWorkspace(toId);
+    // T5 M1：切换失败（fromId===null）→ 不调 selectWorkspace（UI 停 fromId 与 binding 一致）
+    if (result.fromId != null) {
+      await selectWorkspace(toId);
+    }
     return result;
   }
+  // off 或非扩展环境（windowId=null）：纯 selectWorkspace（当前行为，不碰 tab）
   await selectWorkspace(toId);
   return { undo: noopUndo, fromId: null, closedCount: 0 };
 }

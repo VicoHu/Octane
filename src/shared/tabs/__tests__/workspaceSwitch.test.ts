@@ -965,3 +965,108 @@ describe('normalizeOnModeChange — 跨档 normalize（T7）', () => {
     expect(c.__testTabs.has(2)).toBe(false);
   });
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// T8: switchWorkspaceBySetting hide 分流 + T5 M1（失败不 selectWorkspace）
+// close/hide-discard/hide 三档正确映射 mode（通过编排特征区分）；
+// off 纯 selectWorkspace。T5 M1：fromId===null（切换失败）→ 不调 selectWorkspace
+// （UI 停 fromId，与 binding 一致；否则 UI 高亮切 toId 但 binding 停 fromId 不一致）。
+// ──────────────────────────────────────────────────────────────────────────
+describe('switchWorkspaceBySetting — hide 分流 + T5 M1（T8）', () => {
+  beforeEach(() => installDisposeRestoreStub());
+
+  it('hide 档 → 折叠源组（非 close 的 remove），tab 保留', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'hide', windowId: 1, selectWorkspace });
+
+    // hide 编排特征：源组折叠，tab 保留（非 remove）
+    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    expect(c.__testTabs.has(1)).toBe(true);
+    expect(selectWorkspace).toHaveBeenCalledWith('bbbb2222-0000-0000');
+  });
+
+  it('hide-discard 档 → 折叠源组 + discard tab', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'hide-discard', windowId: 1, selectWorkspace });
+
+    expect(c.__testGroups.get(10).collapsed).toBe(true);
+    expect(c.__testTabs.get(1).discarded).toBe(true);
+    expect(selectWorkspace).toHaveBeenCalledWith('bbbb2222-0000-0000');
+  });
+
+  it('off 档 → 纯 selectWorkspace，不折叠/不 remove', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'off', windowId: 1, selectWorkspace });
+
+    expect(c.__testGroups.get(10).collapsed).toBe(false); // 未折叠
+    expect(c.__testTabs.has(1)).toBe(true); // tab 保留
+    expect(selectWorkspace).toHaveBeenCalledWith('bbbb2222-0000-0000');
+  });
+
+  it('close 档 → remove tab（v1 回归，非 hide 的折叠）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'close', windowId: 1, selectWorkspace });
+
+    expect(c.__testTabs.has(1)).toBe(false); // close remove
+    expect(selectWorkspace).toHaveBeenCalledWith('bbbb2222-0000-0000');
+  });
+
+  // T5 reviewer M1：切换失败（fromId===null）→ 不调 selectWorkspace
+  it('T5 M1: archive 失败（fromId===null）→ 不调 selectWorkspace（UI 停 fromId）', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: -1 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    c.tabs.query = async () => { throw new Error('boom'); };
+    // 仅 spy Toast.error（命令式 API），不整体 mock 模块
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'close', windowId: 1, selectWorkspace });
+
+    expect(selectWorkspace).not.toHaveBeenCalled();
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000'); // binding 未动
+    errorSpy.mockRestore();
+  });
+
+  it('T5 M1: dispose 失败（fromId===null）→ 不调 selectWorkspace', async () => {
+    const c = (globalThis as any).chrome;
+    c.__testGroups.set(10, { id: 10, windowId: 1, title: 'A ·aaaa1111', color: 'grey', collapsed: false });
+    c.__testTabs.set(1, { id: 1, windowId: 1, url: 'https://a.com', groupId: 10 });
+    const { setWorkspaceBinding, getWorkspaceBinding } = await import('@/shared/windowWorkspaceBinding');
+    await setWorkspaceBinding(1, 'aaaa1111-0000-0000');
+    // dispose 关键失败：tabGroups.update 抛错 → ok=false → fromId=null
+    c.tabGroups.update = async () => { throw new Error('boom'); };
+    const { Toast } = await import('@/components/ui/toast');
+    const errorSpy = vi.spyOn(Toast, 'error').mockImplementation(() => '' as never);
+    const selectWorkspace = vi.fn();
+
+    await switchWorkspaceBySetting({ toId: 'bbbb2222-0000-0000', toName: 'B', setting: 'hide', windowId: 1, selectWorkspace });
+
+    expect(selectWorkspace).not.toHaveBeenCalled();
+    expect(await getWorkspaceBinding(1)).toBe('aaaa1111-0000-0000'); // binding 未动
+    errorSpy.mockRestore();
+  });
+});
