@@ -97,7 +97,20 @@ describe('AboutSection', () => {
     requestUpdateCheck.mockRejectedValueOnce(new Error('boom'));
     render(<AboutSection />);
     await user.click(await screen.findByRole('button', { name: '立即更新' }));
+    expect(requestUpdateCheck).toHaveBeenCalledTimes(1);
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('点击立即更新期间按钮禁用并显示 Spinner', async () => {
+    const user = userEvent.setup();
+    setupChrome({
+      id: CWS_EXTENSION_ID,
+      pending: { version: '0.1.14.0' },
+    });
+    render(<AboutSection />);
+    await user.click(await screen.findByRole('button', { name: '立即更新' }));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /更新中/ })).toBeDisabled();
   });
 
   it('CWS 渠道点扩展管理页链接 → tabs.create(chrome://extensions)', async () => {

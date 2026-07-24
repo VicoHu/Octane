@@ -241,7 +241,7 @@ function UpdateStatus({
 - [ ] **Step 5: 运行测试，验证全部通过（绿）**
 
 Run: `pnpm run test -- AboutSection`
-Expected: 7 个用例全部 PASS（版本号、CWS 渠道标签、manual 标签、manual→Releases、CWS+pending 渲染、立即更新→check+reload、check 异常仍 reload、扩展管理页链接）。
+Expected: 8 个用例全部 PASS（版本号、CWS 渠道标签、manual 标签、manual→Releases、CWS+pending 渲染、立即更新→check+reload、check 异常仍 reload、扩展管理页链接）。
 
 - [ ] **Step 6: typecheck**
 

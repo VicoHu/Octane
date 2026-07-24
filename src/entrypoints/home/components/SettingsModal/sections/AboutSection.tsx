@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
   detectChannel,
   UPDATE_URL,
@@ -33,11 +35,14 @@ export function AboutSection() {
   const version = c.runtime.getManifest().version;
   const channel: Channel = detectChannel(c.runtime.id);
   const { version: pendingVersion } = usePendingUpdate();
+  const [updating, setUpdating] = useState(false);
 
   const open = (url: string) => c.tabs.create({ url });
 
   // pendingUpdate 存在即证明有更新；requestUpdateCheck 结果（throttled/异常）一律忽略。
+  // reload() 会销毁当前页面，updating 通常不会回到 false（页面已重载为新版）。
   const triggerUpdate = async () => {
+    setUpdating(true);
     try {
       await c.runtime.requestUpdateCheck();
     } catch {
@@ -67,6 +72,7 @@ export function AboutSection() {
         pendingVersion={pendingVersion}
         onOpen={open}
         onUpdate={triggerUpdate}
+        updating={updating}
       />
     </div>
   );
@@ -88,11 +94,13 @@ function UpdateStatus({
   pendingVersion,
   onOpen,
   onUpdate,
+  updating,
 }: {
   channel: Channel;
   pendingVersion: string | null;
   onOpen: (url: string) => void;
   onUpdate: () => void;
+  updating: boolean;
 }) {
   // 手动安装：无自动更新（onUpdateAvailable 不触发），引导 Releases（优先级最高）
   if (channel === 'manual') {
@@ -115,8 +123,15 @@ function UpdateStatus({
         <div className="mt-1 text-muted-foreground">
           新版本将通过商店自动更新（审核可能有延迟）。
         </div>
-        <Button className="mt-2" size="sm" onClick={onUpdate}>
-          立即更新
+        <Button className="mt-2" size="sm" onClick={onUpdate} disabled={updating}>
+          {updating ? (
+            <>
+              <Spinner />
+              更新中
+            </>
+          ) : (
+            '立即更新'
+          )}
         </Button>
         <div className="mt-1 text-muted-foreground">
           未生效？在
