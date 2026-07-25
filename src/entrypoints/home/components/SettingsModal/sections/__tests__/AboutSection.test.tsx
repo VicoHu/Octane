@@ -9,6 +9,8 @@ import { CWS_EXTENSION_ID, UPDATE_URL } from '@/shared/distribution';
 // storage.local（installChromeStorageLocal）+ storage.onChanged（usePendingUpdate 需要）。
 function setupChrome(opts: { id?: string; version?: string; pending?: { version: string } }) {
   const tabsCreate = vi.fn();
+  const requestUpdateCheck = vi.fn().mockResolvedValue({ status: 'update_available' });
+  const reload = vi.fn();
   installChromeStorageLocal({
     initial: opts.pending ? { pendingUpdate: opts.pending } : {},
   });
@@ -16,13 +18,15 @@ function setupChrome(opts: { id?: string; version?: string; pending?: { version:
   chromeObj.runtime = {
     id: opts.id ?? 'unknownid',
     getManifest: () => ({ version: opts.version ?? '0.1.13.0' }),
+    requestUpdateCheck,
+    reload,
   };
   chromeObj.tabs = { create: tabsCreate };
   (chromeObj.storage as Record<string, unknown>).onChanged = {
     addListener: vi.fn(),
     removeListener: vi.fn(),
   };
-  return { tabsCreate };
+  return { tabsCreate, requestUpdateCheck, reload };
 }
 
 describe('AboutSection', () => {
@@ -57,15 +61,66 @@ describe('AboutSection', () => {
     expect(tabsCreate).toHaveBeenCalledWith({ url: UPDATE_URL.manual });
   });
 
-  it('CWS 渠道有 pending → 显示新版本提示 + 前往商店按钮', async () => {
+  it('CWS 渠道有 pending → 显示立即更新按钮 + 扩展管理页兜底链接', async () => {
+    setupChrome({
+      id: CWS_EXTENSION_ID,
+      pending: { version: '0.1.14.0' },
+    });
+    render(<AboutSection />);
+    expect(await screen.findByText(/新版本 v0\.1\.14\.0 可用/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '立即更新' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /扩展管理页/ })).toBeInTheDocument();
+  });
+
+  it('CWS 渠道点立即更新 → requestUpdateCheck 后 reload', async () => {
+    const user = userEvent.setup();
+    const { requestUpdateCheck, reload } = setupChrome({
+      id: CWS_EXTENSION_ID,
+      pending: { version: '0.1.14.0' },
+    });
+    render(<AboutSection />);
+    await user.click(await screen.findByRole('button', { name: '立即更新' }));
+    expect(requestUpdateCheck).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(1);
+    // 先 check 后 reload（前面 toHaveBeenCalledTimes(1) 已保证 invocationCallOrder[0] 存在）
+    expect(requestUpdateCheck.mock.invocationCallOrder[0]!).toBeLessThan(
+      reload.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('requestUpdateCheck 抛异常仍 reload（pendingUpdate 已证明有更新）', async () => {
+    const user = userEvent.setup();
+    const { requestUpdateCheck, reload } = setupChrome({
+      id: CWS_EXTENSION_ID,
+      pending: { version: '0.1.14.0' },
+    });
+    requestUpdateCheck.mockRejectedValueOnce(new Error('boom'));
+    render(<AboutSection />);
+    await user.click(await screen.findByRole('button', { name: '立即更新' }));
+    expect(requestUpdateCheck).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('点击立即更新期间按钮禁用并显示 Spinner', async () => {
+    const user = userEvent.setup();
+    setupChrome({
+      id: CWS_EXTENSION_ID,
+      pending: { version: '0.1.14.0' },
+    });
+    render(<AboutSection />);
+    await user.click(await screen.findByRole('button', { name: '立即更新' }));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /更新中/ })).toBeDisabled();
+  });
+
+  it('CWS 渠道点扩展管理页链接 → tabs.create(chrome://extensions)', async () => {
     const user = userEvent.setup();
     const { tabsCreate } = setupChrome({
       id: CWS_EXTENSION_ID,
       pending: { version: '0.1.14.0' },
     });
     render(<AboutSection />);
-    expect(await screen.findByText(/新版本 v0\.1\.14\.0 可用/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '前往商店' }));
-    expect(tabsCreate).toHaveBeenCalledWith({ url: UPDATE_URL.cws });
+    await user.click(await screen.findByRole('button', { name: /扩展管理页/ }));
+    expect(tabsCreate).toHaveBeenCalledWith({ url: 'chrome://extensions' });
   });
 });

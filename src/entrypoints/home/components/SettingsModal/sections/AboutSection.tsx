@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
   detectChannel,
   UPDATE_URL,
@@ -10,7 +12,12 @@ import { usePendingUpdate } from '@/entrypoints/home/hooks/usePendingUpdate';
 // 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 ShortcutsSection.tsx）。
 declare const chrome: unknown;
 interface ChromeLike {
-  runtime: { id: string; getManifest(): { version: string } };
+  runtime: {
+    id: string;
+    getManifest(): { version: string };
+    requestUpdateCheck(): Promise<unknown>;
+    reload(): void;
+  };
   tabs: { create(opts: { url: string }): unknown };
 }
 
@@ -19,14 +26,30 @@ const REPO_URL = 'https://github.com/VicoHu/Octane';
 const ISSUES_URL = 'https://github.com/VicoHu/Octane/issues';
 const DISCUSS_URL = 'https://discuss.vectorcube.vip';
 
+/** 商店更新兜底：手动到扩展管理页点「更新」。 */
+const EXTENSIONS_PAGE_URL = 'chrome://extensions';
+
 /** 关于 Octane：版本/渠道 + 作者/仓库/反馈 + 新版本提示 + 按渠道前往更新页。 */
 export function AboutSection() {
   const c = chrome as unknown as ChromeLike;
   const version = c.runtime.getManifest().version;
   const channel: Channel = detectChannel(c.runtime.id);
   const { version: pendingVersion } = usePendingUpdate();
+  const [updating, setUpdating] = useState(false);
 
   const open = (url: string) => c.tabs.create({ url });
+
+  // pendingUpdate 存在即证明有更新；requestUpdateCheck 结果（throttled/异常）一律忽略。
+  // reload() 会销毁当前页面，updating 通常不会回到 false（页面已重载为新版）。
+  const triggerUpdate = async () => {
+    setUpdating(true);
+    try {
+      await c.runtime.requestUpdateCheck();
+    } catch {
+      // 忽略：不依赖检查结果
+    }
+    c.runtime.reload();
+  };
 
   return (
     <div className="space-y-4">
@@ -44,7 +67,13 @@ export function AboutSection() {
         <Row label="社区讨论/反馈" value="Discuss论坛" onClick={() => open(DISCUSS_URL)} />
       </div>
 
-      <UpdateStatus channel={channel} pendingVersion={pendingVersion} onOpen={open} />
+      <UpdateStatus
+        channel={channel}
+        pendingVersion={pendingVersion}
+        onOpen={open}
+        onUpdate={triggerUpdate}
+        updating={updating}
+      />
     </div>
   );
 }
@@ -64,10 +93,14 @@ function UpdateStatus({
   channel,
   pendingVersion,
   onOpen,
+  onUpdate,
+  updating,
 }: {
   channel: Channel;
   pendingVersion: string | null;
   onOpen: (url: string) => void;
+  onUpdate: () => void;
+  updating: boolean;
 }) {
   // 手动安装：无自动更新（onUpdateAvailable 不触发），引导 Releases（优先级最高）
   if (channel === 'manual') {
@@ -90,9 +123,27 @@ function UpdateStatus({
         <div className="mt-1 text-muted-foreground">
           新版本将通过商店自动更新（审核可能有延迟）。
         </div>
-        <Button className="mt-2" size="sm" onClick={() => onOpen(UPDATE_URL[channel])}>
-          前往商店
+        <Button className="mt-2" size="sm" onClick={onUpdate} disabled={updating}>
+          {updating ? (
+            <>
+              <Spinner />
+              更新中
+            </>
+          ) : (
+            '立即更新'
+          )}
         </Button>
+        <div className="mt-1 text-muted-foreground">
+          未生效？在
+          <Button
+            variant="link"
+            className="h-auto px-1 py-0 align-baseline text-muted-foreground"
+            onClick={() => onOpen(EXTENSIONS_PAGE_URL)}
+          >
+            扩展管理页
+          </Button>
+          手动更新（开发者模式 → 更新）
+        </div>
       </div>
     );
   }
