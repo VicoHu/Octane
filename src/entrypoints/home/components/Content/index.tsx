@@ -26,6 +26,7 @@ import * as BookmarkService from '@/services/BookmarkService';
 import { cn } from '@/lib/utils';
 import { buildTagSuggestions, normalizeTags } from '@/shared/utils/tagRules';
 import { BookmarkCard } from '../BookmarkCard';
+import { TagFilter } from './TagFilter';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
 import {
@@ -78,6 +79,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const setQuery = useSearch((s) => s.setQuery);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  // Tag 筛选：当前 Category 内已选 Tag 集合（#52；记忆范围/切换恢复属 #53/#54）
+  const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
   const [addFormApi, setAddFormApi] = useState<any>(null);
@@ -137,15 +140,31 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     return () => window.removeEventListener('keydown', focusSearch);
   }, []);
 
-  // 过滤书签
-  const filteredBookmarks = query
-    ? bookmarks.filter(
+  // 过滤书签：文本搜索（名称/URL/描述/Tag 名称）AND Tag 筛选（多选 AND）
+  const filteredBookmarks = useMemo(() => {
+    let result = bookmarks;
+    // 文本搜索：扩展匹配 Tag 名称（#52）
+    if (query) {
+      const q = query.toLowerCase();
+      result = result.filter(
         (b) =>
-          b.name.toLowerCase().includes(query.toLowerCase()) ||
-          b.url.toLowerCase().includes(query.toLowerCase()) ||
-          b.description.toLowerCase().includes(query.toLowerCase()),
-      )
-    : bookmarks;
+          b.name.toLowerCase().includes(q) ||
+          b.url.toLowerCase().includes(q) ||
+          b.description.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+    }
+    // Tag 筛选：书签必须同时包含所有已选 Tag（AND 语义）
+    if (selectedFilterTags.length > 0) {
+      const selectedLower = selectedFilterTags.map((t) => t.toLowerCase());
+      result = result.filter((b) =>
+        selectedLower.every((tag) =>
+          b.tags.some((t) => t.toLowerCase() === tag),
+        ),
+      );
+    }
+    return result;
+  }, [bookmarks, query, selectedFilterTags]);
 
   // === T4 拖拽排序(Content grid 层)===
   // activationConstraint distance:8 兜底(grip listener),防 click 误触为拖拽
@@ -448,7 +467,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         </TabsList>
         <TabsContent value="bookmarks" className={styles.scrollPanel}>
           <div className={styles.summaryRow}>
-            <strong>全部收藏</strong>
+            <TagFilter
+              bookmarks={bookmarks}
+              selectedTags={selectedFilterTags}
+              onChange={setSelectedFilterTags}
+            />
             <span>拖拽排序 · 最近更新</span>
           </div>
           {loading ? (
