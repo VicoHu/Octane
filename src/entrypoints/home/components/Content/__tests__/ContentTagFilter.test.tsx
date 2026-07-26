@@ -8,11 +8,11 @@ vi.mock('../../ContextList', () => ({ ContextList: () => null }));
 vi.mock('../../BookmarkCard', () => ({
   BookmarkCard: (props: Record<string, unknown>) => {
     const bookmark = props.bookmark as { id: string; name: string };
-    return React.createElement('div', { 'data-testid': `card-${bookmark.id}` }, bookmark.name);
+    return React.createElement('article', { role: 'article', 'aria-label': bookmark.name }, bookmark.name);
   },
   SortableBookmarkCard: (props: Record<string, unknown>) => {
     const bookmark = props.bookmark as { id: string; name: string };
-    return React.createElement('div', { 'data-testid': `card-${bookmark.id}` }, bookmark.name);
+    return React.createElement('article', { role: 'article', 'aria-label': bookmark.name }, bookmark.name);
   },
 }));
 vi.mock('@/components/ui/toast', () => ({
@@ -161,9 +161,9 @@ describe('Content Tag 筛选器（#52）', () => {
 
       // 只有 b1 同时有 React 和 CSS
       await waitFor(() => {
-        expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-        expect(screen.queryByTestId('card-b2')).not.toBeInTheDocument();
-        expect(screen.queryByTestId('card-b3')).not.toBeInTheDocument();
+        expect(screen.getByRole('article', { name: 'ReactCSS' })).toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'ReactOnly' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'CSSOnly' })).not.toBeInTheDocument();
       });
     });
   });
@@ -178,8 +178,8 @@ describe('Content Tag 筛选器（#52）', () => {
       render(<Content openTabs={[]} />);
 
       await waitFor(() => {
-        expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-        expect(screen.queryByTestId('card-b2')).not.toBeInTheDocument();
+        expect(screen.getByRole('article', { name: 'Documentation' })).toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'NotMatch' })).not.toBeInTheDocument();
       });
     });
   });
@@ -197,9 +197,9 @@ describe('Content Tag 筛选器（#52）', () => {
 
       // 先验证文本搜索匹配含 Doc 的
       await waitFor(() => {
-        expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-        expect(screen.getByTestId('card-b2')).toBeInTheDocument();
-        expect(screen.queryByTestId('card-b3')).not.toBeInTheDocument();
+        expect(screen.getByRole('article', { name: 'React Docs' })).toBeInTheDocument();
+        expect(screen.getByRole('article', { name: 'Vue Docs' })).toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'React Blog' })).not.toBeInTheDocument();
       });
 
       // 打开筛选器选中 React
@@ -209,9 +209,9 @@ describe('Content Tag 筛选器（#52）', () => {
 
       // 只有 b1 同时满足 Doc + React
       await waitFor(() => {
-        expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-        expect(screen.queryByTestId('card-b2')).not.toBeInTheDocument();
-        expect(screen.queryByTestId('card-b3')).not.toBeInTheDocument();
+        expect(screen.getByRole('article', { name: 'React Docs' })).toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'Vue Docs' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('article', { name: 'React Blog' })).not.toBeInTheDocument();
       });
     });
   });

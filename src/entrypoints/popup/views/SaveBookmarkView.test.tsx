@@ -1,19 +1,5 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-// Semi 加载动画依赖 lottie-web；jsdom 无 canvas，mock 掉
-vi.mock('lottie-web', () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { resetDB, getDB } from '@/shared/db/database';

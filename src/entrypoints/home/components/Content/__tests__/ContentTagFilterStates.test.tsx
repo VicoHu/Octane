@@ -8,11 +8,11 @@ vi.mock('../../ContextList', () => ({ ContextList: () => null }));
 vi.mock('../../BookmarkCard', () => ({
   BookmarkCard: (props: Record<string, unknown>) => {
     const bookmark = props.bookmark as { id: string; name: string };
-    return React.createElement('div', { 'data-testid': `card-${bookmark.id}` }, bookmark.name);
+    return React.createElement('article', { role: 'article', 'aria-label': bookmark.name }, bookmark.name);
   },
   SortableBookmarkCard: (props: Record<string, unknown>) => {
     const bookmark = props.bookmark as { id: string; name: string };
-    return React.createElement('div', { 'data-testid': `card-${bookmark.id}` }, bookmark.name);
+    return React.createElement('article', { role: 'article', 'aria-label': bookmark.name }, bookmark.name);
   },
 }));
 vi.mock('@/components/ui/toast', () => ({
@@ -241,8 +241,8 @@ describe('#53 Bookmark 与标签页 Tab 往返保留筛选', () => {
     await user.click(await screen.findByRole('checkbox', { name: /React/ }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-      expect(screen.queryByTestId('card-b2')).not.toBeInTheDocument();
+      expect(screen.getByRole('article', { name: 'React 书签' })).toBeInTheDocument();
+      expect(screen.queryByRole('article', { name: 'Vue 书签' })).not.toBeInTheDocument();
     });
 
     // 切到标签页视图（标签页不受筛选影响）
@@ -252,8 +252,8 @@ describe('#53 Bookmark 与标签页 Tab 往返保留筛选', () => {
     // 切回书签视图 → 筛选仍生效
     await user.click(screen.getByRole('tab', { name: /书签/ }));
     await waitFor(() => {
-      expect(screen.getByTestId('card-b1')).toBeInTheDocument();
-      expect(screen.queryByTestId('card-b2')).not.toBeInTheDocument();
+      expect(screen.getByRole('article', { name: 'React 书签' })).toBeInTheDocument();
+      expect(screen.queryByRole('article', { name: 'Vue 书签' })).not.toBeInTheDocument();
     });
     // 已选 Tag 保留
     expect(screen.getByRole('button', { name: /移除.*React/ })).toBeInTheDocument();
