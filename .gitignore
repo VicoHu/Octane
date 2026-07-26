@@ -17,3 +17,4 @@ web-ext.config.ts
 # local agent workspaces
 .worktrees/
 .superpowers/
+.pi-subagents/
