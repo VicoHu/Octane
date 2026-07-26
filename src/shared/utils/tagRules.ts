@@ -53,3 +53,39 @@ export function normalizeTags(rawTags: readonly string[]): string[] {
   }
   return result;
 }
+
+/**
+ * 从书签列表构建 Tag 建议：
+ * 统计每个 Tag 的使用次数 → 按使用次数降序、名称升序排序。
+ *
+ * 数据源是当前 Workspace 的全部 Bookmark（已在内存），无需额外索引。
+ * 用于 TagInput 建议列表。
+ *
+ * @param bookmarks 当前 Workspace 的书签数组
+ * @returns 建议列表（去重，按使用次数降序 + 名称排序）
+ */
+export function buildTagSuggestions(
+  bookmarks: readonly { tags?: readonly string[] }[],
+): string[] {
+  // 统计：大小写不敏感去重，保留首次出现的展示形式
+  const countMap = new Map<string, number>();
+  const displayMap = new Map<string, string>();
+
+  for (const bookmark of bookmarks) {
+    if (!bookmark.tags) continue;
+    for (const tag of bookmark.tags) {
+      const lower = tag.toLowerCase();
+      countMap.set(lower, (countMap.get(lower) ?? 0) + 1);
+      if (!displayMap.has(lower)) displayMap.set(lower, tag);
+    }
+  }
+
+  return Array.from(countMap.entries())
+    .map(([lower, count]) => ({ tag: displayMap.get(lower)!, count, lower }))
+    .sort((a, b) => {
+      // 使用次数降序 → 名称升序（稳定次序）
+      if (b.count !== a.count) return b.count - a.count;
+      return a.lower.localeCompare(b.lower);
+    })
+    .map((e) => e.tag);
+}

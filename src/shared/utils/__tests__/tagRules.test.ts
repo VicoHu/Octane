@@ -4,6 +4,7 @@ import {
   MAX_TAG_LENGTH,
   normalizeTags,
   validateTag,
+  buildTagSuggestions,
 } from '@/shared/utils/tagRules';
 
 describe('validateTag — 单个 Tag 校验与清理', () => {
@@ -99,5 +100,58 @@ describe('Tag 常量', () => {
 
   it('MAX_TAG_LENGTH 为 32', () => {
     expect(MAX_TAG_LENGTH).toBe(32);
+  });
+});
+
+describe('buildTagSuggestions — 从书签构建 Tag 建议（使用次数降序 + 名称排序）', () => {
+  it('空书签列表 → 返回空数组', () => {
+    expect(buildTagSuggestions([])).toEqual([]);
+  });
+
+  it('按使用次数降序排序', () => {
+    const bookmarks = [
+      { tags: ['Vue'] },
+      { tags: ['React', 'Vue'] },
+      { tags: ['React'] },
+    ];
+    // React: 2 次, Vue: 2 次 → 同次数按名称排序 React < Vue
+    expect(buildTagSuggestions(bookmarks)).toEqual(['React', 'Vue']);
+  });
+
+  it('使用次数不同时严格降序', () => {
+    const bookmarks = [
+      { tags: ['JS'] },
+      { tags: ['JS', 'TS'] },
+      { tags: ['JS', 'TS', 'CSS'] },
+    ];
+    // JS: 3, TS: 2, CSS: 1
+    expect(buildTagSuggestions(bookmarks)).toEqual(['JS', 'TS', 'CSS']);
+  });
+
+  it('大小写不敏感去重，保留首次出现的展示形式', () => {
+    const bookmarks = [
+      { tags: ['React'] },
+      { tags: ['react'] },
+      { tags: ['REACT'] },
+    ];
+    expect(buildTagSuggestions(bookmarks)).toEqual(['React']);
+  });
+
+  it('无 tags 字段的书签被跳过', () => {
+    const bookmarks = [
+      { tags: ['React'] },
+      {},
+      { tags: undefined },
+    ];
+    expect(buildTagSuggestions(bookmarks)).toEqual(['React']);
+  });
+
+  it('同使用次数时按名称升序排序（稳定次序）', () => {
+    const bookmarks = [
+      { tags: ['Zeta', 'Alpha'] },
+      { tags: ['Beta'] },
+    ];
+    // 各 1 次 → Alpha < Beta < Zeta
+    expect(buildTagSuggestions(bookmarks)).toEqual(['Alpha', 'Beta', 'Zeta']);
   });
 });

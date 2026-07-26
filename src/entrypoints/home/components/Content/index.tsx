@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Form } from '@douyinfe/semi-ui';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import { focusTab } from '@/shared/tabs/focusTab';
 import { openUrlInNewTab } from '@/shared/tabs/openTab';
 import * as CategoryService from '@/services/CategoryService';
 import { cn } from '@/lib/utils';
+import { buildTagSuggestions } from '@/shared/utils/tagRules';
 import { BookmarkCard } from '../BookmarkCard';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
@@ -46,6 +47,7 @@ import {
   type BookmarkOpsPanelHandle,
   type BookmarkOpsPanelSubmit,
 } from '../BookmarkOpsPanel';
+import { TagInput } from '@/components/TagInput';
 import { EmptyState } from '../EmptyState';
 import { ContextList } from '../ContextList';
 import { TabList } from '../TabList';
@@ -82,6 +84,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const [activeView, setActiveView] = useState<View>('bookmarks');
   // 从 tab 触发保存时携带的预填源(null=手动「添加书签」)
   const [saveFromTab, setSaveFromTab] = useState<OpenTab | null>(null);
+  // 添加书签弹窗的 Tag（独立于 Semi Form 字段，受控管理）
+  const [addTags, setAddTags] = useState<string[]>([]);
   // 常驻标签:从 tab 触发存为常驻时携带的预填源 + Dialog 开关
   const [pinFromTab, setPinFromTab] = useState<OpenTab | null>(null);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -95,6 +99,12 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const categoriesLoader = useCallback(
     (wsId: string) => CategoryService.listCategories(wsId),
     [],
+  );
+
+  // Tag 建议源:当前 Workspace 全部 Bookmark 聚合后的 Tag（按使用次数降序 + 名称排序）
+  const tagSuggestions = useMemo(
+    () => buildTagSuggestions(allBookmarks),
+    [allBookmarks],
   );
 
   // 跨分类去重数据源:进入工作区即加载全量书签(独立于当前分类切片 bookmarks)
@@ -220,9 +230,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         name,
         url,
         description: values['description'],
+        tags: addTags,
       });
       setShowAddModal(false);
       setSaveFromTab(null);
+      setAddTags([]);
       // save→context 漏斗(R5):保存后引导加上下文,把 tab/书签引流进 Octane 加密护城河
       Toast.success({
         content: (
@@ -526,6 +538,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           if (!o) {
             setShowAddModal(false);
             setSaveFromTab(null);
+            setAddTags([]);
           }
         }}
       >
@@ -548,9 +561,12 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
             <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
             <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
+            <Form.Slot label="Tag">
+              <TagInput value={addTags} onChange={setAddTags} suggestions={tagSuggestions} />
+            </Form.Slot>
           </Form>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setShowAddModal(false); setSaveFromTab(null); }}>取消</Button>
+            <Button variant="ghost" onClick={() => { setShowAddModal(false); setSaveFromTab(null); setAddTags([]); }}>取消</Button>
             <Button variant="default" onClick={() => addFormApi?.submitForm()}>添加</Button>
           </DialogFooter>
         </DialogContent>

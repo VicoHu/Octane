@@ -82,6 +82,23 @@ describe('useBookmarks — R1 allBookmarks slice(跨分类去重数据源)', () 
     expect(useBookmarks.getState().bookmarks.some((b) => b.id === created.id)).toBe(true);
     expect(useBookmarks.getState().allBookmarks.some((b) => b.id === created.id)).toBe(true);
   });
+
+  it('createBookmark 传入 tags → 返回的书签携带 tags 且同步到双切片 (#48)', async () => {
+    // service mock 返回带 tags 的书签
+    vi.mocked(BookmarkService.createBookmark).mockResolvedValue(
+      makeBookmark('tagged', 'Tagged', 'https://tagged.com'),
+    );
+    useBookmarks.setState({ bookmarks: [], allBookmarks: [] });
+
+    await useBookmarks
+      .getState()
+      .createBookmark('ws-1', 'cat-1', { name: 'Tagged', url: 'https://tagged.com', tags: ['React', 'Vue'] });
+
+    // service 收到 tags
+    expect(BookmarkService.createBookmark).toHaveBeenCalledWith(
+      'ws-1', 'cat-1', { name: 'Tagged', url: 'https://tagged.com', tags: ['React', 'Vue'] },
+    );
+  });
 });
 
 describe('useBookmarks — R2 移动/删除/编辑的双切片同步 (moveBookmark + 修 delete/refresh)', () => {

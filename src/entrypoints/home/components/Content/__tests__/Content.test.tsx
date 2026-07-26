@@ -163,6 +163,57 @@ describe('Content 添加书签反馈', () => {
   });
 });
 
+describe('Content 添加书签 Tag 录入（#48）', () => {
+  it('添加书签时输入 Tag → createBookmark 携带规范化 tags', async () => {
+    const user = userEvent.setup();
+    const createBookmark = vi.fn(async () => ({ id: 'b1', tags: [] }));
+    bookmarksState.createBookmark = createBookmark;
+    render(<Content openTabs={[]} />);
+
+    await user.click(screen.getAllByRole('button', { name: '添加书签' })[0]!);
+    await user.type(await screen.findByPlaceholderText('https://example.com'), 'https://example.com');
+    // 输入 Tag 并回车添加
+    await user.type(screen.getByPlaceholderText(/输入.*[Tt]ag|添加.*[Tt]ag/), 'React{Enter}');
+    await user.click(screen.getByRole('button', { name: '添加' }));
+
+    await waitFor(() => expect(createBookmark).toHaveBeenCalledTimes(1));
+    expect(createBookmark).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ tags: ['React'] }),
+    );
+  });
+
+  it('从标签页保存时同样可录入 Tag', async () => {
+    const user = userEvent.setup();
+    const createBookmark = vi.fn(async () => ({ id: 'b2', tags: [] }));
+    bookmarksState.createBookmark = createBookmark;
+    bookmarksState.allBookmarks = [{ id: 'exist', tags: ['Vue'] }];
+
+    const openTabs: OpenTab[] = [{
+      url: 'https://vuejs.org', tabId: 1, lastAccessed: 0, title: 'Vue',
+    }];
+    render(<Content openTabs={openTabs} />);
+
+    // 切到标签页视图
+    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    // 点「存为书签」（TabList 渲染的保存按钮）
+    await user.click(screen.getByRole('button', { name: /保存.*书签|存为书签/ }));
+
+    await user.type(await screen.findByPlaceholderText('https://example.com'), 'https://vuejs.org');
+    // 从建议中点击复用已有 Tag
+    await user.click(screen.getByRole('button', { name: 'Vue' }));
+    await user.click(screen.getByRole('button', { name: '添加' }));
+
+    await waitFor(() => expect(createBookmark).toHaveBeenCalledTimes(1));
+    expect(createBookmark).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ tags: ['Vue'] }),
+    );
+  });
+});
+
 describe('Content 存为常驻标签', () => {
   it('标签页视图点「存为常驻标签」→ 弹 Dialog 预填 tab.url/title', async () => {
     const user = userEvent.setup();

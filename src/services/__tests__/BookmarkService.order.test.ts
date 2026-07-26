@@ -91,6 +91,15 @@ describe('createBookmark — 新建 order = maxOrder+1(单事务防并发)', () 
     expect(persisted?.tags).toEqual([]);
   });
 
+  it('createBookmark 传入 tags → 持久化且返回的书签携带 tags (#48)', async () => {
+    const created = await BookmarkService.createBookmark('w', 'c', {
+      name: 'nb', url: 'https://n.com', tags: ['React', 'Vue'],
+    });
+    expect(created.tags).toEqual(['React', 'Vue']);
+    const persisted = await getByKey<Bookmark>('bookmarks', created.id);
+    expect(persisted?.tags).toEqual(['React', 'Vue']);
+  });
+
   it('删洞回归:建 [0,1,2] 删中间 → 新建 order=maxOrder+1=3,非 length=2', async () => {
     await putBookmark({ id: 'b1', categoryId: 'c', order: 0 });
     await putBookmark({ id: 'b2', categoryId: 'c', order: 1 });

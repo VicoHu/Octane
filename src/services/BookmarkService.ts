@@ -22,7 +22,7 @@ export async function listBookmarksByWorkspace(workspaceId: string): Promise<Boo
 export async function createBookmark(
   workspaceId: string,
   categoryId: string,
-  data: { name: string; url: string; description?: string },
+  data: { name: string; url: string; description?: string; tags?: string[] },
 ): Promise<Bookmark> {
   const now = Date.now();
   const db = await getDB();
@@ -43,7 +43,7 @@ export async function createBookmark(
     createdAt: now,
     updatedAt: now,
     order,
-    tags: [],
+    tags: data.tags ?? [],
   };
   await store.put(bookmark);
   await tx.done;
