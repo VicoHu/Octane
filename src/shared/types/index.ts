@@ -36,6 +36,11 @@ export interface Bookmark {
   updatedAt: number;
   /** 分类内排序，0 起（v4→v5 迁移按 createdAt ASC, id ASC 回填） */
   order: number;
+  /**
+   * Bookmark Tag 数组（Issue #47）。去重后最多 20 个，每个最多 32 字符，不含空白。
+   * 历史书签由 DB v5→v6 迁移回填空数组。规则见 src/shared/utils/tagRules.ts。
+   */
+  tags: string[];
 }
 
 /** 上下文类型 */
@@ -97,7 +102,7 @@ export interface CryptoMetadata {
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 /** 第三方 favicon 来源。 */
 export type ThirdPartyFaviconSource = 'icon-horse';
@@ -168,10 +173,10 @@ export interface TabSession {
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
-/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind，v4 起书签带 order） */
-export const BACKUP_VERSION = 4;
-/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup；v1/v2/v3 书签无 order → 解析时回填） */
-export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3, 4];
+/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind，v4 起书签带 order，v5 起书签带 tags） */
+export const BACKUP_VERSION = 5;
+/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup；v1/v2/v3 书签无 order → 解析时回填；v4 及以下书签无 tags → 解析时回填） */
+export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
 
 /** 备份文件种类：backup=全量覆盖恢复（灾备），share=部分合并导入（分享） */
 export type BackupKind = 'backup' | 'share';

@@ -149,6 +149,20 @@ export async function runUpgrade(
       }
     }
   }
+
+  // Bookmark tags 回填（v5→v6，Issue #47）：为全部历史 Bookmark 回填空 tags 数组。
+  // 仅回填缺失字段（tags !== undefined 的记录不动），保留现有实体、字段、索引和排序数据。
+  // 同样复用 upgrade 事务，禁用 putRecord（与 v4→v5 同理）。
+  if (oldVersion < 6 && transaction) {
+    const store = transaction.objectStore('bookmarks');
+    const all = (await store.getAll()) as Bookmark[];
+    for (const b of all) {
+      if (b.tags === undefined) {
+        b.tags = [];
+        await store.put(b);
+      }
+    }
+  }
 }
 
 /** 获取 IndexedDB 连接（单例） */

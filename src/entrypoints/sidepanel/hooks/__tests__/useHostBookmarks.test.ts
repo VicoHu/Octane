@@ -19,7 +19,7 @@ function makeBookmark(id: string, url: string): Bookmark {
   return {
     id, workspaceId: 'w1', categoryId: 'c1', name: id, url,
     description: '', faviconUrl: '', contextCount: 0,
-    hasEncryptedContext: false, order: 0, createdAt: 0, updatedAt: 0,
+    hasEncryptedContext: false, order: 0, createdAt: 0, updatedAt: 0, tags: [],
   };
 }
 

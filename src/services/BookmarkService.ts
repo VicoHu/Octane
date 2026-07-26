@@ -43,6 +43,7 @@ export async function createBookmark(
     createdAt: now,
     updatedAt: now,
     order,
+    tags: [],
   };
   await store.put(bookmark);
   await tx.done;

@@ -59,6 +59,7 @@ async function seedV3Database(): Promise<void> {
     createdAt: 1,
     updatedAt: 1,
     order: 0,
+    tags: [],
   };
   const context: Context = {
     id: 'ctx-mig',
@@ -189,8 +190,8 @@ describe('DB migration → v5（可信 favicon 缓存）', () => {
     expect(typeof runUpgrade).toBe('function');
   });
 
-  it('DB_VERSION 已升到 5', () => {
-    expect(DB_VERSION).toBe(5);
+  it('DB_VERSION 已升到 6', () => {
+    expect(DB_VERSION).toBe(6);
   });
 
   it('v3 库升级到 v5 后，业务数据保留、旧 favicon 清空，且新增 pinnedTabs store', async () => {
@@ -222,7 +223,7 @@ describe('DB migration → v5（可信 favicon 缓存）', () => {
 
     const db = await getDB();
 
-    expect(DB_VERSION).toBe(5);
+    expect(DB_VERSION).toBe(6);
     expect(await db.get('workspaces', 'ws-v4')).toMatchObject({ id: 'ws-v4' });
     expect(await db.get('bookmarks', 'bm-v4')).toMatchObject({ id: 'bm-v4' });
     expect(await db.get('pinnedTabs', 'pin-v4')).toMatchObject({ id: 'pin-v4' });

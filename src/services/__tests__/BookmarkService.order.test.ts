@@ -26,6 +26,7 @@ async function putBookmark(opts: {
     hasEncryptedContext: false,
     createdAt: opts.createdAt ?? 0,
     updatedAt: opts.createdAt ?? 0,
+    tags: [],
     ...(opts.order === undefined ? {} : { order: opts.order }),
   });
 }
@@ -61,12 +62,12 @@ describe('listBookmarks — order 排序', () => {
     await putRecord('bookmarks', {
       id: 'b1', workspaceId: 'w', categoryId: 'c', name: 'b1', url: 'u',
       description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false,
-      createdAt: 10, updatedAt: 10,
+      createdAt: 10, updatedAt: 10, tags: [],
     });
     await putRecord('bookmarks', {
       id: 'b2', workspaceId: 'w', categoryId: 'c', name: 'b2', url: 'u',
       description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false,
-      createdAt: 5, updatedAt: 5,
+      createdAt: 5, updatedAt: 5, tags: [],
     });
 
     const list = await BookmarkService.listBookmarks('c');
@@ -80,6 +81,14 @@ describe('createBookmark — 新建 order = maxOrder+1(单事务防并发)', () 
     await putBookmark({ id: 'b2', categoryId: 'c', order: 1 });
     const created = await BookmarkService.createBookmark('w', 'c', { name: 'nb', url: 'https://n.com' });
     expect(created.order).toBe(2);
+  });
+
+  it('新建书签 tags 默认为空数组(Issue #47 数据契约)', async () => {
+    const created = await BookmarkService.createBookmark('w', 'c', { name: 'nb', url: 'https://n.com' });
+    expect(created.tags).toEqual([]);
+    // 持久化数据也带 tags
+    const persisted = await getByKey<Bookmark>('bookmarks', created.id);
+    expect(persisted?.tags).toEqual([]);
   });
 
   it('删洞回归:建 [0,1,2] 删中间 → 新建 order=maxOrder+1=3,非 length=2', async () => {

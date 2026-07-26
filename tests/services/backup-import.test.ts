@@ -24,7 +24,7 @@ afterAll(() => resetDB());
 const tamperedBm: Bookmark = {
   id: 'bm-1', workspaceId: 'ws-1', categoryId: 'cat-1', name: 'n', url: 'https://x.com',
   description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, // 故意写错：实际有 1 条 context
-  createdAt: 1, updatedAt: 1,
+  createdAt: 1, updatedAt: 1, tags: [],
 };
 const realCtx: Context = {
   id: 'ctx-1', bookmarkId: 'bm-1', type: ContextType.NOTE, title: 't', content: '明文',

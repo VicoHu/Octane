@@ -47,6 +47,17 @@ function normalizeBookmarkOrder(bookmarks: Bookmark[]): Bookmark[] {
 }
 
 /**
+ * 旧版本（v4 及以下）备份 bookmark 无 tags → 回填空数组。与 DB v5→v6 迁移一致
+ *（见 database.ts runUpgrade）。对每个缺 tags 的 bookmark 补 tags=[]，已有 tags 原样保留。
+ */
+function normalizeBookmarkTags(bookmarks: Bookmark[]): Bookmark[] {
+  for (const b of bookmarks) {
+    if (!Array.isArray(b.tags)) b.tags = [];
+  }
+  return bookmarks;
+}
+
+/**
  * 校验已解析的备份对象（不读文件、不碰 DB）。
  * 返回 ok 时 data 为规范化后的 BackupData。
  */
@@ -119,7 +130,9 @@ export function validateBackup(parsed: unknown): ValidationResult {
   // 标准化 bookmark order：v1/v2/v3 旧备份 bookmark 无 order → 按 categoryId 分组
   //(createdAt ASC, id ASC)回填，与 DB v4→v5 迁移一致；v4+ 已有 order 原样保留。
   const rawBookmarks = data.bookmarks as Bookmark[];
-  const bookmarks = parsed.version < 4 ? normalizeBookmarkOrder(rawBookmarks) : rawBookmarks;
+  const ordered = parsed.version < 4 ? normalizeBookmarkOrder(rawBookmarks) : rawBookmarks;
+  // 标准化 bookmark tags：v4 及以下旧备份 bookmark 无 tags → 回填空数组，与 DB v5→v6 迁移一致。
+  const bookmarks = normalizeBookmarkTags(ordered);
 
   const backupData: BackupData = {
     workspaces: data.workspaces as Workspace[],

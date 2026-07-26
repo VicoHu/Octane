@@ -34,6 +34,7 @@ function makeBookmark(id: string, name: string, url: string, categoryId = 'cat-1
     order: 0,
     createdAt: 0,
     updatedAt: 0,
+    tags: [],
   };
 }
 

@@ -16,7 +16,7 @@ import { ContextType } from '@/shared/types';
 // 发送方分享包样本(全拷贝:含 cryptoMetadata + 加密 context)
 const ws: Workspace = { id: 'ws-s', name: '工作', icon: '📁', createdAt: 1, order: 0 };
 const cat: Category = { id: 'cat-s', workspaceId: 'ws-s', name: '工具', icon: '📂', order: 0, createdAt: 1 };
-const bm: Bookmark = { id: 'bm-s', workspaceId: 'ws-s', categoryId: 'cat-s', name: 'A', url: 'https://a.com', description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: true, order: 0, createdAt: 1, updatedAt: 1 };
+const bm: Bookmark = { id: 'bm-s', workspaceId: 'ws-s', categoryId: 'cat-s', name: 'A', url: 'https://a.com', description: '', faviconUrl: '', contextCount: 1, hasEncryptedContext: true, order: 0, createdAt: 1, updatedAt: 1, tags: [] };
 const encCtx: Context = { id: 'ctx-s', bookmarkId: 'bm-s', type: ContextType.NOTE, title: '密钥', content: '', isEncrypted: true, encryptedData: 'CIPHER', iv: 'IV', order: 0, createdAt: 1, updatedAt: 1 };
 const senderMeta: CryptoMetadata = { id: 'singleton', salt: 'S1', iterations: 600000, algorithm: 'AES-GCM-256', createdAt: 1 };
 
@@ -71,14 +71,15 @@ describe('applyShareImport — 分享包合并导入编排', () => {
     // 加密 context 未入库
     expect(await getAll('contexts')).toHaveLength(0);
     // 接收方 cryptoMetadata 保留(salt 仍 DIFFERENT)
-    expect((await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton'))?.salt).toBe('DIFFERENT');
+    const gotMeta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+    expect(gotMeta?.salt).toBe('DIFFERENT');
   });
 
   it('仅结构包(cryptoMetadata null)→ contexts 空,不写 cryptoMetadata', async () => {
     const structurePackage: BackupData = { ...fullPackage, contexts: [], cryptoMetadata: null };
     await applyShareImport(structurePackage, { workspaceIds: ['ws-s'], categoryIds: [] });
     expect(await getAll('contexts')).toHaveLength(0);
-    expect(await getByKey('cryptoMetadata', 'singleton')).toBeUndefined();
+    expect(await getByKey("cryptoMetadata", "singleton")).toBeUndefined();
   });
 
   it('不调 lock(合并不改接收方加密设置)', async () => {
@@ -115,12 +116,12 @@ describe('applyShareImport — T2 多工作区 order 重映射(Success Criteria 
         { id: 'c-s2b', workspaceId: 'ws-s2', name: 'Cat2B', icon: '📂', order: 1, createdAt: 4 },
       ],
       bookmarks: [
-        { id: 'b-s1a-x', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 8, createdAt: 1, updatedAt: 1 },
-        { id: 'b-s1a-y', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 4, createdAt: 2, updatedAt: 2 },
-        { id: 'b-s1b-x', workspaceId: 'ws-s1', categoryId: 'c-s1b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 3, updatedAt: 3 },
-        { id: 'b-s2a-x', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 6, createdAt: 4, updatedAt: 4 },
-        { id: 'b-s2a-y', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 1, createdAt: 5, updatedAt: 5 },
-        { id: 'b-s2b-x', workspaceId: 'ws-s2', categoryId: 'c-s2b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 3, createdAt: 6, updatedAt: 6 },
+        { id: 'b-s1a-x', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 8, createdAt: 1, updatedAt: 1, tags: [] },
+        { id: 'b-s1a-y', workspaceId: 'ws-s1', categoryId: 'c-s1a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 4, createdAt: 2, updatedAt: 2, tags: [] },
+        { id: 'b-s1b-x', workspaceId: 'ws-s1', categoryId: 'c-s1b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 3, updatedAt: 3, tags: [] },
+        { id: 'b-s2a-x', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 6, createdAt: 4, updatedAt: 4, tags: [] },
+        { id: 'b-s2a-y', workspaceId: 'ws-s2', categoryId: 'c-s2a', name: 'Y', url: 'https://y.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 1, createdAt: 5, updatedAt: 5, tags: [] },
+        { id: 'b-s2b-x', workspaceId: 'ws-s2', categoryId: 'c-s2b', name: 'X', url: 'https://x.com', description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 3, createdAt: 6, updatedAt: 6, tags: [] },
       ],
       contexts: [],
       pinnedTabs: [],

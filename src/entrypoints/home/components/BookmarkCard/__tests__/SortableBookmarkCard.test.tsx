@@ -22,6 +22,7 @@ const makeBookmark = (id: string): Bookmark => ({
   order: 0,
   createdAt: 0,
   updatedAt: 0,
+  tags: [],
 });
 
 const renderSortables = (items: Bookmark[], disabled = false) =>

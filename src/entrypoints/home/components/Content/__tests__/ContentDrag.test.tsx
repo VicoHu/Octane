@@ -37,6 +37,7 @@ const makeBookmark = (id: string, name: string): Bookmark => ({
   order: 0,
   createdAt: 0,
   updatedAt: 0,
+  tags: [],
 });
 
 /** 定位所有 grip 手柄(aria-roledescription=可拖拽项) */

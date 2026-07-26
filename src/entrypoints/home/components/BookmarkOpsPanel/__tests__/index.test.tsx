@@ -26,6 +26,7 @@ const bookmark: Bookmark = {
   order: 0,
   createdAt: 0,
   updatedAt: 0,
+  tags: [],
 };
 const workspaces: Workspace[] = [
   { id: 'w1', name: '工作区A', icon: '💼', order: 0, createdAt: 0 },
