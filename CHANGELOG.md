@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.2.3.0] - 2026-07-26
+
+### Added
+
+- **标签（Tag）系统**：给书签打多个标签做横向归类，与分类互补（一个书签只属一个分类，但可挂多个标签）。
+  - **录入**：主页新建 / 编辑书签、移动书签归属、Popup 快速保存均可录入标签（去重后最多 20 个，单个 ≤32 字符，不含空白）。
+  - **展示与筛选**：主页书签卡展示标签；分类内可按标签多选筛选，并与全文搜索组合。
+  - **筛选记忆范围**：标签筛选的记忆范围可在设置中心「书签」分区配置（仅当前分类 / 当前工作区 / 当前会话）。
+  - **备份与分享兼容**：备份 / 分享包携带标签数据，旧版备份解析时回填空标签（向后兼容，不丢数据）。
+- **CONTEXT.md 领域词汇表**：落地 Tag / Category / Bookmark / Browser tab / Pinned tab / Context 术语消歧，统一 issue / spec / 测试用词（Tag ≠ 标签页 ≠ 分类）。
+
+### Changed
+
+- **商店更新入口重构**：商店渠道（Chrome 商店 / Edge）检测到新版时，「关于」面板主操作改为「立即更新」（重载扩展即时生效），并常驻 `chrome://extensions` 兜底链接——不再跳转商店页（商店对已装扩展只显示「移除」，跳转无法完成更新且误导）。手动安装渠道（GitHub Releases）不受影响。
+- **DB schema v5→v6**：Bookmark 加 `tags` 字段，历史书签在升级事务内回填空数组。
+- **备份格式 v4→v5**：书签带 `tags`；v4 及以下旧备份解析时回填空标签。
+
+### Internal
+
+- 标签系统全链路 TDD（TagInput / TagFilter / ContentTagFilter 系列，覆盖筛选 / 记忆范围 / 拖拽共存 / 空状态 / 组合搜索）。
+- 修正 Tag 相关测试违反 [测试规范](docs/standards/testing.md) 的两处存量；统一 `BookmarkService.order.test.ts` 引号为双引号。
+
 ## [0.2.2.0] - 2026-07-24
 
 ### Added
