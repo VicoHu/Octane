@@ -21,6 +21,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import type { Bookmark } from '@/shared/types';
 
 interface TagFilterProps {
@@ -100,47 +105,62 @@ export const TagFilter: React.FC<TagFilterProps> = ({
   const visibleBadges = selectedTags.slice(0, 3);
   const overflowCount = selectedTags.length - visibleBadges.length;
 
+  // 当前分类无任何 Tag 时禁用筛选按钮，但保留布局占位（#53）
+  const noTags = tagOptions.length === 0;
+
+  // 筛选按钮（禁用态：Tooltip 说明「当前分类暂无 Tag」）
+  const filterButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={noTags}
+      aria-label={selectedTags.length > 0 ? `筛选 Tag（已选 ${selectedTags.length} 个）` : '筛选 Tag'}
+    >
+      <Tag data-icon="inline-start" />
+      筛选 Tag
+      {selectedTags.length > 0 && (
+        <Badge variant="secondary" className="ml-0.5">
+          {selectedTags.length}
+        </Badge>
+      )}
+    </Button>
+  );
+
   return (
     <div className="flex items-center gap-1.5">
-      {/* 筛选按钮 */}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              aria-label={selectedTags.length > 0 ? `筛选 Tag（已选 ${selectedTags.length} 个）` : '筛选 Tag'}
-            >
-              <Tag data-icon="inline-start" />
-              筛选 Tag
-              {selectedTags.length > 0 && (
-                <Badge variant="secondary" className="ml-0.5">
-                  {selectedTags.length}
-                </Badge>
-              )}
-            </Button>
-          }
-        />
-        <PopoverContent align="start" className="w-64 p-0">
-          {/* 搜索框 */}
-          <div className="border-b p-2">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="搜索 Tag"
-              className="h-8"
-            />
-          </div>
-
-          {/* 选项列表 */}
-          {filteredOptions.length === 0 ? (
-            <div className="p-4 text-center text-muted-foreground text-xs">
-              {search.trim() ? '未找到匹配的 Tag' : '当前分类暂无 Tag'}
+      {/* 筛选按钮：无 Tag 时禁用 + Tooltip；有 Tag 时 Popover */}
+      {noTags ? (
+        <Tooltip>
+          {/* 用 span 包裹禁用按钮：disabled 按钮禁用 pointer-events，
+              span 承接 hover 以触发 Tooltip（#53） */}
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            {filterButton}
+          </TooltipTrigger>
+          <TooltipContent>当前分类暂无 Tag</TooltipContent>
+        </Tooltip>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger render={filterButton} />
+          <PopoverContent align="start" className="w-64 p-0">
+            {/* 搜索框 */}
+            <div className="border-b p-2">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索 Tag"
+                className="h-8"
+              />
             </div>
-          ) : (
-            <div className="max-h-60 overflow-y-auto">
-              <div className="flex flex-col p-1">
+
+            {/* 选项列表 */}
+            {filteredOptions.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground text-xs">
+                {search.trim() ? '未找到匹配的 Tag' : '当前分类暂无 Tag'}
+              </div>
+            ) : (
+              <div className="max-h-60 overflow-y-auto">
+                <div className="flex flex-col p-1">
                   {filteredOptions.map((option) => {
                     const lower = option.tag.toLowerCase();
                     const checked = selectedTags.some((t) => t.toLowerCase() === lower);
@@ -158,26 +178,27 @@ export const TagFilter: React.FC<TagFilterProps> = ({
                       </label>
                     );
                   })}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* 清除全部 */}
-          {selectedTags.length > 0 && (
-            <div className="border-t p-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={clearAll}
-              >
-                清除全部
-              </Button>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
+            {/* 清除全部 */}
+            {selectedTags.length > 0 && (
+              <div className="border-t p-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={clearAll}
+                >
+                  清除全部
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
 
       {/* 已选 Badge：最多 3 个 + N */}
       {visibleBadges.map((tag) => (

@@ -168,6 +168,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
 
   // === T4 拖拽排序(Content grid 层)===
   // activationConstraint distance:8 兜底(grip listener),防 click 误触为拖拽
+  // 搜索或任一 Tag 筛选存在时禁用拖拽（#53）；全部清除后恢复
+  const hasFilter = !!query || selectedFilterTags.length > 0;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeBookmarkId, setActiveBookmarkId] = useState<string | null>(null);
   const activeBookmark = activeBookmarkId
@@ -486,9 +488,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             </div>
           ) : filteredBookmarks.length === 0 ? (
             <EmptyState
-              message={query ? '没有找到匹配的书签' : '添加你的第一个书签'}
-              actionLabel={query ? undefined : '添加书签'}
-              onAction={query ? undefined : openAddManual}
+              message={hasFilter ? '没有找到匹配的书签' : '添加你的第一个书签'}
+              actionLabel={hasFilter ? undefined : '添加书签'}
+              onAction={hasFilter ? undefined : openAddManual}
+              // 组合空状态（#53）：同时提供清空搜索与清除全部 Tag 筛选入口
+              secondaryActions={
+                hasFilter
+                  ? [
+                      ...(query ? [{ label: '清空搜索', onClick: () => setQuery('') }] : []),
+                      ...(selectedFilterTags.length > 0
+                        ? [{ label: '清除全部 Tag 筛选', onClick: () => setSelectedFilterTags([]) }]
+                        : []),
+                    ]
+                  : undefined
+              }
             />
           ) : filteredBookmarks.length > 1 ? (
             <DndContext
@@ -508,8 +521,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
                     <SortableBookmarkCard
                       key={bookmark.id}
                       bookmark={bookmark}
-                      disabled={!!query || reordering}
-                      coachmark={!query && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
+                      disabled={hasFilter || reordering}
+                      coachmark={!hasFilter && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
                       hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
                       onClick={handleCardClick}
                       onViewContexts={handleViewContexts}

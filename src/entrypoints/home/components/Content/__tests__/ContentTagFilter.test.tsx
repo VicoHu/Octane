@@ -111,6 +111,7 @@ describe('Content Tag 筛选器（#52）', () => {
 
     it('点击筛选按钮 → 打开 Popover，显示可搜索输入框', async () => {
       const user = userEvent.setup();
+      bookmarksState.bookmarks = [makeBookmark('b1', '带标签', ['React'])];
       render(<Content openTabs={[]} />);
       await user.click(screen.getByRole('button', { name: /筛选.*[Tt]ag|[Tt]ag.*筛选/ }));
       expect(await screen.findByPlaceholderText(/搜索.*[Tt]ag/i)).toBeInTheDocument();
