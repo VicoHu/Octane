@@ -63,8 +63,6 @@
 
 - 浏览器内置 `_favicon` 端点
 - `icon.horse`
-- `icons.duckduckgo.com`
-- 目标网站本身（`<origin>/favicon.ico`）
 
 此过程只获取公开的图标资源。
 
