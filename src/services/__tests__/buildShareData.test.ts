@@ -66,3 +66,24 @@ describe('buildShareData — 分享包精确取数', () => {
     expect(out.pinnedTabs).toEqual([]);
   });
 });
+
+// ── Issue #55: 分享数据选择构建保持 Tag 原样 ──
+
+describe('buildShareData — Tag 原样保留（#55）', () => {
+  it('选择构建分享包时 bookmark tags 原样保留，不被清空或修改', () => {
+    const bmWithTags: Bookmark = {
+      ...bm1a,
+      id: 'bm-tags',
+      tags: ["前端", "React", "重要"],
+    };
+    const allWithTags: BackupData = { ...all, bookmarks: [bmWithTags, bm1b, bm2a] };
+    const out = buildShareData(allWithTags, { workspaceIds: ["ws-1"], categoryIds: [] }, false);
+    const got = out.bookmarks.find((b) => b.id === "bm-tags")!;
+    expect(got.tags).toEqual(["前端", "React", "重要"]);
+  });
+
+  it('空 tags 的 bookmark 选择构建后仍为空数组', () => {
+    const out = buildShareData(all, { workspaceIds: ["ws-1"], categoryIds: [] }, false);
+    expect(out.bookmarks[0]!.tags).toEqual([]);
+  });
+});

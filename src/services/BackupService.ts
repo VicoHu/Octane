@@ -9,6 +9,7 @@ import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
 import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy, reorderForImport } from '@/services/shareImport';
 import type { ExistingNames } from '@/services/shareImport';
+import { validateTag, MAX_TAG_LENGTH, MAX_TAG_COUNT } from '@/shared/utils/tagRules';
 
 export type ValidationResult =
   | { ok: true; data: BackupData; kind: BackupKind }
@@ -47,14 +48,55 @@ function normalizeBookmarkOrder(bookmarks: Bookmark[]): Bookmark[] {
 }
 
 /**
- * 旧版本（v4 及以下）备份 bookmark 无 tags → 回填空数组。与 DB v5→v6 迁移一致
- *（见 database.ts runUpgrade）。对每个缺 tags 的 bookmark 补 tags=[]，已有 tags 原样保留。
+ * 校验 / 规范化 bookmark tags。
+ *
+ * 严格 vs 兼容的边界由备份 schema 版本号区分（Issue #55）：
+ * - v4 及以下（旧格式，不支持 tags）：缺 tags → 回填 []，已有 tags 原样保留。
+ * - v5+（声明支持 tags 的新格式）：tags 必须是符合数量、长度、空白和大小写去重规则的
+ *   字符串数组。非法数据（非数组、非字符串、重复、空白、超长、超量、需 trim）→ 明确拒绝，
+ *   不做截断、删除、拼接或其他静默修改。
  */
-function normalizeBookmarkTags(bookmarks: Bookmark[]): Bookmark[] {
-  for (const b of bookmarks) {
-    if (!Array.isArray(b.tags)) b.tags = [];
+function validateAndNormalizeTags(
+  version: number,
+  bookmarks: Bookmark[],
+): { ok: true; bookmarks: Bookmark[] } | { ok: false; error: string } {
+  if (version < BACKUP_VERSION) {
+    // 旧版本：缺 tags → 回填空数组（与 DB v5→v6 迁移一致）
+    for (const b of bookmarks) {
+      if (!Array.isArray(b.tags)) b.tags = [];
+    }
+    return { ok: true, bookmarks };
   }
-  return bookmarks;
+
+  // v5+ 严格校验：tags 必须是合法的字符串数组
+  for (const b of bookmarks) {
+    if (!Array.isArray(b.tags)) {
+      return { ok: false, error: `书签 ${b.id} 的 tags 必须是数组` };
+    }
+    for (const tag of b.tags) {
+      if (typeof tag !== 'string') {
+        return { ok: false, error: `书签 ${b.id} 的 tag 必须是字符串` };
+      }
+      // validateTag 返回 trim 后的合法值或 null；严格模式下要求 tag 已是规范形式（无 trim 需求）
+      const validated = validateTag(tag);
+      if (validated === null) {
+        return { ok: false, error: `书签 ${b.id} 的 tag "${tag}" 不合法（空白或超长，上限 ${MAX_TAG_LENGTH} 字符）` };
+      }
+      if (validated !== tag) {
+        return { ok: false, error: `书签 ${b.id} 的 tag "${tag}" 需 trim，不做静默修改` };
+      }
+    }
+    // 数量上限
+    if (b.tags.length > MAX_TAG_COUNT) {
+      return { ok: false, error: `书签 ${b.id} 的 tag 数量超过上限 ${MAX_TAG_COUNT}` };
+    }
+    // 大小写不敏感去重检查（重复 → 拒绝，不做静默去重）
+    const lower = b.tags.map((t) => t.toLowerCase());
+    if (new Set(lower).size !== lower.length) {
+      return { ok: false, error: `书签 ${b.id} 的 tag 存在大小写不敏感的重复` };
+    }
+  }
+  return { ok: true, bookmarks };
 }
 
 /**
@@ -131,8 +173,10 @@ export function validateBackup(parsed: unknown): ValidationResult {
   //(createdAt ASC, id ASC)回填，与 DB v4→v5 迁移一致；v4+ 已有 order 原样保留。
   const rawBookmarks = data.bookmarks as Bookmark[];
   const ordered = parsed.version < 4 ? normalizeBookmarkOrder(rawBookmarks) : rawBookmarks;
-  // 标准化 bookmark tags：v4 及以下旧备份 bookmark 无 tags → 回填空数组，与 DB v5→v6 迁移一致。
-  const bookmarks = normalizeBookmarkTags(ordered);
+  // 标准化 bookmark tags：v4 及以下旧备份缺 tags → 回填空数组；v5+ 严格校验（非法即拒绝）
+  const tagsResult = validateAndNormalizeTags(parsed.version, ordered);
+  if (!tagsResult.ok) return { ok: false, error: tagsResult.error };
+  const bookmarks = tagsResult.bookmarks;
 
   const backupData: BackupData = {
     workspaces: data.workspaces as Workspace[],

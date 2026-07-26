@@ -167,3 +167,26 @@ describe('applyShareImport — T2 多工作区 order 重映射(Success Criteria 
     expect(bmsInCat2a.map((b) => b.order)).toEqual([0, 1]);
   });
 });
+
+// ── Issue #55: 接收方合并后持久化 Bookmark 包含正确 Tag ──
+
+describe('applyShareImport — Tag 原样保留并持久化（#55）', () => {
+  it('接收方合并后 bookmark tags 原样保留（含 ID 重映射、顺序重排、冗余重算）', async () => {
+    // 发送方包：bookmark 带 tags
+    const tagPackage: BackupData = {
+      ...fullPackage,
+      bookmarks: [{ ...bm, tags: ['前端', 'React', '重要'] }],
+    };
+    await applyShareImport(tagPackage, { workspaceIds: ['ws-s'], categoryIds: [] });
+    const gotBm = await getAll<Bookmark>('bookmarks');
+    expect(gotBm).toHaveLength(1);
+    expect(gotBm[0]!.tags).toEqual(['前端', 'React', '重要']);
+  });
+
+  it('空 tags 的 bookmark 合并后仍为空数组', async () => {
+    await applyShareImport(fullPackage, { workspaceIds: ['ws-s'], categoryIds: [] });
+    const gotBm = await getAll<Bookmark>('bookmarks');
+    expect(gotBm).toHaveLength(1);
+    expect(gotBm[0]!.tags).toEqual([]);
+  });
+});

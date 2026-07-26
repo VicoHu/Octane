@@ -319,3 +319,63 @@ describe('reorderForImport — 分享导入 order 重映射(T2 纯函数)', () =
     expect(byId.get('ws-c')).toBe(3);
   });
 });
+
+// ── Issue #55: 分享链路 Tag 原样保留 ──
+// 分享数据的选择构建、ID 重映射、冲突处理、顺序重排和冗余字段重算均保持 Tag 原样。
+
+function bmWithTags(id: string, tags: string[]): Bookmark {
+  return {
+    id, workspaceId: 'ws-old', categoryId: 'cat-old', name: 'n', url: 'https://x.com',
+    description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false,
+    order: 0, createdAt: 1, updatedAt: 1, tags,
+  };
+}
+
+const tagShareData: BackupData = {
+  workspaces: [{ id: 'ws-old', name: '工作', icon: '📁', createdAt: 1, order: 0 }],
+  categories: [{ id: 'cat-old', workspaceId: 'ws-old', name: '工具', icon: '📂', order: 0, createdAt: 1 }],
+  bookmarks: [
+    bmWithTags('bm-tags', ['前端', 'React', '重要']),
+    bmWithTags('bm-empty', []),
+  ],
+  contexts: [],
+  pinnedTabs: [],
+  cryptoMetadata: null,
+};
+
+describe('remapShareIds — Tag 原样保留（#55）', () => {
+  it('ID 重映射后 bookmark tags 原样保留，不被清空或修改', () => {
+    const r = remapShareIds(tagShareData, genId);
+    const withTags = r.bookmarks.find((b) => b.name === 'n' && b.tags.length > 0)!;
+    expect(withTags.tags).toEqual(['前端', 'React', '重要']);
+  });
+
+  it('空 tags 的 bookmark 重映射后仍为空数组', () => {
+    const r = remapShareIds(tagShareData, genId);
+    const empty = r.bookmarks.find((b) => b.name === 'n' && b.tags.length === 0)!;
+    expect(empty.tags).toEqual([]);
+  });
+});
+
+describe('recomputeRedundancy — Tag 原样保留（#55）', () => {
+  it('冗余字段重算（contextCount/hasEncryptedContext）不改变 tags', () => {
+    const r = recomputeRedundancy(tagShareData.bookmarks, []);
+    expect(r[0]!.tags).toEqual(['前端', 'React', '重要']);
+    expect(r[1]!.tags).toEqual([]);
+  });
+});
+
+describe('reorderForImport — Tag 原样保留（#55）', () => {
+  it('order 重排后 bookmark tags 原样保留', () => {
+    const r = reorderForImport(tagShareData, 0);
+    const withTags = r.bookmarks.find((b) => b.tags.length > 0)!;
+    expect(withTags.tags).toEqual(['前端', 'React', '重要']);
+  });
+});
+
+describe('resolveNameConflicts — Tag 原样保留（#55）', () => {
+  it('同名后缀处理不改变 bookmark tags', () => {
+    const r = resolveNameConflicts(tagShareData, { workspaces: new Set(['工作']), categories: new Set() });
+    expect(r.bookmarks[0]!.tags).toEqual(['前端', 'React', '重要']);
+  });
+});
