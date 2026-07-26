@@ -31,6 +31,7 @@ vi.mock('../../ChangePasswordModal', () => ({
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import userEvent from '@testing-library/user-event';
 import { render, screen } from '@testing-library/react';
+import { installChromeStorageLocal } from '@/test/storageMock';
 import { SettingsModal } from '../index';
 
 describe('SettingsModal（系统设置中心）', () => {
@@ -117,5 +118,28 @@ describe('SettingsModal（系统设置中心）', () => {
     await user.click(cloudTab);
     expect(cloudTab).toHaveAttribute('aria-selected', 'true');
     expect(localTab).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('导航含「书签」分区，点击后展示 Tag 筛选记忆范围 RadioGroup', async () => {
+    const user = userEvent.setup();
+    // BookmarkSection 读 chrome.storage.local：装真实 in-memory storage
+    installChromeStorageLocal({});
+    const chromeObj = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
+    chromeObj.commands = {
+      getAll: vi.fn(async () => [
+        { name: 'open-home', description: '打开首页', shortcut: 'Alt+Shift+H' },
+      ]),
+    };
+    chromeObj.tabs = { create: vi.fn(async () => undefined) };
+
+    render(<SettingsModal visible={true} onCancel={() => {}} />);
+    await screen.findByRole('button', { name: /前往自定义/ });
+
+    await user.click(screen.getByRole('tab', { name: '书签' }));
+    expect(screen.getByRole('heading', { name: '书签', level: 2 })).toBeInTheDocument();
+    // 三档默认选中「仅当前分类」
+    expect(await screen.findByRole('radio', { name: /仅当前分类/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /当前工作区/ })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: /当前会话/ })).not.toBeChecked();
   });
 });

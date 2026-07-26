@@ -55,6 +55,11 @@ import { ContextList } from '../ContextList';
 import { TabList } from '../TabList';
 import { AddPinnedTabDialog } from '../AddPinnedTabDialog';
 import type { Bookmark } from '@/shared/types';
+import {
+  getTagFilterMemoryScope,
+  DEFAULT_TAG_FILTER_MEMORY_SCOPE,
+  type TagFilterMemoryScope,
+} from '@/shared/tagFilterMemorySetting';
 import styles from './index.module.css';
 
 type View = 'bookmarks' | 'tabs';
@@ -81,6 +86,100 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   // Tag 筛选：当前 Category 内已选 Tag 集合（#52；记忆范围/切换恢复属 #53/#54）
   const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
+
+  // #54 Tag 筛选记忆范围：按 scope 在内存中管理各 Category 的筛选记忆。
+  // 记忆只存内存（刷新天然清空）；配置持久化在 storage，配置变更不追溯。
+  const memoryScopeRef = useRef<TagFilterMemoryScope>(DEFAULT_TAG_FILTER_MEMORY_SCOPE);
+  // 记忆键：workspace:category（保证跨工作区不串号）；值：已选 Tag 数组
+  const filterMemoryRef = useRef<Record<string, string[]>>({});
+  // 跟踪上一轮 workspace/category，用于检测切换
+  const prevWsRef = useRef<string | null>(currentWorkspaceId);
+  const prevCatRef = useRef<string | null>(currentCategoryId);
+
+  // 挂载时读一次记忆范围（仅驱动之后切换行为；配置变更不追溯当前筛选）
+  useEffect(() => {
+    let active = true;
+    getTagFilterMemoryScope()
+      .then((s) => {
+        if (active) memoryScopeRef.current = s;
+      })
+      .catch(() => {
+        /* 非扩展环境 / storage 异常 → 保持默认 category */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 监听 storage.onChanged：配置变更时实时更新 scope（不追溯清理既有记忆）
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const chrome = g['chrome'];
+    const storage =
+      chrome && typeof chrome === 'object'
+        ? ((chrome as Record<string, unknown>)['storage'] as
+            | {
+                onChanged?: {
+                  addListener: (cb: (c: unknown, a: string) => void) => void;
+                  removeListener: (cb: (c: unknown, a: string) => void) => void;
+                };
+              }
+            | undefined)
+        : undefined;
+    const onChanged = storage?.onChanged;
+    if (!onChanged?.addListener || !onChanged.removeListener) return;
+    const listener = async (_changes: unknown, area: string) => {
+      if (area !== 'local') return;
+      const next = await getTagFilterMemoryScope();
+      memoryScopeRef.current = next;
+    };
+    onChanged.addListener(listener);
+    return () => onChanged.removeListener(listener);
+  }, []);
+
+  // 切换 Category / Workspace 时按 scope 管理筛选记忆（#54）
+  useEffect(() => {
+    const prevCat = prevCatRef.current;
+    const prevWs = prevWsRef.current;
+    const scope = memoryScopeRef.current;
+    const curCat = currentCategoryId;
+    const curWs = currentWorkspaceId;
+
+    // 记忆键：workspace:category（保证跨工作区不串号）
+    const memKey = (wsId: string | null, catId: string | null) =>
+      wsId && catId ? `${wsId}:${catId}` : null;
+
+    const wsChanged = prevWs !== curWs;
+    const catChanged = prevCat !== curCat;
+
+    if (!wsChanged && !catChanged) return;
+
+    // 先保存离开前的筛选到记忆（仅 workspace / session scope 会恢复；category 不恢复）
+    const prevKey = memKey(prevWs, prevCat);
+    if (prevKey && scope !== 'category') {
+      filterMemoryRef.current[prevKey] = selectedFilterTags;
+    }
+
+    // 离开工作区：workspace scope 清除该工作区全部记忆；session 保留
+    if (wsChanged && scope === 'workspace' && prevWs) {
+      for (const k of Object.keys(filterMemoryRef.current)) {
+        if (k.startsWith(`${prevWs}:`)) delete filterMemoryRef.current[k];
+      }
+    }
+
+    // 恢复目标 Category 的记忆（category scope 恢复空；workspace/session 恢复已存）
+    const restoreKey = memKey(curWs, curCat);
+    const restored =
+      scope !== 'category' && restoreKey
+        ? filterMemoryRef.current[restoreKey] ?? []
+        : [];
+    setSelectedFilterTags(restored);
+
+    prevCatRef.current = curCat;
+    prevWsRef.current = curWs;
+    // selectedFilterTags 故意不进依赖：保存的是「切换那一刻」的值，避免每次选择都重写记忆
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCategoryId, currentWorkspaceId]);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
   const [addFormApi, setAddFormApi] = useState<any>(null);

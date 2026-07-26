@@ -14,13 +14,14 @@ import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
 import { FaviconCacheSection } from './sections/FaviconCacheSection';
 import { AboutSection } from './sections/AboutSection';
 import { WorkspaceTabsSection } from './sections/WorkspaceTabsSection';
+import { BookmarkSection } from './sections/BookmarkSection';
 import styles from './index.module.css';
 
 interface SettingsModalProps {
   visible: boolean;
   onCancel: () => void;
   /** 打开时默认激活的 Tab（sidebar 版本标记点击时传 'about'）。 */
-  initialTab?: 'shortcuts' | 'backup' | 'maintenance' | 'password' | 'workspacetabs' | 'about';
+  initialTab?: 'shortcuts' | 'backup' | 'maintenance' | 'password' | 'workspacetabs' | 'bookmark' | 'about';
 }
 
 /**
@@ -51,6 +52,7 @@ export function SettingsModal({ visible, onCancel, initialTab = 'shortcuts' }: S
             <TabsTrigger value="maintenance">数据维护</TabsTrigger>
             <TabsTrigger value="password">主密码</TabsTrigger>
             <TabsTrigger value="workspacetabs">工作区与标签</TabsTrigger>
+            <TabsTrigger value="bookmark">书签</TabsTrigger>
             <TabsTrigger value="about">关于</TabsTrigger>
           </TabsList>
           <TabsContent value="shortcuts" className={styles.settingsContent}>
@@ -88,6 +90,13 @@ export function SettingsModal({ visible, onCancel, initialTab = 'shortcuts' }: S
               <p>控制切换工作区时如何处理已打开的标签。</p>
             </header>
             <WorkspaceTabsSection />
+          </TabsContent>
+          <TabsContent value="bookmark" className={styles.settingsContent}>
+            <header className={styles.sectionHeader}>
+              <h2>书签</h2>
+              <p>配置 Tag 筛选的记忆范围。</p>
+            </header>
+            <BookmarkSection />
           </TabsContent>
           <TabsContent value="about" className={styles.settingsContent}>
             <header className={styles.sectionHeader}>
