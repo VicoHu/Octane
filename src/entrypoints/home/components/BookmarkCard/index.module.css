@@ -6,8 +6,8 @@
   flex-direction: row;
   align-items: center;
   gap: var(--space-md);
-  height: 78px;
-  min-height: 78px;
+  height: 88px;
+  min-height: 88px;
   padding: 0 14px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -143,6 +143,48 @@
   white-space: nowrap;
   line-height: 1.5;
   margin-top: var(--space-xs);
+}
+
+/* Issue #51：Tag 行（替代描述行） */
+.tags {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  overflow: hidden;
+}
+
+/* 中性 Tag 样式：不可点击，纯展示 */
+.tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  max-width: 80px;
+  height: 18px;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tagOverflow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-xs);
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
 }
 
 /* 左侧已打开 Tab 竖线（设计 §2.2） */
