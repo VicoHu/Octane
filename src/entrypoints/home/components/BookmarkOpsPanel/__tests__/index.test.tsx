@@ -9,8 +9,9 @@ vi.mock('lottie-web', () => ({
   },
 }));
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { BookmarkOpsPanel, type BookmarkOpsPanelHandle } from '../../BookmarkOpsPanel';
+import { BookmarkOpsPanel, type BookmarkOpsPanelHandle, type BookmarkOpsPanelSubmit } from '../../BookmarkOpsPanel';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
 
 const bookmark: Bookmark = {
@@ -55,7 +56,7 @@ const renderPanel = (
 
 describe('BookmarkOpsPanel — 级联 Select 数据源 + 空分类防呆', () => {
   beforeEach(() => {
-    document.body.innerHTML = '';
+    document.body.replaceChildren();
   });
 
   it('T7 挂载时预载书签原属工作区的分类（categoriesLoader 为数据源，非 useWorkspace.categories）', async () => {
@@ -82,7 +83,7 @@ describe('BookmarkOpsPanel — 级联 Select 数据源 + 空分类防呆', () =>
 
     // 直接断言防呆文案渲染机制存在（Banner 由 categoryEmpty 触发）：
     // 用 loader 返回空模拟空分类态——重新渲染一个空工作区场景
-    document.body.innerHTML = '';
+    document.body.replaceChildren();
     const emptyLoader = vi.fn(async () => [] as Category[]);
     render(
       <BookmarkOpsPanel
@@ -97,5 +98,111 @@ describe('BookmarkOpsPanel — 级联 Select 数据源 + 空分类防呆', () =>
     await waitFor(() => {
       expect(screen.getByText('目标工作区无分类，请先创建')).toBeTruthy();
     });
+  });
+});
+
+describe('BookmarkOpsPanel — 编辑时维护 Tag（#49）', () => {
+  const taggedBookmark: Bookmark = {
+    ...bookmark,
+    tags: ['React', 'Frontend'],
+  };
+  const w2Categories: Category[] = [
+    { id: 'c2', workspaceId: 'w2', name: '分类2', icon: '📂', order: 0, createdAt: 0 },
+  ];
+
+  beforeEach(() => {
+    document.body.replaceChildren();
+  });
+
+  const renderEditPanel = (overrides: {
+    bookmark?: Bookmark;
+    categoriesLoader?: (wsId: string) => Promise<Category[]>;
+    tagSuggestionsLoader?: (wsId: string) => Promise<string[]>;
+    onSubmit?: ReturnType<typeof vi.fn<(values: BookmarkOpsPanelSubmit) => void>>;
+  } = {}) => {
+    const ref = React.createRef<BookmarkOpsPanelHandle>();
+    const categoriesLoader =
+      overrides.categoriesLoader ??
+      (vi.fn(async (wsId: string) =>
+        wsId === 'w1' ? w1Categories : w2Categories));
+    const tagSuggestionsLoader =
+      overrides.tagSuggestionsLoader ??
+      (vi.fn(async (wsId: string) =>
+        wsId === 'w1' ? ['React', 'Frontend', 'CSS'] : ['Go', 'Backend']));
+    const onSubmit = overrides.onSubmit ?? vi.fn<(values: BookmarkOpsPanelSubmit) => void>();
+    const utils = render(
+      <BookmarkOpsPanel
+        ref={ref}
+        bookmark={overrides.bookmark ?? taggedBookmark}
+        workspaces={workspaces}
+        categoriesLoader={categoriesLoader}
+        tagSuggestionsLoader={tagSuggestionsLoader}
+        onSubmit={onSubmit}
+      />,
+    );
+    return { ...utils, ref, onSubmit, categoriesLoader, tagSuggestionsLoader };
+  };
+
+  it('加载书签当前 Tag，并展示为已选徽标', async () => {
+    renderEditPanel();
+
+    // 既有 Tag 应作为已选徽标渲染（移除按钮 aria-label 含 Tag 名）
+    expect(screen.getByRole('button', { name: '移除 React' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '移除 Frontend' })).toBeInTheDocument();
+  });
+
+  it('添加新 Tag 后可移除，按添加顺序维护', async () => {
+    const user = userEvent.setup();
+    renderEditPanel({ bookmark: { ...taggedBookmark, tags: [] } });
+
+    // 添加两个 Tag
+    await user.type(screen.getByPlaceholderText(/输入.*[Tt]ag/), 'Go{Enter}');
+    await user.type(screen.getByPlaceholderText(/输入.*[Tt]ag/), 'Rust{Enter}');
+
+    // 添加顺序保留：Go 在 Rust 之前
+    const badges = screen.getAllByRole('button', { name: /移除/ });
+    expect(badges[0]!.getAttribute('aria-label')).toBe('移除 Go');
+    expect(badges[1]!.getAttribute('aria-label')).toBe('移除 Rust');
+
+    // 移除 Go
+    await user.click(screen.getByRole('button', { name: '移除 Go' }));
+    expect(screen.queryByRole('button', { name: '移除 Go' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '移除 Rust' })).toBeInTheDocument();
+  });
+
+  it('使用目标工作区的 Tag 建议（原属工作区初始加载）', async () => {
+    const tagSuggestionsLoader = vi.fn(async (wsId: string) =>
+      wsId === 'w1' ? ['React', 'CSS'] : ['Go']);
+    renderEditPanel({ tagSuggestionsLoader });
+
+    // 初始加载原属工作区 w1 的建议
+    await waitFor(() => {
+      expect(tagSuggestionsLoader).toHaveBeenCalledWith('w1');
+    });
+    // 建议（未被选中的）应出现
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'CSS' })).toBeInTheDocument();
+    });
+  });
+
+  it('提交时 onSubmit 携带当前编辑后的 tags', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const { ref } = renderEditPanel({
+      bookmark: { ...taggedBookmark, tags: ['React'] },
+      onSubmit,
+    });
+
+    // 添加一个新 Tag
+    await user.type(screen.getByPlaceholderText(/输入.*[Tt]ag/), 'Go{Enter}');
+
+    // 触发提交
+    ref.current!.submit();
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    const values = onSubmit.mock.calls[0]![0];
+    expect(values.tags).toEqual(['React', 'Go']);
   });
 });

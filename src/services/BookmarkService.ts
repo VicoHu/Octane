@@ -74,7 +74,7 @@ export async function reorderBookmarks(categoryId: string, orderedBookmarkIds: s
 }
 
 /** 更新书签 */
-export async function updateBookmark(id: string, updates: Partial<Pick<Bookmark, 'name' | 'url' | 'description' | 'faviconUrl' | 'categoryId' | 'workspaceId' | 'contextCount' | 'hasEncryptedContext'>>): Promise<void> {
+export async function updateBookmark(id: string, updates: Partial<Pick<Bookmark, 'name' | 'url' | 'description' | 'faviconUrl' | 'categoryId' | 'workspaceId' | 'contextCount' | 'hasEncryptedContext' | 'tags'>>): Promise<void> {
   const existing = await getByKey<Bookmark>('bookmarks', id);
   if (!existing) throw new Error('书签不存在');
   const updated: Bookmark = { ...existing, ...updates, updatedAt: Date.now() };

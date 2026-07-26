@@ -22,8 +22,9 @@ import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs
 import { focusTab } from '@/shared/tabs/focusTab';
 import { openUrlInNewTab } from '@/shared/tabs/openTab';
 import * as CategoryService from '@/services/CategoryService';
+import * as BookmarkService from '@/services/BookmarkService';
 import { cn } from '@/lib/utils';
-import { buildTagSuggestions } from '@/shared/utils/tagRules';
+import { buildTagSuggestions, normalizeTags } from '@/shared/utils/tagRules';
 import { BookmarkCard } from '../BookmarkCard';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
@@ -98,6 +99,14 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const editPanelRef = useRef<BookmarkOpsPanelHandle>(null);
   const categoriesLoader = useCallback(
     (wsId: string) => CategoryService.listCategories(wsId),
+    [],
+  );
+  // 编辑面板 Tag 建议 loader：加载目标工作区全部书签，聚合 Tag 建议（Issue #49）
+  const tagSuggestionsLoader = useCallback(
+    async (wsId: string) => {
+      const wsBookmarks = await BookmarkService.listBookmarksByWorkspace(wsId);
+      return buildTagSuggestions(wsBookmarks);
+    },
     [],
   );
 
@@ -300,14 +309,26 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
       const nextName = values.name || editingBookmark.name;
       const nextUrl = values.url || editingBookmark.url;
       const nextDesc = values.description ?? '';
+      // Tag 规范化（Issue #49）：大小写去重、清理空白、上限控制
+      const nextTags = normalizeTags(values.tags ?? editingBookmark.tags ?? []);
       const propsChanged =
         nextName !== editingBookmark.name ||
         nextUrl !== editingBookmark.url ||
         nextDesc !== editingBookmark.description;
+      // Tag 变化判定（顺序敏感：数组不等即变）
+      const tagsChanged =
+        nextTags.length !== editingBookmark.tags.length ||
+        nextTags.some((t, i) => t !== editingBookmark.tags[i]);
 
-      // 1. 属性更新（name/url/description）写库
-      if (propsChanged) {
-        await updateBookmark(editingBookmark.id, { name: nextName, url: nextUrl, description: nextDesc });
+      // 1. 属性 / Tag 更新（name/url/description/tags）写库
+      //    先于 moveBookmark：确保移动读取 DB 时 Tag 已是最新（moveBookmark 按 ...existing 保留全部字段）
+      if (propsChanged || tagsChanged) {
+        await updateBookmark(editingBookmark.id, {
+          name: nextName,
+          url: nextUrl,
+          description: nextDesc,
+          tags: nextTags,
+        });
       }
       // 2. 移动（workspaceId/categoryId 变）——moveBookmark 内部 update ws+cat 并按方向同步双切片
       //    不能用 refreshBookmark 处理移动:map 语义无法移除,且会破坏 ContextEditor 第二 caller
@@ -316,11 +337,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           .getState()
           .moveBookmark(editingBookmark.id, values.workspaceId, values.categoryId);
       }
-      // 3. 属性改后刷新切片。纯编辑→refreshBookmark 刷双切片;
-      //    移动+改属性→moveBookmark 用切片旧数据(旧 name),需 refresh 重读 DB 最新:
-      //      同ws跨cat:allBookmarks 保留该条,refresh map 拿到新 name ✓
+      // 3. 属性/Tag 改后刷新切片。纯编辑→refreshBookmark 刷双切片;
+      //    移动+改属性/Tag→moveBookmark 用切片旧数据(旧 name/tags),需 refresh 重读 DB 最新:
+      //      同ws跨cat:allBookmarks 保留该条,refresh map 拿到新 name/tags ✓
       //      跨ws:allBookmarks 已被 moveBookmark filter 移除,refresh map 无匹配(无害,书签已离开当前视图)
-      if (propsChanged) {
+      if (propsChanged || tagsChanged) {
         await useBookmarks.getState().refreshBookmark(editingBookmark.id);
       }
 
@@ -595,6 +616,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
               bookmark={editingBookmark}
               workspaces={workspaces}
               categoriesLoader={categoriesLoader}
+              tagSuggestionsLoader={tagSuggestionsLoader}
               onSubmit={handleBookmarkSubmit}
             />
           )}

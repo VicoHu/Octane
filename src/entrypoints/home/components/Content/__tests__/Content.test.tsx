@@ -1,12 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 const contentMocks = vi.hoisted(() => ({ bookmarkCardSpy: vi.fn() }));
 // 隔离子组件依赖
 vi.mock('../../ContextList', () => ({ ContextList: () => null }));
 vi.mock('../../BookmarkCard', () => ({
-  BookmarkCard: (props: unknown) => { contentMocks.bookmarkCardSpy(props); return null; },
+  BookmarkCard: (props: Record<string, unknown>) => {
+    contentMocks.bookmarkCardSpy(props);
+    const bookmark = props.bookmark as { id: string; name: string };
+    return React.createElement('button', {
+      'data-testid': `card-${bookmark.id}`,
+      onClick: () => (props.onEditBookmark as (b: unknown) => void)(bookmark),
+    }, `编辑-${bookmark.name}`);
+  },
 }));
 vi.mock('@/components/ui/toast', () => ({
   Toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), close: vi.fn() },
@@ -15,8 +22,15 @@ vi.mock('@/components/ui/toast', () => ({
 // 可控 useBookmarks 状态(测试间重置)
 let bookmarksState: Record<string, unknown>;
 let pinnedTabsState: Record<string, unknown>;
+const useBookmarksMock = vi.hoisted(() => ({
+  fn: (sel: (s: Record<string, unknown>) => unknown) => sel(bookmarksState),
+  getState: () => bookmarksState,
+}));
 vi.mock('@/store/useBookmarks', () => ({
-  useBookmarks: (sel: (s: Record<string, unknown>) => unknown) => sel(bookmarksState),
+  useBookmarks: Object.assign(
+    (sel: (s: Record<string, unknown>) => unknown) => useBookmarksMock.fn(sel),
+    { getState: () => useBookmarksMock.getState() },
+  ),
 }));
 vi.mock('@/store/useSearch', () => ({
   useSearch: (sel: (s: Record<string, unknown>) => unknown) => sel({ query: '', setQuery: vi.fn() }),
@@ -28,13 +42,42 @@ vi.mock('@/hooks/useFavicon', () => ({
   useFavicon: vi.fn(() => ({ kind: 'third-party', src: 'blob:test', onError: vi.fn() })),
 }));
 
+// BookmarkService mock：编辑流程（#49）需捕获 updateBookmark / listBookmarksByWorkspace
+const bookmarkServiceMocks = vi.hoisted(() => ({
+  updateBookmark: vi.fn(async () => {}),
+  listBookmarksByWorkspace: vi.fn(async () => [] as import('@/shared/types').Bookmark[]),
+}));
+vi.mock('@/services/BookmarkService', () => ({
+  updateBookmark: bookmarkServiceMocks.updateBookmark,
+  listBookmarksByWorkspace: bookmarkServiceMocks.listBookmarksByWorkspace,
+}));
+
+// CategoryService mock：编辑面板级联 Select 的 categoriesLoader
+const categoryServiceMocks = vi.hoisted(() => ({
+  listCategories: vi.fn(async (_wsId: string): Promise<import('@/shared/types').Category[]> => []),
+}));
+vi.mock('@/services/CategoryService', () => ({
+  listCategories: categoryServiceMocks.listCategories,
+}));
+
 import { Content } from '../../Content';
 import { Toast } from '@/components/ui/toast';
 import type { OpenTab } from '../../../hooks/useOpenTabs';
+import type { Bookmark } from '@/shared/types';
 import { useWorkspace } from '@/store/useWorkspace';
 
 beforeEach(() => {
   contentMocks.bookmarkCardSpy.mockClear();
+  bookmarkServiceMocks.updateBookmark.mockClear();
+  bookmarkServiceMocks.updateBookmark.mockResolvedValue(undefined);
+  bookmarkServiceMocks.listBookmarksByWorkspace.mockClear();
+  bookmarkServiceMocks.listBookmarksByWorkspace.mockResolvedValue([]);
+  categoryServiceMocks.listCategories.mockClear();
+  categoryServiceMocks.listCategories.mockImplementation(async (wsId: string) =>
+    wsId === 'w1'
+      ? [{ id: 'c1', workspaceId: 'w1', name: '分类1', icon: '📁', order: 0, createdAt: 0 }]
+      : [{ id: 'c2', workspaceId: 'w2', name: '分类2', icon: '📂', order: 0, createdAt: 0 }],
+  );
   bookmarksState = {
     loading: false,
     bookmarks: [],
@@ -42,7 +85,8 @@ beforeEach(() => {
     loadBookmarks: vi.fn(),
     loadAllByWorkspace: vi.fn(),
     createBookmark: vi.fn(async () => ({ id: 'b1' })),
-    refreshBookmark: vi.fn(),
+    refreshBookmark: vi.fn(async () => {}),
+    moveBookmark: vi.fn(async () => {}),
   };
   useWorkspace.setState({
     categories: [{ id: 'c1', workspaceId: 'w1', name: '工作', icon: '💼', order: 0, createdAt: 0 }],
@@ -226,5 +270,143 @@ describe('Content 存为常驻标签', () => {
 
     expect(screen.getByPlaceholderText(/url|链接/i)).toHaveValue('https://github.com');
     expect(screen.getByPlaceholderText(/名称/)).toHaveValue('GitHub');
+  });
+});
+
+describe('Content 编辑书签 Tag 维护（#49）', () => {
+  const makeTaggedBookmark = (id: string, tags: string[]): Bookmark => ({
+    id,
+    workspaceId: 'w1',
+    categoryId: 'c1',
+    name: 'GitHub',
+    url: 'https://github.com',
+    description: '',
+    faviconUrl: '',
+    contextCount: 0,
+    hasEncryptedContext: false,
+    order: 0,
+    createdAt: 0,
+    updatedAt: 0,
+    tags,
+  });
+
+  beforeEach(() => {
+    useWorkspace.setState({
+      categories: [{ id: 'c1', workspaceId: 'w1', name: '工作', icon: '💼', order: 0, createdAt: 0 }],
+      currentCategoryId: 'c1',
+      currentWorkspaceId: 'w1',
+      workspaces: [
+        { id: 'w1', name: '工作区A', icon: '💼', order: 0, createdAt: 0 },
+        { id: 'w2', name: '工作区B', icon: '📚', order: 1, createdAt: 0 },
+      ],
+    });
+  });
+
+  it('编辑面板加载书签当前 Tag', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [makeTaggedBookmark('b1', ['React', 'Frontend'])];
+    render(<Content openTabs={[]} />);
+
+    // 点卡片编辑按钮打开编辑面板
+    await user.click(screen.getByRole('button', { name: '编辑-GitHub' }));
+
+    // 当前 Tag 应作为已选徽标渲染
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '移除 React' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '移除 Frontend' })).toBeInTheDocument();
+    });
+  });
+
+  it('编辑添加 Tag 后保存 → updateBookmark 携带 tags', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [makeTaggedBookmark('b1', ['React'])];
+    render(<Content openTabs={[]} />);
+
+    await user.click(screen.getByRole('button', { name: '编辑-GitHub' }));
+
+    // 在编辑面板输入新 Tag
+    await user.type(screen.getByPlaceholderText(/输入.*[Tt]ag/), 'Go{Enter}');
+    // 保存
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(bookmarkServiceMocks.updateBookmark).toHaveBeenCalledTimes(1));
+    expect(bookmarkServiceMocks.updateBookmark).toHaveBeenCalledWith(
+      'b1',
+      expect.objectContaining({ tags: ['React', 'Go'] }),
+    );
+  });
+
+  it('仅改变分类（移动）时不调用 updateBookmark，Tag 由 moveBookmark 保留', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [makeTaggedBookmark('b1', ['React', 'CSS'])];
+    bookmarksState.allBookmarks = [makeTaggedBookmark('b1', ['React', 'CSS'])];
+    render(<Content openTabs={[]} />);
+
+    await user.click(screen.getByRole('button', { name: '编辑-GitHub' }));
+
+    // 切换工作区到 w2（跨工作区移动）
+    const wsSelect = screen.getByRole('combobox', { name: '工作区' });
+    await user.click(wsSelect);
+    await user.click(screen.getByText('📚 工作区B'));
+
+    // 保存
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(bookmarksState.moveBookmark).toHaveBeenCalledTimes(1));
+    // 仅改变归属位置、未改属性/Tag → 不调 updateBookmark
+    expect(bookmarkServiceMocks.updateBookmark).not.toHaveBeenCalled();
+  });
+
+  it('同时修改属性 + 移动时，Tag 不会丢失', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [makeTaggedBookmark('b1', ['React'])];
+    bookmarksState.allBookmarks = [makeTaggedBookmark('b1', ['React'])];
+    render(<Content openTabs={[]} />);
+
+    await user.click(screen.getByRole('button', { name: '编辑-GitHub' }));
+
+    // 修改名称
+    const nameInput = screen.getByPlaceholderText('留空则使用域名');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'GitHub New');
+
+    // 切换工作区到 w2
+    const wsSelect = screen.getByRole('combobox', { name: '工作区' });
+    await user.click(wsSelect);
+    await user.click(screen.getByText('📚 工作区B'));
+
+    // 保存
+    await user.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => expect(bookmarkServiceMocks.updateBookmark).toHaveBeenCalledTimes(1));
+    // updateBookmark 先于 moveBookmark 写库，确保移动保留最新 Tag
+    expect(bookmarkServiceMocks.updateBookmark).toHaveBeenCalledWith(
+      'b1',
+      expect.objectContaining({ tags: ['React'] }),
+    );
+    await waitFor(() => expect(bookmarksState.moveBookmark).toHaveBeenCalledTimes(1));
+  });
+
+  it('移动后 Tag 进入目标工作区的建议集合', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [makeTaggedBookmark('b1', ['React'])];
+    bookmarksState.allBookmarks = [makeTaggedBookmark('b1', ['React'])];
+    // 目标工作区 w2 已有书签的 Tag 建议
+    bookmarkServiceMocks.listBookmarksByWorkspace.mockResolvedValue([
+      makeTaggedBookmark('b2', ['Go']),
+    ]);
+    render(<Content openTabs={[]} />);
+
+    await user.click(screen.getByRole('button', { name: '编辑-GitHub' }));
+
+    // 切换工作区到 w2 → Tag 建议源切换
+    const wsSelect = screen.getByRole('combobox', { name: '工作区' });
+    await user.click(wsSelect);
+    await user.click(screen.getByText('📚 工作区B'));
+
+    // w2 的建议 'Go' 应出现
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Go' })).toBeInTheDocument();
+    });
   });
 });
