@@ -12,7 +12,7 @@ function makeBookmark(url: string, categoryId = 'cat-1'): Bookmark {
   return {
     id: url, workspaceId: 'ws-1', categoryId, name: url, url,
     description: '', faviconUrl: '', contextCount: 0,
-    hasEncryptedContext: false, order: 0, createdAt: 0, updatedAt: 0,
+    hasEncryptedContext: false, order: 0, createdAt: 0, updatedAt: 0, tags: [],
   };
 }
 function makePin(id: string, url: string): PinnedTab {

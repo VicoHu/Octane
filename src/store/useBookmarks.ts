@@ -12,7 +12,7 @@ interface BookmarksState {
   loadBookmarks: (categoryId: string) => Promise<void>;
   /** 加载当前工作区全量书签(跨分类),作为 TabList 跨分类去重数据源 */
   loadAllByWorkspace: (workspaceId: string) => Promise<void>;
-  createBookmark: (workspaceId: string, categoryId: string, data: { name: string; url: string; description?: string }) => Promise<Bookmark>;
+  createBookmark: (workspaceId: string, categoryId: string, data: { name: string; url: string; description?: string; tags?: string[] }) => Promise<Bookmark>;
   deleteBookmark: (id: string) => Promise<void>;
   refreshBookmark: (id: string) => Promise<void>;
   /**

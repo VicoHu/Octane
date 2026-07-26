@@ -51,7 +51,7 @@ let mediaMobile = false;
 const bookmark = {
   id: 'b1', workspaceId: 'w1', categoryId: 'c1', name: '测试书签',
   url: 'https://github.com', description: '', faviconUrl: '',
-  contextCount: 1, hasEncryptedContext: false, createdAt: 0, updatedAt: 0, order: 0,
+  contextCount: 1, hasEncryptedContext: false, createdAt: 0, updatedAt: 0, order: 0, tags: [],
 } satisfies Bookmark;
 
 beforeEach(() => {

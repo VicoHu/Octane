@@ -36,8 +36,8 @@ describe('validateBackup', () => {
     expect(validateBackup(makeFile({}, { schema: 'other' as never })).ok).toBe(false);
   });
 
-  it('version=5（未知版本，超出已发布）→ 拒绝', () => {
-    expect(validateBackup(makeFile({}, { version: 5 } as never)).ok).toBe(false);
+  it('version=6（未知版本，超出已发布）→ 拒绝', () => {
+    expect(validateBackup(makeFile({}, { version: 6 } as never)).ok).toBe(false);
   });
 
   it('version=3（v3 新格式）→ ok', () => {

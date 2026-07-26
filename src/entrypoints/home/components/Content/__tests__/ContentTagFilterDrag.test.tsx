@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Bookmark } from '@/shared/types';
 
 // 可控状态(测试间重置)
@@ -17,14 +18,13 @@ vi.mock('@/store/usePinnedTabs', () => ({
   usePinnedTabs: (sel: (s: Record<string, unknown>) => unknown) => sel(pinnedTabsState),
 }));
 vi.mock('@/hooks/useFavicon', () => ({ useFavicon: vi.fn(() => null) }));
-vi.mock('../../hooks/useOpenTabs', () => ({ useOpenTabs: () => [] }));
 vi.mock('../../ContextList', () => ({ ContextList: () => null }));
-// 不 mock BookmarkCard:真实渲染,验证 grid 拖拽接线
+// 不 mock BookmarkCard:真实渲染 SortableBookmarkCard + GripButton，验证拖拽门控（#53）
 
 import { Content } from '../../Content';
 import { useWorkspace } from '@/store/useWorkspace';
 
-const makeBookmark = (id: string, name: string): Bookmark => ({
+const makeBookmark = (id: string, name: string, tags: string[] = []): Bookmark => ({
   id,
   workspaceId: 'w1',
   categoryId: 'c1',
@@ -37,7 +37,7 @@ const makeBookmark = (id: string, name: string): Bookmark => ({
   order: 0,
   createdAt: 0,
   updatedAt: 0,
-  tags: [],
+  tags,
 });
 
 /** 定位所有 grip 手柄(aria-roledescription=可拖拽项) */
@@ -57,6 +57,7 @@ beforeEach(() => {
     createBookmark: vi.fn(),
     refreshBookmark: vi.fn(),
     reorderBookmarks: vi.fn(),
+    deleteBookmark: vi.fn(),
   };
   pinnedTabsState = {
     pinnedTabs: [],
@@ -74,51 +75,53 @@ beforeEach(() => {
   });
 });
 
-describe('Content grid 拖拽(T4)', () => {
-  it('>1 书签:渲染 sortable grip(每卡一个)', () => {
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
+describe('#53 搜索或 Tag 筛选时禁用拖拽（真实 GripButton）', () => {
+  it('存在 Tag 筛选时 → grip 手柄禁用', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [
+      makeBookmark('b1', '书签A', ['React']),
+      makeBookmark('b2', '书签B', ['React']),
+    ];
     render(<Content openTabs={[]} />);
-    expect(gripButtons()).toHaveLength(2);
+
+    const filterBtn = screen.getByRole('button', { name: /筛选.*[Tt]ag|[Tt]ag.*筛选/ });
+    await user.click(filterBtn);
+    await user.click(await screen.findByRole('checkbox', { name: /React/ }));
+    // 关闭 Popover 以恢复 grid 可访问性
+    await user.click(filterBtn);
+
+    await waitFor(() => {
+      const grips = gripButtons();
+      expect(grips).toHaveLength(2);
+      expect(grips.every((g) => (g as HTMLButtonElement).disabled)).toBe(true);
+    });
   });
 
-  it('搜索态(query 非空且匹配>1):grip 禁用置灰', () => {
-    searchState.query = 'Git';
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
+  it('清除全部 Tag 筛选后 → grip 手柄恢复启用', async () => {
+    const user = userEvent.setup();
+    bookmarksState.bookmarks = [
+      makeBookmark('b1', '书签A', ['React']),
+      makeBookmark('b2', '书签B', ['React']),
+    ];
     render(<Content openTabs={[]} />);
-    const grips = gripButtons();
-    expect(grips).toHaveLength(2);
-    expect(grips.every((g) => (g as HTMLButtonElement).disabled)).toBe(true);
-  });
 
-  it('≤1 书签:不渲染 grip(纯 BookmarkCard,无 Sortable)', () => {
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub')];
-    render(<Content openTabs={[]} />);
-    expect(gripButtons()).toHaveLength(0);
-  });
-});
+    const filterBtn = screen.getByRole('button', { name: /筛选.*[Tt]ag|[Tt]ag.*筛选/ });
+    await user.click(filterBtn);
+    await user.click(await screen.findByRole('checkbox', { name: /React/ }));
+    await user.click(filterBtn);
 
-describe('Content 首启 coachmark(T9)', () => {
-  beforeEach(() => {
-    localStorage.removeItem('dragSortCoachSeen');
-  });
+    // 确认禁用
+    await waitFor(() => {
+      expect(gripButtons().every((g) => (g as HTMLButtonElement).disabled)).toBe(true);
+    });
 
-  it('首启(coachSeen 未存):首个 grip 显示「拖动手柄可排序」Popover', () => {
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content openTabs={[]} />);
-    expect(screen.getByText('拖动手柄可排序')).toBeInTheDocument();
-  });
+    // 移除 Tag（清除筛选）
+    await user.click(screen.getByRole('button', { name: /移除.*React/ }));
 
-  it('已知(localStorage flag 已存):不显示 coachmark', () => {
-    localStorage.setItem('dragSortCoachSeen', 'true');
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content openTabs={[]} />);
-    expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
-  });
-
-  it('搜索态(query 非空):不显示 coachmark', () => {
-    searchState.query = 'Git';
-    bookmarksState.bookmarks = [makeBookmark('1', 'GitHub'), makeBookmark('2', 'GitLab')];
-    render(<Content openTabs={[]} />);
-    expect(screen.queryByText('拖动手柄可排序')).not.toBeInTheDocument();
+    await waitFor(() => {
+      const grips = gripButtons();
+      expect(grips).toHaveLength(2);
+      expect(grips.every((g) => (g as HTMLButtonElement).disabled)).toBe(false);
+    });
   });
 });

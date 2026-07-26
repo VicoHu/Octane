@@ -15,7 +15,7 @@ function makeBm(overrides: Partial<Bookmark> = {}): Bookmark {
   return {
     id: 'b1', workspaceId: 'w1', categoryId: 'c1', name: 'github.com', url: 'https://github.com',
     description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0,
-    createdAt: 1000, updatedAt: 1000, ...overrides,
+    createdAt: 1000, updatedAt: 1000, tags: [], ...overrides,
   };
 }
 

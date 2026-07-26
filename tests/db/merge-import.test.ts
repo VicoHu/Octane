@@ -35,7 +35,7 @@ const wsNew: Workspace = { id: 'ws-new', name: '分享工作区', icon: '🎁', 
 const catNew: Category = { id: 'cat-new', workspaceId: 'ws-new', name: '分享分类', icon: '🗂️', order: 0, createdAt: 10 };
 const bmNew: Bookmark = {
   id: 'bm-new', workspaceId: 'ws-new', categoryId: 'cat-new', name: '分享书签', url: 'https://share.com',
-  description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 10, updatedAt: 10,
+  description: '', faviconUrl: '', contextCount: 0, hasEncryptedContext: false, order: 0, createdAt: 10, updatedAt: 10, tags: [],
 };
 const pinNew: PinnedTab = { id: 'pin-new', workspaceId: 'ws-new', name: '分享常驻', url: 'https://pin.com', order: 0, createdAt: 10 };
 const metaNew: CryptoMetadata = { id: 'singleton', salt: 'S-NEW', iterations: 600000, algorithm: 'AES-GCM-256', createdAt: 10 };

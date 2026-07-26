@@ -16,3 +16,10 @@
 .messageOnly {
   margin-bottom: 0;
 }
+
+.secondaryActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}

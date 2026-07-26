@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Form } from '@douyinfe/semi-ui';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -22,8 +22,11 @@ import { bookmarkMatchesOpenTab, pickMostRecentMatchingTab } from '@/shared/tabs
 import { focusTab } from '@/shared/tabs/focusTab';
 import { openUrlInNewTab } from '@/shared/tabs/openTab';
 import * as CategoryService from '@/services/CategoryService';
+import * as BookmarkService from '@/services/BookmarkService';
 import { cn } from '@/lib/utils';
+import { buildTagSuggestions, normalizeTags } from '@/shared/utils/tagRules';
 import { BookmarkCard } from '../BookmarkCard';
+import { TagFilter } from './TagFilter';
 import { SortableBookmarkCard } from '../BookmarkCard/SortableBookmarkCard';
 import { SortableOverlay } from '../dnd/SortableOverlay';
 import {
@@ -46,11 +49,17 @@ import {
   type BookmarkOpsPanelHandle,
   type BookmarkOpsPanelSubmit,
 } from '../BookmarkOpsPanel';
+import { TagInput } from '@/components/TagInput';
 import { EmptyState } from '../EmptyState';
 import { ContextList } from '../ContextList';
 import { TabList } from '../TabList';
 import { AddPinnedTabDialog } from '../AddPinnedTabDialog';
 import type { Bookmark } from '@/shared/types';
+import {
+  getTagFilterMemoryScope,
+  DEFAULT_TAG_FILTER_MEMORY_SCOPE,
+  type TagFilterMemoryScope,
+} from '@/shared/tagFilterMemorySetting';
 import styles from './index.module.css';
 
 type View = 'bookmarks' | 'tabs';
@@ -75,6 +84,102 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const setQuery = useSearch((s) => s.setQuery);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  // Tag 筛选：当前 Category 内已选 Tag 集合（#52；记忆范围/切换恢复属 #53/#54）
+  const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
+
+  // #54 Tag 筛选记忆范围：按 scope 在内存中管理各 Category 的筛选记忆。
+  // 记忆只存内存（刷新天然清空）；配置持久化在 storage，配置变更不追溯。
+  const memoryScopeRef = useRef<TagFilterMemoryScope>(DEFAULT_TAG_FILTER_MEMORY_SCOPE);
+  // 记忆键：workspace:category（保证跨工作区不串号）；值：已选 Tag 数组
+  const filterMemoryRef = useRef<Record<string, string[]>>({});
+  // 跟踪上一轮 workspace/category，用于检测切换
+  const prevWsRef = useRef<string | null>(currentWorkspaceId);
+  const prevCatRef = useRef<string | null>(currentCategoryId);
+
+  // 挂载时读一次记忆范围（仅驱动之后切换行为；配置变更不追溯当前筛选）
+  useEffect(() => {
+    let active = true;
+    getTagFilterMemoryScope()
+      .then((s) => {
+        if (active) memoryScopeRef.current = s;
+      })
+      .catch(() => {
+        /* 非扩展环境 / storage 异常 → 保持默认 category */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // 监听 storage.onChanged：配置变更时实时更新 scope（不追溯清理既有记忆）
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const chrome = g['chrome'];
+    const storage =
+      chrome && typeof chrome === 'object'
+        ? ((chrome as Record<string, unknown>)['storage'] as
+            | {
+                onChanged?: {
+                  addListener: (cb: (c: unknown, a: string) => void) => void;
+                  removeListener: (cb: (c: unknown, a: string) => void) => void;
+                };
+              }
+            | undefined)
+        : undefined;
+    const onChanged = storage?.onChanged;
+    if (!onChanged?.addListener || !onChanged.removeListener) return;
+    const listener = async (_changes: unknown, area: string) => {
+      if (area !== 'local') return;
+      const next = await getTagFilterMemoryScope();
+      memoryScopeRef.current = next;
+    };
+    onChanged.addListener(listener);
+    return () => onChanged.removeListener(listener);
+  }, []);
+
+  // 切换 Category / Workspace 时按 scope 管理筛选记忆（#54）
+  useEffect(() => {
+    const prevCat = prevCatRef.current;
+    const prevWs = prevWsRef.current;
+    const scope = memoryScopeRef.current;
+    const curCat = currentCategoryId;
+    const curWs = currentWorkspaceId;
+
+    // 记忆键：workspace:category（保证跨工作区不串号）
+    const memKey = (wsId: string | null, catId: string | null) =>
+      wsId && catId ? `${wsId}:${catId}` : null;
+
+    const wsChanged = prevWs !== curWs;
+    const catChanged = prevCat !== curCat;
+
+    if (!wsChanged && !catChanged) return;
+
+    // 先保存离开前的筛选到记忆（仅 workspace / session scope 会恢复；category 不恢复）
+    const prevKey = memKey(prevWs, prevCat);
+    if (prevKey && scope !== 'category') {
+      filterMemoryRef.current[prevKey] = selectedFilterTags;
+    }
+
+    // 离开工作区：workspace scope 清除该工作区全部记忆；session 保留
+    if (wsChanged && scope === 'workspace' && prevWs) {
+      for (const k of Object.keys(filterMemoryRef.current)) {
+        if (k.startsWith(`${prevWs}:`)) delete filterMemoryRef.current[k];
+      }
+    }
+
+    // 恢复目标 Category 的记忆（category scope 恢复空；workspace/session 恢复已存）
+    const restoreKey = memKey(curWs, curCat);
+    const restored =
+      scope !== 'category' && restoreKey
+        ? filterMemoryRef.current[restoreKey] ?? []
+        : [];
+    setSelectedFilterTags(restored);
+
+    prevCatRef.current = curCat;
+    prevWsRef.current = curWs;
+    // selectedFilterTags 故意不进依赖：保存的是「切换那一刻」的值，避免每次选择都重写记忆
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCategoryId, currentWorkspaceId]);
   const [selectedBookmark, setSelectedBookmark] = useState<Bookmark | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<Bookmark | null>(null);
   const [addFormApi, setAddFormApi] = useState<any>(null);
@@ -82,6 +187,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const [activeView, setActiveView] = useState<View>('bookmarks');
   // 从 tab 触发保存时携带的预填源(null=手动「添加书签」)
   const [saveFromTab, setSaveFromTab] = useState<OpenTab | null>(null);
+  // 添加书签弹窗的 Tag（独立于 Semi Form 字段，受控管理）
+  const [addTags, setAddTags] = useState<string[]>([]);
   // 常驻标签:从 tab 触发存为常驻时携带的预填源 + Dialog 开关
   const [pinFromTab, setPinFromTab] = useState<OpenTab | null>(null);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -95,6 +202,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   const categoriesLoader = useCallback(
     (wsId: string) => CategoryService.listCategories(wsId),
     [],
+  );
+  // 编辑面板 Tag 建议 loader：加载目标工作区全部书签，聚合 Tag 建议（Issue #49）
+  const tagSuggestionsLoader = useCallback(
+    async (wsId: string) => {
+      const wsBookmarks = await BookmarkService.listBookmarksByWorkspace(wsId);
+      return buildTagSuggestions(wsBookmarks);
+    },
+    [],
+  );
+
+  // Tag 建议源:当前 Workspace 全部 Bookmark 聚合后的 Tag（按使用次数降序 + 名称排序）
+  const tagSuggestions = useMemo(
+    () => buildTagSuggestions(allBookmarks),
+    [allBookmarks],
   );
 
   // 跨分类去重数据源:进入工作区即加载全量书签(独立于当前分类切片 bookmarks)
@@ -118,18 +239,36 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     return () => window.removeEventListener('keydown', focusSearch);
   }, []);
 
-  // 过滤书签
-  const filteredBookmarks = query
-    ? bookmarks.filter(
+  // 过滤书签：文本搜索（名称/URL/描述/Tag 名称）AND Tag 筛选（多选 AND）
+  const filteredBookmarks = useMemo(() => {
+    let result = bookmarks;
+    // 文本搜索：扩展匹配 Tag 名称（#52）
+    if (query) {
+      const q = query.toLowerCase();
+      result = result.filter(
         (b) =>
-          b.name.toLowerCase().includes(query.toLowerCase()) ||
-          b.url.toLowerCase().includes(query.toLowerCase()) ||
-          b.description.toLowerCase().includes(query.toLowerCase()),
-      )
-    : bookmarks;
+          b.name.toLowerCase().includes(q) ||
+          b.url.toLowerCase().includes(q) ||
+          b.description.toLowerCase().includes(q) ||
+          b.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+    }
+    // Tag 筛选：书签必须同时包含所有已选 Tag（AND 语义）
+    if (selectedFilterTags.length > 0) {
+      const selectedLower = selectedFilterTags.map((t) => t.toLowerCase());
+      result = result.filter((b) =>
+        selectedLower.every((tag) =>
+          b.tags.some((t) => t.toLowerCase() === tag),
+        ),
+      );
+    }
+    return result;
+  }, [bookmarks, query, selectedFilterTags]);
 
   // === T4 拖拽排序(Content grid 层)===
   // activationConstraint distance:8 兜底(grip listener),防 click 误触为拖拽
+  // 搜索或任一 Tag 筛选存在时禁用拖拽（#53）；全部清除后恢复
+  const hasFilter = !!query || selectedFilterTags.length > 0;
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const [activeBookmarkId, setActiveBookmarkId] = useState<string | null>(null);
   const activeBookmark = activeBookmarkId
@@ -220,9 +359,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         name,
         url,
         description: values['description'],
+        tags: addTags,
       });
       setShowAddModal(false);
       setSaveFromTab(null);
+      setAddTags([]);
       // save→context 漏斗(R5):保存后引导加上下文,把 tab/书签引流进 Octane 加密护城河
       Toast.success({
         content: (
@@ -288,14 +429,26 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
       const nextName = values.name || editingBookmark.name;
       const nextUrl = values.url || editingBookmark.url;
       const nextDesc = values.description ?? '';
+      // Tag 规范化（Issue #49）：大小写去重、清理空白、上限控制
+      const nextTags = normalizeTags(values.tags ?? editingBookmark.tags ?? []);
       const propsChanged =
         nextName !== editingBookmark.name ||
         nextUrl !== editingBookmark.url ||
         nextDesc !== editingBookmark.description;
+      // Tag 变化判定（顺序敏感：数组不等即变）
+      const tagsChanged =
+        nextTags.length !== editingBookmark.tags.length ||
+        nextTags.some((t, i) => t !== editingBookmark.tags[i]);
 
-      // 1. 属性更新（name/url/description）写库
-      if (propsChanged) {
-        await updateBookmark(editingBookmark.id, { name: nextName, url: nextUrl, description: nextDesc });
+      // 1. 属性 / Tag 更新（name/url/description/tags）写库
+      //    先于 moveBookmark：确保移动读取 DB 时 Tag 已是最新（moveBookmark 按 ...existing 保留全部字段）
+      if (propsChanged || tagsChanged) {
+        await updateBookmark(editingBookmark.id, {
+          name: nextName,
+          url: nextUrl,
+          description: nextDesc,
+          tags: nextTags,
+        });
       }
       // 2. 移动（workspaceId/categoryId 变）——moveBookmark 内部 update ws+cat 并按方向同步双切片
       //    不能用 refreshBookmark 处理移动:map 语义无法移除,且会破坏 ContextEditor 第二 caller
@@ -304,11 +457,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           .getState()
           .moveBookmark(editingBookmark.id, values.workspaceId, values.categoryId);
       }
-      // 3. 属性改后刷新切片。纯编辑→refreshBookmark 刷双切片;
-      //    移动+改属性→moveBookmark 用切片旧数据(旧 name),需 refresh 重读 DB 最新:
-      //      同ws跨cat:allBookmarks 保留该条,refresh map 拿到新 name ✓
+      // 3. 属性/Tag 改后刷新切片。纯编辑→refreshBookmark 刷双切片;
+      //    移动+改属性/Tag→moveBookmark 用切片旧数据(旧 name/tags),需 refresh 重读 DB 最新:
+      //      同ws跨cat:allBookmarks 保留该条,refresh map 拿到新 name/tags ✓
       //      跨ws:allBookmarks 已被 moveBookmark filter 移除,refresh map 无匹配(无害,书签已离开当前视图)
-      if (propsChanged) {
+      if (propsChanged || tagsChanged) {
         await useBookmarks.getState().refreshBookmark(editingBookmark.id);
       }
 
@@ -415,7 +568,11 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
         </TabsList>
         <TabsContent value="bookmarks" className={styles.scrollPanel}>
           <div className={styles.summaryRow}>
-            <strong>全部收藏</strong>
+            <TagFilter
+              bookmarks={bookmarks}
+              selectedTags={selectedFilterTags}
+              onChange={setSelectedFilterTags}
+            />
             <span>拖拽排序 · 最近更新</span>
           </div>
           {loading ? (
@@ -430,9 +587,20 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             </div>
           ) : filteredBookmarks.length === 0 ? (
             <EmptyState
-              message={query ? '没有找到匹配的书签' : '添加你的第一个书签'}
-              actionLabel={query ? undefined : '添加书签'}
-              onAction={query ? undefined : openAddManual}
+              message={hasFilter ? '没有找到匹配的书签' : '添加你的第一个书签'}
+              actionLabel={hasFilter ? undefined : '添加书签'}
+              onAction={hasFilter ? undefined : openAddManual}
+              // 组合空状态（#53）：同时提供清空搜索与清除全部 Tag 筛选入口
+              secondaryActions={
+                hasFilter
+                  ? [
+                      ...(query ? [{ label: '清空搜索', onClick: () => setQuery('') }] : []),
+                      ...(selectedFilterTags.length > 0
+                        ? [{ label: '清除全部 Tag 筛选', onClick: () => setSelectedFilterTags([]) }]
+                        : []),
+                    ]
+                  : undefined
+              }
             />
           ) : filteredBookmarks.length > 1 ? (
             <DndContext
@@ -452,8 +620,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
                     <SortableBookmarkCard
                       key={bookmark.id}
                       bookmark={bookmark}
-                      disabled={!!query || reordering}
-                      coachmark={!query && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
+                      disabled={hasFilter || reordering}
+                      coachmark={!hasFilter && index === 0 && !coachSeen ? { onClose: markCoachSeen } : undefined}
                       hasOpenTab={openTabs.some((t) => bookmarkMatchesOpenTab(bookmark.url, t.url))}
                       onClick={handleCardClick}
                       onViewContexts={handleViewContexts}
@@ -526,6 +694,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
           if (!o) {
             setShowAddModal(false);
             setSaveFromTab(null);
+            setAddTags([]);
           }
         }}
       >
@@ -548,9 +717,12 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
             <Form.Input field="url" label="URL" placeholder="https://example.com" rules={[{ required: true, message: '请输入 URL' }]} />
             <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
             <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
+            <Form.Slot label="Tag">
+              <TagInput value={addTags} onChange={setAddTags} suggestions={tagSuggestions} />
+            </Form.Slot>
           </Form>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setShowAddModal(false); setSaveFromTab(null); }}>取消</Button>
+            <Button variant="ghost" onClick={() => { setShowAddModal(false); setSaveFromTab(null); setAddTags([]); }}>取消</Button>
             <Button variant="default" onClick={() => addFormApi?.submitForm()}>添加</Button>
           </DialogFooter>
         </DialogContent>
@@ -579,6 +751,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
               bookmark={editingBookmark}
               workspaces={workspaces}
               categoriesLoader={categoriesLoader}
+              tagSuggestionsLoader={tagSuggestionsLoader}
               onSubmit={handleBookmarkSubmit}
             />
           )}

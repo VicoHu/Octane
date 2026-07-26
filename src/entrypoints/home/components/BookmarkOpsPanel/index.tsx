@@ -4,6 +4,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { Bookmark, Workspace, Category } from '@/shared/types';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TagInput } from '@/components/TagInput';
 import styles from './index.module.css';
 
 /** 面板提交值 */
@@ -13,7 +14,12 @@ export interface BookmarkOpsPanelSubmit {
   description: string;
   workspaceId: string;
   categoryId: string;
+  /** 编辑后的 Tag 数组（Issue #49） */
+  tags: string[];
 }
+
+/** Semi Form 字段值（不含 Tag，Tag 由 TagInput 外部管理） */
+type BookmarkOpsFormValues = Omit<BookmarkOpsPanelSubmit, 'tags'>;
 
 /** 通过 ref 暴露给父 Modal footer 的命令接口（不外泄 Semi FormApi） */
 export interface BookmarkOpsPanelHandle {
@@ -28,6 +34,8 @@ export interface BookmarkOpsPanelProps {
   workspaces: Workspace[];
   /** 异步加载目标工作区分类 */
   categoriesLoader: (workspaceId: string) => Promise<Category[]>;
+  /** 异步加载目标工作区 Tag 建议（切换工作区时随之切换，Issue #49） */
+  tagSuggestionsLoader?: (workspaceId: string) => Promise<string[]>;
   /** 提交回调；父决定调 moveBookmark vs updateBookmark */
   onSubmit: (values: BookmarkOpsPanelSubmit) => void;
 }
@@ -42,9 +50,13 @@ export const BookmarkOpsPanel = React.forwardRef<
   BookmarkOpsPanelHandle,
   BookmarkOpsPanelProps
 >(function BookmarkOpsPanel(props, ref) {
-  const { bookmark, workspaces, categoriesLoader, onSubmit } = props;
+  const { bookmark, workspaces, categoriesLoader, tagSuggestionsLoader, onSubmit } = props;
 
-  const [api, setApi] = useState<FormApi<BookmarkOpsPanelSubmit> | null>(null);
+  const [api, setApi] = useState<FormApi<BookmarkOpsFormValues> | null>(null);
+  // 编辑面板 Tag（受控，由 bookmark.tags 初始化；Issue #49）
+  const [editTags, setEditTags] = useState<string[]>(bookmark.tags ?? []);
+  // 目标工作区 Tag 建议（切换工作区时随之切换）
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   // 目标工作区分类列表（级联 Select 数据源，独立于 useWorkspace.categories）
   const [targetCategories, setTargetCategories] = useState<Category[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
@@ -70,21 +82,35 @@ export const BookmarkOpsPanel = React.forwardRef<
     }
   };
 
+  // 拉取指定工作区 Tag 建议（与分类加载共用竞态防护 reqId）
+  const loadTagSuggestions = async (workspaceId: string) => {
+    if (!tagSuggestionsLoader || !workspaceId) return;
+    const reqId = ++loadReqId.current;
+    try {
+      const list = await tagSuggestionsLoader(workspaceId);
+      if (reqId === loadReqId.current) setTagSuggestions(list);
+    } catch {
+      // 静默失败：Tag 建议加载失败不阻断编辑流程
+    }
+  };
+
   // 挂载时预加载书签原属工作区分类，使初始分类 Select 有选项
   const initialized = useRef(false);
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     void loadCategories(bookmark.workspaceId);
+    void loadTagSuggestions(bookmark.workspaceId);
     // 仅挂载时执行一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 工作区 Select onChange：加载目标工作区分类 + 设置分类默认值
+  // 工作区 Select onChange：加载目标工作区分类 + Tag 建议 + 设置分类默认值
   // Semi Form.Select onChange 入参为选中值（单选为 string）
   const handleWorkspaceChange = async (value: unknown) => {
     const wsId = typeof value === 'string' ? value : String(value ?? '');
     const list = await loadCategories(wsId);
+    void loadTagSuggestions(wsId);
     if (!api) return;
     // 原属工作区恢复原 categoryId；否则选首个分类
     if (wsId === bookmark.workspaceId) {
@@ -110,7 +136,7 @@ export const BookmarkOpsPanel = React.forwardRef<
   const categoryEmpty = !loadingCategories && targetCategories.length === 0;
 
   return (
-    <Form<BookmarkOpsPanelSubmit>
+    <Form<BookmarkOpsFormValues>
       key={bookmark.id}
       getFormApi={setApi}
       initValues={{
@@ -120,7 +146,7 @@ export const BookmarkOpsPanel = React.forwardRef<
         name: bookmark.name ?? '',
         description: bookmark.description ?? '',
       }}
-      onSubmit={(values) => onSubmit(values)}
+      onSubmit={(values) => onSubmit({ ...values, tags: editTags })}
     >
       {/* 归属位置（在上）：工作区级联分类 */}
       <Form.Section text="归属位置" className={styles.section}>
@@ -165,6 +191,10 @@ export const BookmarkOpsPanel = React.forwardRef<
         />
         <Form.Input field="name" label="名称" placeholder="留空则使用域名" />
         <Form.TextArea field="description" label="描述" placeholder="可选" maxLength={200} />
+        {/* Tag 编辑（Issue #49）：加载当前 Tag，支持添加/移除/建议复用 */}
+        <Form.Slot label="Tag">
+          <TagInput value={editTags} onChange={setEditTags} suggestions={tagSuggestions} />
+        </Form.Slot>
       </Form.Section>
     </Form>
   );

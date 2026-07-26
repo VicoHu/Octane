@@ -115,10 +115,22 @@ export const BookmarkCard: React.FC<BookmarkCardProps> = ({ bookmark, hasOpenTab
         <div className={styles.info}>
           <div className={styles.name}>{bookmark.name}</div>
           <div className={styles.url}>{displayUrl}</div>
-          {bookmark.description && (
-            <div className={styles.description}>
-              {bookmark.description}
+          {/* Issue #51：有 Tag 时第三行展示 Tag（前 3 个 + N），隐藏描述；无 Tag 时保留描述 */}
+          {bookmark.tags.length > 0 ? (
+            <div className={styles.tags} aria-label="书签 Tag">
+              {bookmark.tags.slice(0, 3).map((tag) => (
+                <span key={tag} className={styles.tag}>{tag}</span>
+              ))}
+              {bookmark.tags.length > 3 && (
+                <span className={styles.tagOverflow}>+{bookmark.tags.length - 3}</span>
+              )}
             </div>
+          ) : (
+            bookmark.description && (
+              <div className={styles.description}>
+                {bookmark.description}
+              </div>
+            )
           )}
         </div>
       </button>

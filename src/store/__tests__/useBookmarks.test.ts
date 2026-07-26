@@ -34,6 +34,7 @@ function makeBookmark(id: string, name: string, url: string, categoryId = 'cat-1
     order: 0,
     createdAt: 0,
     updatedAt: 0,
+    tags: [],
   };
 }
 
@@ -80,6 +81,23 @@ describe('useBookmarks — R1 allBookmarks slice(跨分类去重数据源)', () 
     // 两个 slice 都要包含新书签,否则保存后 TabList 去重数据陈旧
     expect(useBookmarks.getState().bookmarks.some((b) => b.id === created.id)).toBe(true);
     expect(useBookmarks.getState().allBookmarks.some((b) => b.id === created.id)).toBe(true);
+  });
+
+  it('createBookmark 传入 tags → 返回的书签携带 tags 且同步到双切片 (#48)', async () => {
+    // service mock 返回带 tags 的书签
+    vi.mocked(BookmarkService.createBookmark).mockResolvedValue(
+      makeBookmark('tagged', 'Tagged', 'https://tagged.com'),
+    );
+    useBookmarks.setState({ bookmarks: [], allBookmarks: [] });
+
+    await useBookmarks
+      .getState()
+      .createBookmark('ws-1', 'cat-1', { name: 'Tagged', url: 'https://tagged.com', tags: ['React', 'Vue'] });
+
+    // service 收到 tags
+    expect(BookmarkService.createBookmark).toHaveBeenCalledWith(
+      'ws-1', 'cat-1', { name: 'Tagged', url: 'https://tagged.com', tags: ['React', 'Vue'] },
+    );
   });
 });
 

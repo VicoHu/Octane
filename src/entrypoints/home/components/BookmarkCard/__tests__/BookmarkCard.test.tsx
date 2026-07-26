@@ -22,6 +22,7 @@ const bookmark: Bookmark = {
   order: 0,
   createdAt: 0,
   updatedAt: 0,
+  tags: [],
 };
 
 const renderCard = (
@@ -248,5 +249,75 @@ describe('BookmarkCard', () => {
     // 图片加载失败是底层 error 事件，userEvent 不提供对应 API，允许直接派发。
     fireEvent.error(screen.getByRole('presentation'));
     expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  // === Issue #51：主页 Bookmark 卡片展示 Tag ===
+  describe('Tag 展示（#51）', () => {
+    it('无 Tag 时第三行展示描述，不渲染 Tag 行', () => {
+      renderCard({ description: '代码托管平台', tags: [] });
+      expect(screen.getByText('代码托管平台')).toBeInTheDocument();
+      // 没有 Tag 区域
+      expect(screen.queryByText(/Tag|标签/)).toBeNull();
+    });
+
+    it('有 Tag 时展示前 3 个 Tag，超出部分显示 +N', () => {
+      renderCard({
+        description: '代码托管',
+        tags: ['前端', '后端', '工具', '设计', '测试'],
+      });
+      expect(screen.getByText('前端')).toBeInTheDocument();
+      expect(screen.getByText('后端')).toBeInTheDocument();
+      expect(screen.getByText('工具')).toBeInTheDocument();
+      // 第 4、5 个 Tag 不直接展示文本
+      expect(screen.queryByText('设计')).toBeNull();
+      expect(screen.queryByText('测试')).toBeNull();
+      // 超出计数
+      expect(screen.getByText('+2')).toBeInTheDocument();
+    });
+
+    it('有 Tag 时隐藏描述行（描述仍保存在数据中）', () => {
+      renderCard({
+        description: '这段描述应被隐藏',
+        tags: ['前端'],
+      });
+      expect(screen.queryByText('这段描述应被隐藏')).toBeNull();
+    });
+
+    it('Tag 数量恰好 3 个时不显示 +N', () => {
+      renderCard({ tags: ['A', 'B', 'C'] });
+      expect(screen.getByText('A')).toBeInTheDocument();
+      expect(screen.getByText('B')).toBeInTheDocument();
+      expect(screen.getByText('C')).toBeInTheDocument();
+      expect(screen.queryByText(/^\+\d+$/)).toBeNull();
+    });
+
+    it('Tag 按 bookmark.tags 添加顺序展示前 3 个', () => {
+      renderCard({ tags: ['第三', '第一', '第二', '第四'] });
+      // 按 tags 数组顺序取前 3 个
+      expect(screen.getByText('第三')).toBeInTheDocument();
+      expect(screen.getByText('第一')).toBeInTheDocument();
+      expect(screen.getByText('第二')).toBeInTheDocument();
+      expect(screen.getByText('+1')).toBeInTheDocument();
+    });
+
+    it('卡片中的 Tag 不可点击，不在主操作按钮中形成嵌套交互', () => {
+      renderCard({ tags: ['前端', '后端'] });
+      const tagEl = screen.getByText('前端');
+      // Tag 本身不是可交互元素（非 button、非 link）
+      expect(tagEl.tagName).not.toBe('BUTTON');
+      expect(tagEl.tagName).not.toBe('A');
+      // Tag 不含可交互 role
+      expect(tagEl).not.toHaveAttribute('role');
+    });
+
+    it('点击 Tag 文本区域仍触发主操作（非嵌套交互）', async () => {
+      const user = userEvent.setup();
+      const onClick = vi.fn();
+      renderCard({ tags: ['前端'] }, { onClick });
+      // 点击 Tag 所在区域 → 走主操作 onClick（Tag 本身不可点）
+      await user.click(screen.getByText('前端'));
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ tags: ['前端'] }));
+    });
   });
 });

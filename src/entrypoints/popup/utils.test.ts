@@ -15,6 +15,7 @@ function makeBookmark(overrides: Partial<Bookmark> = {}): Bookmark {
     contextCount: 0,
     hasEncryptedContext: false,
     order: 0,
+    tags: [],
     createdAt: 1000,
     updatedAt: 1000,
     ...overrides,
