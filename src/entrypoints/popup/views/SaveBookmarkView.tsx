@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,8 @@ import {
   createBookmark,
 } from '@/services/BookmarkService';
 import { isUrlValid, findDuplicateUrl } from '../utils';
+import { TagInput } from '@/components/TagInput';
+import { buildTagSuggestions } from '@/shared/utils/tagRules';
 import styles from '../popup.module.css';
 import SubPageHeader from './SubPageHeader';
 import { BookmarkFaviconPreview } from '@/components/BookmarkFaviconPreview';
@@ -48,6 +50,9 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [duplicate, setDuplicate] = useState<Bookmark | null>(null);
+  // Issue #50：Popup 快速保存录入 Tag
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
   // mount：加载工作区 + 抓取当前页 + 读取记忆
   useEffect(() => {
@@ -80,6 +85,8 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
           const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};
           const catId = resolveLastCat(wsId, cats, catMap) ?? '';
           setSelectedCategoryId(catId);
+          // Issue #50：初始加载 Tag 建议
+          await loadTagSuggestions(wsId);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -88,6 +95,16 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Issue #50：加载目标 Workspace 的 Tag 建议源（聚合现有书签的 Tag）
+  const loadTagSuggestions = useCallback(async (wsId: string) => {
+    if (!wsId) {
+      setTagSuggestions([]);
+      return;
+    }
+    const bms = await listBookmarksByWorkspace(wsId);
+    setTagSuggestions(buildTagSuggestions(bms));
   }, []);
 
   // 工作区切换：重新加载分类，恢复该工作区上次的分类（per-workspace）
@@ -102,6 +119,8 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
     const stored = await chrome.storage.local.get(LAST_CAT_BY_WS_KEY);
     const catMap = (stored[LAST_CAT_BY_WS_KEY] as Record<string, string>) ?? {};
     setSelectedCategoryId(resolveLastCat(wsId, cats, catMap) ?? '');
+    // Issue #50：切换 Workspace 同步更新 Tag 建议源
+    await loadTagSuggestions(wsId);
   };
 
   const handleSave = async (forceSave = false) => {
@@ -129,6 +148,7 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
         name: finalName,
         url,
         description: description || undefined,
+        tags,
       });
       // persist ws + per-workspace cat map（read-modify-write，避免覆盖其它工作区条目）
       const stored = await chrome.storage.local.get(LAST_CAT_BY_WS_KEY);
@@ -159,7 +179,7 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
             value={selectedWorkspaceId}
             onValueChange={(v) => handleWorkspaceChange(String(v))}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" aria-label="工作区">
               <SelectValue placeholder="选择工作区" />
             </SelectTrigger>
             <SelectContent>
@@ -214,6 +234,8 @@ export default function SaveBookmarkView({ onBack }: SaveBookmarkViewProps) {
             maxLength={200}
             aria-label="描述"
           />
+
+          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
 
           {duplicate && (
             <div className={styles.duplicateHint} role="alert">
