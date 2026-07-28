@@ -256,8 +256,9 @@ export function CloudBackupSection() {
             <label htmlFor={`cloud-${tab}-${f.name}`} className={styles.fieldLabel}>{f.label}</label>
             {f.type === 'select' ? (
               <Select
-                value={fieldVal(f.name) || undefined}
-                onValueChange={(v) => setField(f.name, v as string)}
+                value={fieldVal(f.name) || null}
+                onValueChange={(v) => setField(f.name, (v as string | null) ?? '')}
+                itemToStringLabel={(value) => optionLabel(f, value as string)}
                 disabled={disabled}
               >
                 <SelectTrigger id={`cloud-${tab}-${f.name}`} className="w-full">

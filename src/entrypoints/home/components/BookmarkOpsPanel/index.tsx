@@ -59,9 +59,11 @@ export const BookmarkOpsPanel = React.forwardRef<
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   // 目标工作区分类列表（级联 Select 数据源，独立于 useWorkspace.categories）
   const [targetCategories, setTargetCategories] = useState<Category[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(false);
-  // 竞态防护：快速切换工作区 Select 时，丢弃过期请求的结果（最后一次切换胜出）
-  const loadReqId = useRef(0);
+  const [loadingCategories, setLoadingCategories] = useState(Boolean(bookmark.workspaceId));
+  // 分类与 Tag 各自丢弃过期请求，避免两类并发加载相互失效。
+  const categoriesLoadReqId = useRef(0);
+  const tagSuggestionsLoadReqId = useRef(0);
+  const workspaceChangeReqId = useRef(0);
 
   // 拉取指定工作区分类；加载前清空防残留
   const loadCategories = async (workspaceId: string) => {
@@ -69,26 +71,26 @@ export const BookmarkOpsPanel = React.forwardRef<
       setTargetCategories([]);
       return;
     }
-    const reqId = ++loadReqId.current;
+    const reqId = ++categoriesLoadReqId.current;
     setLoadingCategories(true);
     setTargetCategories([]);
     try {
       const list = await categoriesLoader(workspaceId);
       // 仅当本次仍是最新请求时才落地（避免快速切换 ws 时旧请求脏写）
-      if (reqId === loadReqId.current) setTargetCategories(list);
+      if (reqId === categoriesLoadReqId.current) setTargetCategories(list);
       return list;
     } finally {
-      if (reqId === loadReqId.current) setLoadingCategories(false);
+      if (reqId === categoriesLoadReqId.current) setLoadingCategories(false);
     }
   };
 
-  // 拉取指定工作区 Tag 建议（与分类加载共用竞态防护 reqId）
+  // 拉取指定工作区 Tag 建议。
   const loadTagSuggestions = async (workspaceId: string) => {
     if (!tagSuggestionsLoader || !workspaceId) return;
-    const reqId = ++loadReqId.current;
+    const reqId = ++tagSuggestionsLoadReqId.current;
     try {
       const list = await tagSuggestionsLoader(workspaceId);
-      if (reqId === loadReqId.current) setTagSuggestions(list);
+      if (reqId === tagSuggestionsLoadReqId.current) setTagSuggestions(list);
     } catch {
       // 静默失败：Tag 建议加载失败不阻断编辑流程
     }
@@ -109,9 +111,11 @@ export const BookmarkOpsPanel = React.forwardRef<
   // Semi Form.Select onChange 入参为选中值（单选为 string）
   const handleWorkspaceChange = async (value: unknown) => {
     const wsId = typeof value === 'string' ? value : String(value ?? '');
-    const list = await loadCategories(wsId);
+    const reqId = ++workspaceChangeReqId.current;
+    const listPromise = loadCategories(wsId);
     void loadTagSuggestions(wsId);
-    if (!api) return;
+    const list = await listPromise;
+    if (reqId !== workspaceChangeReqId.current || !api) return;
     // 原属工作区恢复原 categoryId；否则选首个分类
     if (wsId === bookmark.workspaceId) {
       api.setValue('categoryId', bookmark.categoryId);
@@ -166,6 +170,9 @@ export const BookmarkOpsPanel = React.forwardRef<
           disabled={categoryEmpty}
           placeholder={categoryEmpty ? '该工作区暂无分类' : '请选择分类'}
           optionList={targetCategories.map((c) => ({ value: c.id, label: `${c.icon} ${c.name}` }))}
+          renderSelectedItem={(option: { label?: React.ReactNode }) =>
+            loadingCategories ? '分类加载中' : option.label ?? ''
+          }
           getPopupContainer={() => document.querySelector('.semi-modal') ?? document.body}
           // 防呆：空分类(目标工作区 0 分类)时 categoryId 为空，required 校验拦截提交，避免孤儿书签
           rules={[{ required: true, message: '请选择目标分类' }]}
