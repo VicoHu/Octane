@@ -107,8 +107,8 @@
 .app-rail-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: #3b4744; border: 1px solid rgba(255,255,255,.18); }
 
 .app-sidebar {
-  width: 222px;
-  min-width: 222px;
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
   height: 100%;
   background: var(--sidebar-bg);
   color: var(--sidebar-text);

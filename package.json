@@ -16,7 +16,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepare": "husky"
+    "prepare": "husky",
+    "dev-prepare": "timeout 10 wxt prepare"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

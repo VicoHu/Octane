@@ -1,3 +1,5 @@
+import { arrayMove } from "@dnd-kit/sortable";
+
 /**
  * 排序辅助纯函数（DRY：4 个 reorder API + createXxx 复用）。
  *
@@ -17,19 +19,38 @@ export function nextOrder<T extends { order?: number }>(items: readonly T[]): nu
  *
  * @returns 中文错误信息（供 UI catch + Toast）；null 表示合法。
  */
-export function validateOrderedIds(
-  orderedIds: readonly string[],
-  existingIds: readonly string[],
-): string | null {
+export function validateOrderedIds(orderedIds: readonly string[], existingIds: readonly string[]): string | null {
   if (orderedIds.length !== existingIds.length) {
-    return '排序 ID 数量与现有记录不一致（缺失或多余）';
+    return "排序 ID 数量与现有记录不一致（缺失或多余）";
   }
   const existingSet = new Set(existingIds);
   const seen = new Set<string>();
   for (const id of orderedIds) {
-    if (seen.has(id)) return '排序 ID 存在重复';
+    if (seen.has(id)) return "排序 ID 存在重复";
     seen.add(id);
-    if (!existingSet.has(id)) return '排序 ID 不属于该容器';
+    if (!existingSet.has(id)) return "排序 ID 不属于该容器";
   }
   return null;
+}
+
+/**
+ * 计算拖拽重排后的 id 序列（UI 拖拽与 service 重排的共享语义）。
+ *
+ * - active/over 任一不在列表 → null（非法落区，调用方应忽略）
+ * - active === over → null（同位无需重排）
+ * - 否则返回 arrayMove 后的 id 序列，调用方据此调 store.reorderXxx
+ *
+ * 抽出为纯函数：供 PinnedManageDialog / 末来同类拖拽组件复用，且可独立测试
+ * （dnd-kit pointer 序列在 jsdom 难驱动，排序语义靠此函数覆盖）。
+ */
+export function computeReorderIds<T extends { id: string }>(
+  items: readonly T[],
+  activeId: string,
+  overId: string,
+): string[] | null {
+  if (activeId === overId) return null;
+  const oldIndex = items.findIndex((x) => x.id === activeId);
+  const newIndex = items.findIndex((x) => x.id === overId);
+  if (oldIndex < 0 || newIndex < 0) return null;
+  return arrayMove([...items], oldIndex, newIndex).map((x) => x.id);
 }

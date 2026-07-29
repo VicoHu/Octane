@@ -1,0 +1,108 @@
+.dialogList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.pinRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pinRow:last-child {
+  border-bottom: none;
+}
+
+.favicon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.faviconImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fallback {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-dark), #1ad6a8);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+}
+
+.pinName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-md);
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deleteBtn {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.deleteBtn:hover {
+  color: var(--danger);
+}
+
+.emptyHint {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+
+/* === 拖拽排序（与 ManagePanel SortableWorkspace 同模式）=== */
+.sortableRow {
+  display: flex;
+  align-items: center;
+}
+
+/* grip 手柄 slot：整理语境常显（gripAlwaysVisible），浅色面 text-secondary */
+.gripSlot {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  padding-right: var(--space-xs);
+  min-width: 20px;
+}
+
+/* DragOverlay 副本（浅色面炭灰描边由 SortableOverlay tone=light 提供） */
+.ghostRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--card-bg);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* isDragging：内层行隐藏内容占位 */
+.dragGhost {
+  visibility: hidden;
+}

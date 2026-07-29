@@ -4,14 +4,14 @@ name: Octane
 description: Octane 浏览器扩展设计系统。品牌 DNA：克制双色 · 几何粗线 · 速度母题。基座为 shadcn/ui（Base UI），本文件是项目语义 token 的单一真源；shadcn CSS 变量（--background/--primary 等）与残留 Semi 的 --semi-* 均派生自此。
 colors:
   # 品牌绿族（accent，不是底色）
-  primary: "#00B894"            # Logo 速度线/书签飘带原色；accent：图标/描边/选中/状态
-  primary-hover: "#00A383"      # hover
-  primary-active: "#008F72"     # press
-  primary-on: "#2D3436"         # 绿底之上的前景（文字/图标，炭灰，on 绿 ≈4.9:1 达 AA）
-  primary-text: "#007D63"       # 浅底上的绿字/链接（on 白 ≈5.6:1）
-  primary-dark: "#00755C"       # 退路：需白字的深绿实色（白字 ≈4.7:1）
-  primary-light: "rgba(0,184,148,.1)"   # 浅底强调
-  primary-focus: "rgba(0,184,148,.35)"  # focus ring
+  primary: "#00B894" # Logo 速度线/书签飘带原色；accent：图标/描边/选中/状态
+  primary-hover: "#00A383" # hover
+  primary-active: "#008F72" # press
+  primary-on: "#2D3436" # 绿底之上的前景（文字/图标，炭灰，on 绿 ≈4.9:1 达 AA）
+  primary-text: "#007D63" # 浅底上的绿字/链接（on 白 ≈5.6:1）
+  primary-dark: "#00755C" # 退路：需白字的深绿实色（白字 ≈4.7:1）
+  primary-light: "rgba(0,184,148,.1)" # 浅底强调
+  primary-focus: "rgba(0,184,148,.35)" # focus ring
   # 主操作（A 方案：炭灰实色，品牌绿仅作图标与焦点信号）
   action-primary: "#202829"
   action-primary-hover: "#2B3634"
@@ -19,14 +19,14 @@ colors:
   action-primary-foreground: "#F6F8F7"
   action-primary-icon: "#55EFC4"
   # 中性 / 反馈
-  neutral: "#2D3436"            # Logo 闭合圆环炭灰，深色锚定色
-  text-primary: "#0F172A"       # 主文本
-  text-secondary: "#475569"     # 次文本
-  muted: "#64748B"              # 仅元信息/占位，贴 AA 下限，不得用于长正文
-  border-color: "#E2E8F0"       # 边框/分隔
-  content-bg: "#F8FAFC"         # 内容区底
-  card-bg: "#FFFFFF"            # 卡片底
-  danger: "#EF4444"             # 危险/删除，保持红
+  neutral: "#2D3436" # Logo 闭合圆环炭灰，深色锚定色
+  text-primary: "#0F172A" # 主文本
+  text-secondary: "#475569" # 次文本
+  muted: "#64748B" # 仅元信息/占位，贴 AA 下限，不得用于长正文
+  border-color: "#E2E8F0" # 边框/分隔
+  content-bg: "#F8FAFC" # 内容区底
+  card-bg: "#FFFFFF" # 卡片底
+  danger: "#EF4444" # 危险/删除，保持红
   # 深色侧栏（属 Logo 炭灰族，禁用 Semi 冷黑 #232429）
   sidebar-bg: "#202829"
   sidebar-surface: "#2D3436"
@@ -63,9 +63,9 @@ typography:
     fontWeight: 500
     lineHeight: 1.5
 rounded:
-  sm: 8px      # 按钮/输入/标签
-  md: 12px     # 卡片/浮层/图标按钮容器
-  lg: 16px     # Modal
+  sm: 8px # 按钮/输入/标签
+  md: 12px # 卡片/浮层/图标按钮容器
+  lg: 16px # Modal
   full: 9999px # 圆形图标按钮
 spacing:
   xs: 4px
@@ -76,10 +76,10 @@ spacing:
   "2xl": 32px
 # 控件高度阶（shadcn default 档；声明性参考，尺寸硬编码于 src/components/ui/* cva，未做成 CSS 变量）
 control-height:
-  sm: 36px      # h-9：button sm / select sm
-  md: 40px      # h-10：button default / input / select trigger / tabs list（标准控件高）
-  lg: 44px      # h-11：button lg
-  switch: "24x44px"  # h-6 w-11 default
+  sm: 36px # h-9：button sm / select sm
+  md: 40px # h-10：button default / input / select trigger / tabs list（标准控件高）
+  lg: 44px # h-11：button lg
+  switch: "24x44px" # h-6 w-11 default
 components:
   button-primary:
     backgroundColor: "{colors.action-primary}"
@@ -158,7 +158,7 @@ components:
 
 ## Layout
 
-68px 深色品牌 Rail + 222px 浅色导航侧栏 + 浅色内容区（`max-width 1720px` 居中）。书签网格按视口断点使用 1/1/2/3/4/5 列：xs `<576px`、sm `≥576px`、md `≥768px`、lg `≥992px`、xl `≥1200px`、xxl `≥1600px`。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色经 tailwind `@theme` + shadcn 变量派生（`src/styles/tailwind-theme.css` 的 `:root`/`.dark`）；残留 Semi 组件的品牌色仍由 `semi-theme-override.css` 同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
+68px 深色品牌 Rail + 240px 浅色导航侧栏 + 浅色内容区（`max-width 1720px` 居中）。书签网格按视口断点使用 1/1/2/3/4/5 列：xs `<576px`、sm `≥576px`、md `≥768px`、lg `≥992px`、xl `≥1200px`、xxl `≥1600px`。8 基准节奏（xs4 / sm8 / md12 / lg16 / xl24 / 2xl32），微调 4/12。面向桌面宽屏，保证 1024/1440 无横滚。品牌色经 tailwind `@theme` + shadcn 变量派生（`src/styles/tailwind-theme.css` 的 `:root`/`.dark`）；残留 Semi 组件的品牌色仍由 `semi-theme-override.css` 同时覆盖 `html body` 与 `html body .semi-always-dark`，否则弹层拼色。
 
 ## Elevation & Depth
 

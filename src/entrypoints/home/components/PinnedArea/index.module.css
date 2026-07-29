@@ -4,15 +4,45 @@
   gap: var(--space-xs);
 }
 
-/* 「常驻」小节标题：与 Sidebar 既有 sectionLabel 同节奏 */
+/* 标题行：「常驻书签」标题 + 「+」添加按钮 + 「管理」文字按钮（issue #60 + 后续调整） */
+.sectionLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding: 0 8px;
+}
+
+/* 标题右侧操作区：+ 添加 / 管理 */
+.titleActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* 「常驻书签」小节标题：与 Sidebar 既有 sectionLabel 同节奏 */
 .sectionLabel {
   font-size: 10px;
   font-weight: 800;
   color: var(--sidebar-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  padding: 0 8px;
-  margin-top: 18px;
+}
+
+/* 「管理」文字按钮：极简 link 样，节省空间（issue #60） */
+.manageBtn {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--sidebar-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.manageBtn:hover {
+  color: var(--sidebar-text);
+  text-decoration: none;
 }
 
 .emptyHint {
@@ -21,27 +51,21 @@
   padding: 0 var(--space-xs);
 }
 
+/* chip 行：列数由 JS 按数量动态注入（min(数量,4)），1fr 等宽填满。
+ * ≤4 个：列数=数量，一个黿满一行；>4 个：固定 4 列，第二行与第一行等宽对齐。
+ * grid-template-columns 由组件 inline style 覆盖，此处仅留兜底默认 */
 .chipRow {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   padding: 0 var(--space-xs);
 }
 
-/* chip 外包：相对定位，承载删除按钮的绝对定位。
- * 尺寸 48px：sidebar 内容宽 220px（260 - sidebar padding 32 - chipRow padding 8），
- * 4 chip + 3 gap(8) = 216 ≤ 220，每行容 4 个（设计要求 2 行 × 4 列 = 8） */
-.chipWrap {
-  position: relative;
-  width: 40px;
-  height: 42px;
-}
-
-/* chip 本体：方向 A 方形，图标上/名称下，中性炭灰抬升面（不用绿，守 §2.3 绿色预算） */
+/* chip 本体：方向 A 方形，图标上/名称下，中性炭灰抬升面（不用绿，守 §2.3 绿色预算）。
+ * 宽度由 grid 1fr 决定，高度固定以维持方形视觉节奏 */
 .chip {
   width: 100%;
-  height: 100%;
+  height: 52px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -53,7 +77,9 @@
   background: var(--sidebar-surface);
   color: var(--sidebar-text);
   cursor: pointer;
-  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .chip:hover {
@@ -105,69 +131,20 @@
   font-size: 10px;
   line-height: 1.2;
   color: var(--sidebar-text-muted);
-  max-width: 44px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* × 删除按钮：默认隐藏，hover chip 时右上浮现；触屏 @media(hover:none) 常驻 */
-.deleteBtn {
-  position: absolute;
-  top: -3px;
-  right: -3px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
-  z-index: 1;
-}
-
-.deleteBtn:hover {
-  background: var(--danger);
-  box-shadow: none;
-}
-
-.chipWrap:hover .deleteBtn,
-.deleteBtn:focus-visible {
-  opacity: 1;
-}
-
-@media (hover: none) {
-  .deleteBtn {
-    opacity: 1;
-  }
-}
-
-/* 「+ 添加常驻」按钮：与 chip 同尺寸（48×48），虚线边框，hover 转绿（该区唯一 action，瞬时非状态，允许绿） */
+/* 「+ 添加常驻」按钮：标题行内小 icon 按钮（从 chipRow 脱离，避免污染 chip 布局）。
+ * hover 转绿（该区唯一添加 action，瞬时非状态，允许绿） */
 .addBtn {
-  width: 40px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--sidebar-border);
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--sidebar-text-muted);
-  cursor: pointer;
-  transition: border-color var(--transition-fast), color var(--transition-fast);
-  flex-shrink: 0;
+  transition: color var(--transition-fast);
 }
 
 .addBtn:hover:not(:disabled) {
-  border-color: var(--primary);
   color: var(--primary);
 }
 
@@ -183,47 +160,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .chip,
-  .deleteBtn,
-  .addBtn {
+  .addBtn,
+  .manageBtn {
     transition: none;
   }
-}
-
-/* === T7 chip 拖拽 === */
-.sortableChip {
-  display: inline-block;
-  position: relative;
-}
-/* grip 手柄 slot:chip 左缘外垂直居中(hover 显,与右上角 deleteBtn 对称;深色面 sidebar-text-muted);触屏常显 */
-.gripSlot {
-  position: absolute;
-  top: 50%;
-  left: -4px;
-  transform: translateY(-50%);
-  z-index: 2;
-  display: inline-flex;
-  color: var(--sidebar-text-muted);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-.chipWrap:hover .gripSlot {
-  opacity: 1;
-}
-@media (hover: none) {
-  .gripSlot {
-    opacity: 1;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .gripSlot {
-    transition: none;
-  }
-}
-
-/* M1:isDragging 双层模式——外层 sortableChip 显 placeholder 虚线框,内层 pinInner 隐藏内容占位 */
-.pinInner {
-  display: inline-block;
-}
-.dragGhost {
-  visibility: hidden;
 }
