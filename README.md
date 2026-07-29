@@ -76,7 +76,8 @@ octane/
 │   │   ├── home/               # home 页 WXT 入口（index.html + main.tsx + 响应式布局）
 │   │   │   ├── App.tsx
 │   │   │   └── components/     # Sidebar / Content / BookmarkCard / ContextList /
-│   │   │                       # ContextEditor / TabList / PinnedArea / ManagePanel /
+│   │   │                       # ContextEditor / TabList / PinnedArea / PinnedManageDialog /
+│   │   │                       # ManagePanel /
 │   │   │                       # AppRail（工作区栏）/ ContextPanelShell（响应式抽屉）/
 │   │   │                       # SettingsModal / WorkspaceCreateButton 等
 │   │   ├── popup/              # 工具栏 Popup（Hub 首页 + 保存书签/设置子页面）

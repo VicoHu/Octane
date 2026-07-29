@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.2.3.1] - 2026-07-29
+
+### Added
+
+- **常驻书签管理弹窗**：常驻书签 chip 体积小，hover 出删除角标 + 拖拽手柄极易误触。将「删除 / 排序」收敛到独立管理弹窗——标题行「管理」文字按钮唤起模态 Dialog，内列全部常驻项（favicon + 名称 + × 删除，>1 项可拖拽排序）；chip 变纯点击打开，两个误触根源彻底消除。常驻区标题「常驻」→「常驻书签」；列数 = `min(数量, 4)`（≤4 铺满一行 / >4 固定 4 列）；sidebar 宽度 222px → 240px。
+
+### Fixed
+
+- **异步 Select 回显**：修复坚果云配置异步恢复后服务商不回显（显示「请选择」）+ 编辑书签弹窗分类切换工作区前回显成 ID。保持 Cloud Select 全生命周期受控、分类加载期间隐藏内部 categoryId，隔离分类 / Tag / 工作区切换的异步竞态。
+
+### Internal
+
+- 新增 `dev-prepare` 脚本（`timeout 10 wxt prepare`），规避 `wxt prepare` 挂起。
+- 统一 CloudBackupSection / BookmarkOpsPanel 引号与 JSX 格式。
+
 ## [0.2.3.0] - 2026-07-26
 
 ### Added
