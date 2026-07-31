@@ -526,7 +526,7 @@ export class SessionContinuity {
         createdTabIds.push(created.id);
         managed.push({ id: created.id, entry });
       } catch (e) {
-        logRecovery(`restoreResident: create failed (err=${(e as Error).message})`);
+        logRecovery(`restoreResident: create failed (ws=${resident.workspaceId}, err=${(e as Error).message})`);
         failed.push(entry);
       }
     }
@@ -537,7 +537,7 @@ export class SessionContinuity {
         await this.adapter.updateGroup(groupId, { title: resident.title, collapsed: true });
       }
     } catch (e) {
-      logRecovery(`restoreResident: group failed (err=${(e as Error).message})`);
+      logRecovery(`restoreResident: group failed (ws=${resident.workspaceId}, err=${(e as Error).message})`);
       if (createdTabIds.length) {
         try {
           await this.adapter.removeTabs(createdTabIds);

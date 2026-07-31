@@ -1080,6 +1080,10 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("createTab 失败 → emit restoreCurrent: create failed", async () => {
     const { adapter, continuity } = await coldStartWithOneEntry();
     const originalCreate = adapter.createTab.bind(adapter);
@@ -1116,131 +1120,152 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性", () => {
   });
 });
 
-
-describe('SessionContinuity — 恢复失败诊断日志可区分性（matched / resident 路径）', () => {
+describe("SessionContinuity — 恢复失败诊断日志可区分性（matched / resident 路径）", () => {
   function recoveryMessages(): string[] {
     const calls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
-    return calls
-      .map((call) => String(call[0]))
-      .filter((message) => message.startsWith('[octane-recovery]'));
+    return calls.map((call) => String(call[0])).filter((message) => message.startsWith("[octane-recovery]"));
   }
 
   /** 构造当前 Workspace 已有匹配的原生 tab（走 matched 分支）。 */
   function adapterWithMatchedNativeTab(): MemoryChromeAdapter {
     const adapter = new MemoryChromeAdapter();
-    adapter.storage.set('tabIsolationSetting', 'hide');
-    adapter.storage.set('lastWorkspaceId', WS_A);
+    adapter.storage.set("tabIsolationSetting", "hide");
+    adapter.storage.set("lastWorkspaceId", WS_A);
     adapter.storage.set(`tabSession.${WS_A}`, {
-      tabs: [{ url: 'https://example.com', order: 0, pinned: false }],
+      tabs: [{ url: "https://example.com", order: 0, pinned: false }],
       savedAt: 1,
     });
     // 原生窗口里已有一个匹配 URL 的散开 tab（模拟 Chrome 原生会话恢复）
-    adapter.tabs.set(50, businessTab({ id: 50, url: 'https://example.com', index: 1 }));
+    adapter.tabs.set(50, businessTab({ id: 50, url: "https://example.com", index: 1 }));
     return adapter;
   }
 
   /** 构造带 resident topology 的冷启动场景（WS_B 当前，WS_A 驻留）。 */
   function adapterWithResidentTopology(): MemoryChromeAdapter {
     const adapter = new MemoryChromeAdapter();
-    adapter.storage.set('tabIsolationSetting', 'hide');
-    adapter.storage.set('lastWorkspaceId', WS_B);
+    adapter.storage.set("tabIsolationSetting", "hide");
+    adapter.storage.set("lastWorkspaceId", WS_B);
     adapter.storage.set(`tabSession.${WS_B}`, { tabs: [], savedAt: 1 });
     adapter.storage.set(`tabSession.${WS_A}`, {
-      tabs: [{ url: 'https://a.example', order: 0, pinned: false }],
+      tabs: [{ url: "https://a.example", order: 0, pinned: false }],
       savedAt: 1,
     });
-    adapter.storage.set('sessionContinuity.topology', {
+    adapter.storage.set("sessionContinuity.topology", {
       currentWorkspaceId: WS_B,
-      residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+      residents: [{ workspaceId: WS_A, title: "A ·aaaaaaaa" }],
     });
     return adapter;
   }
 
   beforeEach(() => {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
-  it('matched tab update 失败 → emit restoreCurrent: update failed on matched tab', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("matched tab update 失败 → emit restoreCurrent: update failed on matched tab", async () => {
     const adapter = adapterWithMatchedNativeTab();
     const originalUpdate = adapter.updateTab.bind(adapter);
     // 仅业务 tab 的 update 抛错，home 激活不受影响
     adapter.updateTab = async (tabId, details) => {
       const tab = adapter.tabs.get(tabId);
       if (tab?.url === HOME_URL) return originalUpdate(tabId, details);
-      throw new Error('update boom');
+      throw new Error("update boom");
     };
     const continuity = coordinator(adapter);
 
     await continuity.startColdRecovery();
 
-    expect(recoveryMessages()).toContainEqual(
-      expect.stringContaining('restoreCurrent: update failed on matched tab'),
-    );
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreCurrent: update failed on matched tab"));
   });
 
-  it('matched tab discard 失败 → emit restoreCurrent: discard failed on matched tab', async () => {
+  it("matched tab discard 失败 → emit restoreCurrent: discard failed on matched tab", async () => {
     const adapter = adapterWithMatchedNativeTab();
-    adapter.discardTab = async () => { throw new Error('discard boom'); };
+    adapter.discardTab = async () => {
+      throw new Error("discard boom");
+    };
     const continuity = coordinator(adapter);
 
     await continuity.startColdRecovery();
 
-    expect(recoveryMessages()).toContainEqual(
-      expect.stringContaining('restoreCurrent: discard failed on matched tab'),
-    );
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreCurrent: discard failed on matched tab"));
   });
 
-  it('resident create 失败 → emit restoreResident: create failed', async () => {
+  it("resident create 失败 → emit restoreResident: create failed 并持久化 resident pending", async () => {
     const adapter = adapterWithResidentTopology();
     const originalCreate = adapter.createTab.bind(adapter);
     adapter.createTab = async (details) => {
       if (details.url === HOME_URL) return originalCreate(details);
-      throw new Error('create boom');
+      throw new Error("create boom");
     };
     const continuity = coordinator(adapter, [WS_A, WS_B]);
 
     await continuity.startColdRecovery();
 
-    expect(recoveryMessages()).toContainEqual(expect.stringContaining('restoreResident: create failed'));
+    const messages = recoveryMessages();
+    // resident 特定上下文：workspaceId 与 create 阶段
+    expect(messages).toContainEqual(
+      expect.stringContaining(`restoreResident: create failed (ws=${WS_A}`),
+    );
+    // 确保不是 current 路径误中
+    expect(messages.some((m) => m.includes("restoreCurrent: create failed"))).toBe(false);
+    // 失败持久化为 resident pending（含 resident 标识）
+    const pending = adapter.storage.get("sessionContinuity.pendingRecovery") as
+      | { workspaces: Array<{ workspaceId: string; resident?: unknown }> }
+      | undefined;
+    expect(pending?.workspaces).toContainEqual(
+      expect.objectContaining({ workspaceId: WS_A, resident: expect.anything() }),
+    );
   });
 
-  it('resident group 失败 → emit restoreResident: group failed', async () => {
+  it("resident group 失败 → emit restoreResident: group failed 并回滚已建 tab", async () => {
     const adapter = adapterWithResidentTopology();
-    adapter.groupTabs = async () => { throw new Error('group boom'); };
+    adapter.groupTabs = async () => {
+      throw new Error("group boom");
+    };
     const continuity = coordinator(adapter, [WS_A, WS_B]);
 
     await continuity.startColdRecovery();
 
-    expect(recoveryMessages()).toContainEqual(expect.stringContaining('restoreResident: group failed'));
+    const messages = recoveryMessages();
+    expect(messages).toContainEqual(
+      expect.stringContaining(`restoreResident: group failed (ws=${WS_A}`),
+    );
+    expect(messages.some((m) => m.includes("restoreCurrent:"))).toBe(false);
+    // group 失败后回滚本轮新建的 resident tab
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.some((tab) => tab.url === "https://a.example")).toBe(false);
   });
 
-  it('resident managed tab discard 失败 → emit restoreResident: discard failed on managed tab', async () => {
+  it("resident managed tab discard 失败 → emit restoreResident: discard failed on managed tab", async () => {
     const adapter = adapterWithResidentTopology();
-    adapter.discardTab = async () => { throw new Error('discard boom'); };
+    adapter.discardTab = async () => {
+      throw new Error("discard boom");
+    };
     const continuity = coordinator(adapter, [WS_A, WS_B]);
 
     await continuity.startColdRecovery();
 
     expect(recoveryMessages()).toContainEqual(
-      expect.stringContaining('restoreResident: discard failed on managed tab'),
+      expect.stringContaining("restoreResident: discard failed on managed tab"),
     );
   });
 
-  it('resident managed tab update 失败 → emit restoreResident: update failed on managed tab', async () => {
+  it("resident managed tab update 失败 → emit restoreResident: update failed on managed tab", async () => {
     const adapter = adapterWithResidentTopology();
     const originalUpdate = adapter.updateTab.bind(adapter);
     // 仅业务 tab 的 update 抛错，home 激活不受影响
     adapter.updateTab = async (tabId, details) => {
       const tab = adapter.tabs.get(tabId);
       if (tab?.url === HOME_URL) return originalUpdate(tabId, details);
-      throw new Error('update boom');
+      throw new Error("update boom");
     };
     const continuity = coordinator(adapter, [WS_A, WS_B]);
 
     await continuity.startColdRecovery();
 
-    expect(recoveryMessages()).toContainEqual(
-      expect.stringContaining('restoreResident: update failed on managed tab'),
-    );
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreResident: update failed on managed tab"));
   });
 });
