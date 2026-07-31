@@ -1232,3 +1232,46 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
     expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreResident: update failed on managed tab"));
   });
 });
+
+
+describe("SessionContinuity — 冷恢复后清理原生新标签页噪声", () => {
+  function adapterWithNewTabNoise(): MemoryChromeAdapter {
+    const adapter = new MemoryChromeAdapter();
+    adapter.storage.set("tabIsolationSetting", "hide");
+    adapter.storage.set("lastWorkspaceId", WS_A);
+    adapter.storage.set(`tabSession.${WS_A}`, {
+      tabs: [{ url: "https://example.com", order: 0, pinned: false }],
+      savedAt: 1,
+    });
+    // pinned Home + Chrome 原生新标签页噪声
+    adapter.tabs.set(1, businessTab({ id: 1, url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: "chrome://newtab/", index: 1 }));
+    return adapter;
+  }
+
+  it("恢复出业务 tab 后：关闭原生 newtab 噪声", async () => {
+    const adapter = adapterWithNewTabNoise();
+    const continuity = coordinator(adapter);
+
+    await continuity.startColdRecovery();
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.some((tab) => tab.url === "chrome://newtab/")).toBe(false);
+    expect(tabs.some((tab) => tab.url === "https://example.com")).toBe(true);
+  });
+
+  it("未恢复出任何业务 tab（desiredCount=0）时：保留原生 newtab，不误关", async () => {
+    const adapter = new MemoryChromeAdapter();
+    adapter.storage.set("tabIsolationSetting", "hide");
+    adapter.storage.set("lastWorkspaceId", WS_A);
+    adapter.storage.set(`tabSession.${WS_A}`, { tabs: [], savedAt: 1 });
+    adapter.tabs.set(1, businessTab({ id: 1, url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: "chrome://newtab/", index: 1 }));
+
+    const continuity = coordinator(adapter);
+    await continuity.startColdRecovery();
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.some((tab) => tab.url === "chrome://newtab/")).toBe(true);
+  });
+});

@@ -117,6 +117,18 @@ function isRestorable(tab: SessionContinuityTab): boolean {
   );
 }
 
+/** Chrome / Edge 冷启动会留一个原生「新标签页」噪声 tab；Octane 恢复出业务 tab 后应清理它。
+ *  newtab URL 在不同 Chrome 版本有 chrome://newtab、chrome://new-tab-page、edge://newtab 等形态。 */
+function isNativeNewTab(tab: SessionContinuityTab): boolean {
+  if (!tab.url || tab.pinned) return false;
+  const url = tab.url.replace(/\/$/, "");
+  return (
+    url === "chrome://newtab" ||
+    url === "chrome://new-tab-page" ||
+    url === "edge://newtab"
+  );
+}
+
 function toEntry(tab: SessionContinuityTab): TabEntry {
   return { url: tab.url!, pinned: tab.pinned ?? false, order: tab.index ?? 0 };
 }
@@ -295,6 +307,8 @@ export class SessionContinuity {
         `startColdRecovery: done restored=${restoredCount}, failed=${failed.reduce((c, p) => c + p.entries.length, 0)}`,
       );
       await this.persistRecoveryResult(failed, restoredCount, failed.length > 0);
+      // 恢复成功后才清理原生「新标签页」噪声：避免误关用户有意保留的空标签。
+      if (restoredCount > 0) await this.removeNativeNewTabs(windowId);
       await this.adapter.updateTab(homeId, { active: true });
     } finally {
       this.recovering = false;
@@ -351,8 +365,8 @@ export class SessionContinuity {
     const storedTopology = (await this.adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
     const topology = isTopology(storedTopology) ? storedTopology : null;
     const failed: PendingWorkspaceRecovery[] = [];
-    const currentFailed = await this.restoreCurrentWorkspace(windowId, workspaceId);
-    if (currentFailed.length) failed.push({ workspaceId, entries: currentFailed });
+    // 先恢复驻留组、后恢复当前 Workspace 散开 tab：最终顺序为
+    // [pinned Home] [驻留折叠组] [当前散开 tab]，符合用户对工作区分级的预期。
     if (setting !== "close" && topology?.currentWorkspaceId === workspaceId) {
       for (const resident of topology.residents) {
         const residentFailed = await this.restoreResidentWorkspace(windowId, resident);
@@ -360,6 +374,8 @@ export class SessionContinuity {
           failed.push({ workspaceId: resident.workspaceId, resident, entries: residentFailed });
       }
     }
+    const currentFailed = await this.restoreCurrentWorkspace(windowId, workspaceId);
+    if (currentFailed.length) failed.push({ workspaceId, entries: currentFailed });
     return failed;
   }
 
@@ -676,6 +692,18 @@ export class SessionContinuity {
       active: true,
     });
     return created.id;
+  }
+
+  /** 恢复成功后清理窗口内的原生「新标签页」噪声 tab，避免它占据折叠组前的位置。部分失败不阻断。 */
+  private async removeNativeNewTabs(windowId: number): Promise<void> {
+    const tabs = await this.adapter.queryTabs(windowId);
+    const newTabIds = tabs.filter(isNativeNewTab).map((tab) => tab.id);
+    if (!newTabIds.length) return;
+    try {
+      await this.adapter.removeTabs(newTabIds);
+    } catch {
+      // 部分失败不阻断：newtab 清理是体验优化，非性能/数据正确性依赖。
+    }
   }
 }
 
