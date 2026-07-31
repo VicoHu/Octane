@@ -267,7 +267,7 @@ describe("SessionContinuity — #64 当前 Workspace 冷启动恢复", () => {
     }
   });
 
-  it("关闭浏览器后无原生业务标签：恢复最新会话、Home 保持活动且业务标签已释放", async () => {
+  it("关闭浏览器后无原生业务标签：恢复最新会话、Home 保持活动且业务标签放后台不抢焦点", async () => {
     const adapter = new MemoryChromeAdapter();
     await adapter.setStorage({
       tabIsolationSetting: "close",
@@ -289,8 +289,8 @@ describe("SessionContinuity — #64 当前 Workspace 冷启动恢复", () => {
     expect(tabs).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ url: HOME_URL, active: true, pinned: true }),
-        expect.objectContaining({ url: "https://one.example?view=a#top", active: false, discarded: true }),
-        expect.objectContaining({ url: "https://two.example", pinned: true, active: false, discarded: true }),
+        expect.objectContaining({ url: "https://one.example?view=a#top", active: false }),
+        expect.objectContaining({ url: "https://two.example", pinned: true, active: false }),
       ]),
     );
   });
@@ -375,7 +375,7 @@ describe("SessionContinuity — #64 当前 Workspace 冷启动恢复", () => {
 
 describe("SessionContinuity — #66 驻留 Workspace 冷恢复", () => {
   it.each(["hide", "hide-discard"] as const)(
-    "%s：A 驻留、B 当前后重启 → B 散开，A 折叠并全部释放，Home 活动",
+    "%s：A 驻留、B 当前后重启 → B 散开，A 折叠不抢焦点，Home 活动",
     async (setting) => {
       const adapter = new MemoryChromeAdapter();
       await adapter.setStorage({ tabIsolationSetting: setting, lastWorkspaceId: WS_B });
@@ -417,10 +417,10 @@ describe("SessionContinuity — #66 驻留 Workspace 冷恢复", () => {
       const aTabs = tabs.filter((tab) => tab.url?.startsWith("https://a-"));
       const aGroup = Array.from(adapter.groups.values()).find((group) => group.title === "A ·aaaaaaaa");
       expect(bTabs).toHaveLength(4);
-      expect(bTabs.every((tab) => tab.groupId === -1 && tab.discarded && !tab.active)).toBe(true);
+      expect(bTabs.every((tab) => tab.groupId === -1 && !tab.active)).toBe(true);
       expect(aTabs).toHaveLength(3);
       expect(aGroup).toMatchObject({ collapsed: true });
-      expect(aTabs.every((tab) => tab.groupId === aGroup?.id && tab.discarded && !tab.active)).toBe(true);
+      expect(aTabs.every((tab) => tab.groupId === aGroup?.id && !tab.active)).toBe(true);
       expect(tabs.find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
     },
   );
@@ -450,7 +450,7 @@ describe("SessionContinuity — #66 驻留 Workspace 冷恢复", () => {
     const tabs = await adapter.queryTabs(1);
     const aGroup = Array.from(adapter.groups.values()).find((group) => group.title === "A ·aaaaaaaa");
     expect(tabs.filter((tab) => tab.url === "https://a-group.example")).toEqual([
-      expect.objectContaining({ groupId: aGroup?.id, discarded: true }),
+      expect.objectContaining({ groupId: aGroup?.id, active: false }),
     ]);
     expect(tabs.some((tab) => tab.url === "https://a-pinned.example")).toBe(false);
     expect(adapter.storage.get(`tabSession.${WS_A}`)).toMatchObject({
@@ -605,7 +605,7 @@ describe("SessionContinuity — #66 驻留 Workspace 冷恢复", () => {
 
     await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
 
-    expect(adapter.tabs.get(2)).toMatchObject({ groupId: -1, active: false, discarded: true });
+    expect(adapter.tabs.get(2)).toMatchObject({ groupId: -1, active: false });
     expect(adapter.tabs.get(3)).toMatchObject({ groupId: 20 });
   });
 });
@@ -755,7 +755,7 @@ describe("SessionContinuity — #65 原生会话协调", () => {
     expect(tabs.filter((tab) => tab.url === "https://owned.example" && tab.groupId === -1)).toHaveLength(1);
   });
 
-  it("同一 coordinator 重复启动：不重复创建标签，Home 保持激活且新标签已释放", async () => {
+  it("同一 coordinator 重复启动：不重复创建标签，Home 保持激活且新标签放后台不抢焦点", async () => {
     const adapter = adapterWithSession([{ url: "https://only-once.example", order: 1 }]);
     adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
     const continuity = coordinator(adapter);
@@ -765,7 +765,7 @@ describe("SessionContinuity — #65 原生会话协调", () => {
 
     const tabs = await adapter.queryTabs(1);
     expect(tabs.filter((tab) => tab.url === "https://only-once.example")).toEqual([
-      expect.objectContaining({ active: false, discarded: true }),
+      expect.objectContaining({ active: false }),
     ]);
     expect(tabs.find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
   });
@@ -841,12 +841,14 @@ describe("SessionContinuity — #67 恢复失败重试", () => {
     expect(adapter.storage.get("sessionContinuity.pendingRecovery")).toBeUndefined();
   });
 
-  it("discard 持续失败：自动重试一次后持久化 pending，普通 autosave 仍保护该 entry", async () => {
+  it("create 持续失败：自动重试一次后持久化 pending，普通 autosave 仍保护该 entry", async () => {
     const adapter = adapterWithSession([{ url: "https://failed.example", order: 0 }]);
     adapter.storage.set("sessionContinuity.recoveryNotice", { restoredCount: 1, failedCount: 1, shown: true });
     adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
-    adapter.discardTab = async () => {
-      throw new Error("discard failure");
+    const originalCreate = adapter.createTab.bind(adapter);
+    adapter.createTab = async (details) => {
+      if (details.url === HOME_URL) return originalCreate(details);
+      throw new Error("create failure");
     };
 
     const continuity = coordinator(adapter);
@@ -872,15 +874,14 @@ describe("SessionContinuity — #67 恢复失败重试", () => {
   it("手动重试：已被外部补齐 occurrence 时不再创建，成功后清 pending", async () => {
     const adapter = adapterWithSession([{ url: "https://manual.example", order: 0 }]);
     adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
-    adapter.discardTab = async () => {
-      throw new Error("discard failure");
+    const originalCreate = adapter.createTab.bind(adapter);
+    adapter.createTab = async (details) => {
+      if (details.url === HOME_URL) return originalCreate(details);
+      throw new Error("create failure");
     };
     const continuity = coordinator(adapter);
     await finishColdRecovery(continuity);
-    adapter.discardTab = async (id) => {
-      const tab = adapter.tabs.get(id);
-      if (tab) tab.discarded = true;
-    };
+    adapter.createTab = originalCreate;
 
     await continuity.retryPendingRecovery();
 
@@ -1099,18 +1100,6 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性", () => {
     expect(recoveryMessages().some((m) => m.includes("discard failed"))).toBe(false);
   });
 
-  it("discardTab 失败（新建 tab）→ emit restoreCurrent: discard failed on created tab", async () => {
-    const { adapter, continuity } = await coldStartWithOneEntry();
-    adapter.discardTab = async () => {
-      throw new Error("discard boom");
-    };
-
-    await continuity.startColdRecovery();
-
-    expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreCurrent: discard failed on created tab"));
-    expect(recoveryMessages()).toContainEqual(expect.stringContaining("discard boom"));
-  });
-
   it("恢复链路完成 → emit done restored/failed 汇总", async () => {
     const { continuity } = await coldStartWithOneEntry();
 
@@ -1181,18 +1170,6 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
     expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreCurrent: update failed on matched tab"));
   });
 
-  it("matched tab discard 失败 → emit restoreCurrent: discard failed on matched tab", async () => {
-    const adapter = adapterWithMatchedNativeTab();
-    adapter.discardTab = async () => {
-      throw new Error("discard boom");
-    };
-    const continuity = coordinator(adapter);
-
-    await continuity.startColdRecovery();
-
-    expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreCurrent: discard failed on matched tab"));
-  });
-
   it("resident create 失败 → emit restoreResident: create failed 并持久化 resident pending", async () => {
     const adapter = adapterWithResidentTopology();
     const originalCreate = adapter.createTab.bind(adapter);
@@ -1237,20 +1214,6 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
     // group 失败后回滚本轮新建的 resident tab
     const tabs = await adapter.queryTabs(1);
     expect(tabs.some((tab) => tab.url === "https://a.example")).toBe(false);
-  });
-
-  it("resident managed tab discard 失败 → emit restoreResident: discard failed on managed tab", async () => {
-    const adapter = adapterWithResidentTopology();
-    adapter.discardTab = async () => {
-      throw new Error("discard boom");
-    };
-    const continuity = coordinator(adapter, [WS_A, WS_B]);
-
-    await continuity.startColdRecovery();
-
-    expect(recoveryMessages()).toContainEqual(
-      expect.stringContaining("restoreResident: discard failed on managed tab"),
-    );
   });
 
   it("resident managed tab update 失败 → emit restoreResident: update failed on managed tab", async () => {

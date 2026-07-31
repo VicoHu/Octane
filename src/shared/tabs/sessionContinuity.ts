@@ -441,12 +441,10 @@ export class SessionContinuity {
           index: entry.order,
           active: false,
         });
-        try {
-          await this.adapter.discardTab(created.id);
-        } catch (e) {
-          logRecovery(`restoreCurrent: discard failed on created tab (err=${(e as Error).message})`);
-          failed.push(entry);
-        }
+        // 不主动 discard：冷恢复刚创建的 tab 尚未完成加载，chrome.tabs.discard 会
+        // 静默损坏该 tab（真机表现为点开后永久转圈）。active:false 已让它停在后台、
+        // 不抢焦点；用户点击时再正常加载，这是真机可靠的折衷。
+        void created;
       } catch (e) {
         logRecovery(`restoreCurrent: create failed (err=${(e as Error).message})`);
         failed.push(entry);
@@ -457,13 +455,6 @@ export class SessionContinuity {
         await this.adapter.updateTab(matched.tabId, { active: false });
       } catch (e) {
         logRecovery(`restoreCurrent: update failed on matched tab (err=${(e as Error).message})`);
-        failed.push(matched.entry);
-        continue;
-      }
-      try {
-        await this.adapter.discardTab(matched.tabId);
-      } catch (e) {
-        logRecovery(`restoreCurrent: discard failed on matched tab (err=${(e as Error).message})`);
         failed.push(matched.entry);
       }
     }
@@ -552,13 +543,6 @@ export class SessionContinuity {
         await this.adapter.updateTab(tab.id, { active: false });
       } catch (e) {
         logRecovery(`restoreResident: update failed on managed tab (err=${(e as Error).message})`);
-        failed.push(tab.entry);
-        continue;
-      }
-      try {
-        await this.adapter.discardTab(tab.id);
-      } catch (e) {
-        logRecovery(`restoreResident: discard failed on managed tab (err=${(e as Error).message})`);
         failed.push(tab.entry);
       }
     }
