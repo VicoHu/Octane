@@ -6,6 +6,8 @@ import {
   ensureHomeTabInAllWindows,
   dedupeHomeTabsInWindow,
 } from '@/shared/tabs/focusOrCreateHomeTab';
+import { sessionContinuity } from '@/shared/tabs/sessionContinuity';
+import { registerChromeListener } from '@/entrypoints/background/registerChromeListener';
 
 // 项目无 @types/chrome：声明全局 chrome（运行时 globalThis.chrome），最小子集断言（参考 CommandHandler.ts）。
 declare const chrome: unknown;
@@ -68,9 +70,14 @@ browser.runtime.onInstalled.addListener((details) => {
   }
 });
 browser.runtime.onStartup.addListener(() => {
-  ensureHomeTabInAllWindows().catch((e) =>
-    console.error('[octane] onStartup 补齐 logo tab 失败', e),
-  );
+  void (async () => {
+    try {
+      await ensureHomeTabInAllWindows();
+      await sessionContinuity?.startColdRecovery();
+    } catch (e) {
+      console.error('[octane] onStartup 补齐 logo tab 或恢复标签会话失败', e);
+    }
+  })();
 });
 browser.windows.onCreated.addListener((window) => {
   if (window.id != null) {
@@ -85,11 +92,49 @@ browser.windows.onCreated.addListener((window) => {
 // 顶层注册（与上面 listener 同策略，避免 SW 唤醒时序丢事件）。
 const HOME_URL = browser.runtime.getURL('/home.html');
 browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  sessionContinuity?.notifyTopologyChanged();
   if (changeInfo.status !== 'complete' || tab.url !== HOME_URL) return;
   if (tab.windowId == null) return;
   dedupeHomeTabsInWindow(tab.windowId).catch((e) =>
     console.error('[octane] tabs.onUpdated 去重 logo tab 失败', e),
   );
+});
+
+// MV3 listener 必须在 worker 加载时同步注册。只有 onStartup 会调用冷恢复；其余事件只更新快照。
+const chromeEvents = (globalThis as unknown as {
+  chrome?: {
+    tabs?: {
+      onCreated?: { addListener(listener: () => void): void };
+      onRemoved?: { addListener(listener: () => void): void };
+      onMoved?: { addListener(listener: () => void): void };
+      onAttached?: { addListener(listener: () => void): void };
+      onDetached?: { addListener(listener: () => void): void };
+    };
+    tabGroups?: {
+      onCreated?: { addListener(listener: () => void): void };
+      onUpdated?: { addListener(listener: () => void): void };
+      onMoved?: { addListener(listener: () => void): void };
+      onRemoved?: { addListener(listener: () => void): void };
+    };
+    storage?: {
+      onChanged?: { addListener(listener: (changes: Record<string, unknown>, areaName: string) => void): void };
+    };
+  };
+}).chrome;
+const requestSessionAutosave = () => sessionContinuity?.notifyTopologyChanged();
+registerChromeListener(chromeEvents?.tabs?.onCreated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onRemoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onMoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onAttached, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onDetached, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onCreated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onUpdated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onMoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onRemoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.storage?.onChanged, (changes, areaName) => {
+  if (areaName === 'local' && 'tabIsolationSetting' in changes) {
+    void sessionContinuity?.handleIsolationSettingChanged();
+  }
 });
 
 export default defineBackground({

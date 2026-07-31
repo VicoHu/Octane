@@ -108,6 +108,19 @@
   margin-top: 22px;
 }
 
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 22px;
+  padding: 0 8px;
+}
+
+.categoryHeader .sectionLabel {
+  margin-top: 0;
+  padding: 0;
+}
+
 .workspaceSection {
   display: none;
 }
@@ -243,10 +256,23 @@
   border-top: 1px solid var(--sidebar-border);
 }
 
-.addCategoryButton {
-  width: 100%;
-  border-style: dashed;
-  box-shadow: none;
+.categoryAddButton {
+  color: var(--sidebar-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.categoryAddButton:hover:not(:disabled) {
+  color: var(--primary);
+}
+
+.categoryAddButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-focus);
+}
+
+.categoryAddButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .bottomActions {
@@ -293,6 +319,7 @@
   gap: var(--space-xs);
 }
 @media (prefers-reduced-motion: reduce) {
+  .categoryAddButton,
   .gripSlot {
     transition: none;
   }

@@ -23,4 +23,18 @@ describe('Sidebar 分类选中态样式', () => {
 
     expect(categoryMainHover ?? '').toContain('background: transparent;');
   });
+
+  it('分类标题行与 PinnedArea 使用相同左右内缩，入口状态遵循现有 token', () => {
+    const categoryHeader = css.match(/\.categoryHeader\s*\{([^}]*)\}/)?.[1];
+    const categoryLabel = css.match(/\.categoryHeader \.sectionLabel\s*\{([^}]*)\}/)?.[1];
+    const categoryAddButton = css.match(/\.categoryAddButton\s*\{([^}]*)\}/)?.[1];
+    const disabledButton = css.match(/\.categoryAddButton:disabled\s*\{([^}]*)\}/)?.[1];
+
+    expect(categoryHeader).toContain('padding: 0 8px;');
+    expect(categoryLabel).toContain('padding: 0;');
+    expect(categoryAddButton).toContain('color: var(--sidebar-text-muted);');
+    expect(disabledButton).toContain('opacity: 0.4;');
+    expect(disabledButton).toContain('cursor: not-allowed;');
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*\.categoryAddButton[\s\S]*transition: none;/);
+  });
 });
