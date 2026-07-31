@@ -7,6 +7,7 @@ import {
   dedupeHomeTabsInWindow,
 } from '@/shared/tabs/focusOrCreateHomeTab';
 import { sessionContinuity } from '@/shared/tabs/sessionContinuity';
+import { registerChromeListener } from '@/entrypoints/background/registerChromeListener';
 
 // 项目无 @types/chrome：声明全局 chrome（运行时 globalThis.chrome），最小子集断言（参考 CommandHandler.ts）。
 declare const chrome: unknown;
@@ -121,16 +122,16 @@ const chromeEvents = (globalThis as unknown as {
   };
 }).chrome;
 const requestSessionAutosave = () => sessionContinuity?.notifyTopologyChanged();
-chromeEvents?.tabs?.onCreated?.addListener(requestSessionAutosave);
-chromeEvents?.tabs?.onRemoved?.addListener(requestSessionAutosave);
-chromeEvents?.tabs?.onMoved?.addListener(requestSessionAutosave);
-chromeEvents?.tabs?.onAttached?.addListener(requestSessionAutosave);
-chromeEvents?.tabs?.onDetached?.addListener(requestSessionAutosave);
-chromeEvents?.tabGroups?.onCreated?.addListener(requestSessionAutosave);
-chromeEvents?.tabGroups?.onUpdated?.addListener(requestSessionAutosave);
-chromeEvents?.tabGroups?.onMoved?.addListener(requestSessionAutosave);
-chromeEvents?.tabGroups?.onRemoved?.addListener(requestSessionAutosave);
-chromeEvents?.storage?.onChanged?.addListener((changes, areaName) => {
+registerChromeListener(chromeEvents?.tabs?.onCreated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onRemoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onMoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onAttached, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabs?.onDetached, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onCreated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onUpdated, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onMoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.tabGroups?.onRemoved, requestSessionAutosave);
+registerChromeListener(chromeEvents?.storage?.onChanged, (changes, areaName) => {
   if (areaName === 'local' && 'tabIsolationSetting' in changes) {
     void sessionContinuity?.handleIsolationSettingChanged();
   }
