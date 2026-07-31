@@ -47,9 +47,12 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   }
 
   async createTab(details: { url: string; pinned: boolean; windowId: number; index: number; active: boolean }) {
-    // 模拟 Chrome：index clamp 到 [0, 当前窗口 tab 数]，MAX_SAFE_INTEGER 追加到末尾。
+    // 模拟真实 Chrome：clamp 到 [0, count]，并位移插入位置及之后的现有 tab（保持 index 唯一连续）。
     const count = Array.from(this.tabs.values()).filter((t) => t.windowId === details.windowId).length;
     const index = Math.max(0, Math.min(details.index, count));
+    for (const t of this.tabs.values()) {
+      if (t.windowId === details.windowId && (t.index ?? 0) >= index) t.index = (t.index ?? 0) + 1;
+    }
     const tab = { id: this.nextTabId++, groupId: -1, discarded: false, ...details, index };
     this.tabs.set(tab.id, tab);
     return tab;
@@ -90,9 +93,26 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   }
 
   async removeTabs(tabIds: number[]): Promise<void> {
-    for (const tabId of tabIds) this.tabs.delete(tabId);
+    // 先记录被移除 tab 的 (windowId, index)，再删除，最后按窗口补齐空隙（后移 tab 前移）。
+    const removed = new Set(tabIds);
+    const removedByWindow = new Map<number, number[]>();
+    for (const tabId of tabIds) {
+      const tab = this.tabs.get(tabId);
+      if (!tab) continue;
+      const list = removedByWindow.get(tab.windowId) ?? [];
+      list.push(tab.index ?? 0);
+      removedByWindow.set(tab.windowId, list);
+    }
+    for (const tabId of removed) this.tabs.delete(tabId);
     for (const [groupId] of this.groups) {
       if (!Array.from(this.tabs.values()).some((tab) => tab.groupId === groupId)) this.groups.delete(groupId);
+    }
+    for (const [windowId, indices] of removedByWindow) {
+      const threshold = Math.min(...indices);
+      const shift = indices.filter((i) => i >= threshold).length;
+      for (const t of this.tabs.values()) {
+        if (t.windowId === windowId && (t.index ?? 0) >= threshold) t.index = (t.index ?? 0) - shift;
+      }
     }
   }
 
@@ -1275,7 +1295,6 @@ describe("SessionContinuity — 冷恢复后清理原生新标签页噪声", () 
   });
 });
 
-
 describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后）", () => {
   function adapterWithResidentAndCurrent(): MemoryChromeAdapter {
     const adapter = new MemoryChromeAdapter();
@@ -1315,14 +1334,19 @@ describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后�
     const aGroup = Array.from(adapter.groups.values()).find((g) => g.title === "A ·aaaaaaaa");
     expect(aGroup).toBeDefined();
 
-    // 驻留组 tab 的位置应早于当前散开 tab
-    const residentIdx = tabs.findIndex((t) => t.groupId === aGroup!.id);
-    const currentIdx = tabs.findIndex((t) => t.url === "https://b1.example");
-    expect(residentIdx).toBeGreaterThan(0);
-    expect(residentIdx).toBeLessThan(currentIdx);
-
-    // Home 在最前
-    expect(tabs[0]?.url).toBe(HOME_URL);
-    expect(tabs[0]?.pinned).toBe(true);
+    // 完整顺序断言：index 唯一连续，从 Home 开始依次为驻留组（2 tab）+ 当前散开（2 tab）
+    const sequence = tabs.map((t) =>
+      t.groupId === aGroup!.id ? `[A 组]` : t.url,
+    );
+    expect(sequence).toEqual([
+      HOME_URL,
+      "[A 组]",
+      "[A 组]",
+      "https://b1.example",
+      "https://b2.example",
+    ]);
+    // index 应唯一连续（位移模型验证）
+    const indices = tabs.map((t) => t.index).sort((a, b) => (a ?? 0) - (b ?? 0));
+    expect(indices).toEqual([0, 1, 2, 3, 4]);
   });
 });
