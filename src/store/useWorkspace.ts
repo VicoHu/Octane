@@ -15,8 +15,8 @@ import {
   clearWorkspaceBinding,
   listAllBindings,
 } from '@/shared/windowWorkspaceBinding';
-import { clearTabSession } from '@/services/TabSessionService';
 import { findGroupByIdentity } from '@/shared/tabs/tabGroupIdentity';
+import { clearWorkspaceSessionContinuityState } from '@/shared/tabs/sessionContinuity';
 import type { SwitchPhase } from '@/shared/tabs/workspaceSwitch';
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
 
@@ -215,8 +215,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
         else await clearWorkspaceBinding(winId);
       }
     }
-    // 隐私：清已删 ws 的 tab 会话（不留已删 ws 的 tab URL）
-    await clearTabSession(id);
+    // 隐私：深模块串行清已删 ws 的 tab 会话与冷恢复拓扑引用（不留已删 ws 的 tab URL）
+    await clearWorkspaceSessionContinuityState(id);
 
     // T9：清该 ws 的 hide 标识组（孤儿组，隐私：不留已删 ws 的 hide tab URL/组）
     // 扫所有窗口，命中标识组则 remove 组内 tab（Chrome 自动清空组）。

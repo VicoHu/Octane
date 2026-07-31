@@ -26,6 +26,7 @@ interface SessionContinuityGroup {
   id: number;
   windowId: number;
   title?: string;
+  collapsed?: boolean;
 }
 
 interface NormalWindow {
@@ -49,16 +50,26 @@ export interface SessionContinuityAdapter {
   }): Promise<SessionContinuityTab>;
   updateTab(tabId: number, details: { active: boolean }): Promise<void>;
   discardTab(tabId: number): Promise<void>;
+  groupTabs(tabIds: number[], windowId: number, groupId?: number): Promise<number>;
+  ungroupTabs(tabIds: number[]): Promise<void>;
+  updateGroup(groupId: number, details: { title?: string; collapsed?: boolean }): Promise<void>;
   getHomeUrl(): string;
 }
 
 interface SessionContinuityOptions {
   isWorkspaceValid: (workspaceId: string) => Promise<boolean>;
+  listWorkspaceIds: () => Promise<string[]>;
   debounceMs?: number;
+}
+
+interface ResidentTopology {
+  workspaceId: string;
+  title: string;
 }
 
 interface CurrentTopology {
   currentWorkspaceId: string;
+  residents: ResidentTopology[];
 }
 
 function tabSessionKey(workspaceId: string): string {
@@ -95,6 +106,21 @@ function reconciliationKey(url: string, pinned: boolean): string {
 
 function isUngrouped(tab: SessionContinuityTab): boolean {
   return tab.groupId == null || tab.groupId === -1;
+}
+
+function isTopology(value: unknown): value is CurrentTopology {
+  if (!value || typeof value !== 'object') return false;
+  const topology = value as Partial<CurrentTopology>;
+  return typeof topology.currentWorkspaceId === 'string' && Array.isArray(topology.residents) &&
+    topology.residents.every((resident) =>
+      typeof resident?.workspaceId === 'string' && typeof resident.title === 'string',
+    );
+}
+
+function isLegacyTopology(value: unknown): value is Pick<CurrentTopology, 'currentWorkspaceId'> {
+  if (!value || typeof value !== 'object') return false;
+  const topology = value as Record<string, unknown>;
+  return Object.keys(topology).length === 1 && typeof topology.currentWorkspaceId === 'string';
 }
 
 /**
@@ -153,44 +179,13 @@ export class SessionContinuity {
     try {
       const homeId = await this.ensureHomeTab(windowId);
       await this.waitForNativeTopology();
-      const [existingTabs, groups] = await Promise.all([
-        this.adapter.queryTabs(windowId),
-        this.adapter.queryGroups(windowId),
-      ]);
-      const currentGroupIds = groups
-        .filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(workspaceId)))
-        .map((group) => group.id);
-      // 标识冲突时不任选组，避免把用户或其他 Workspace 的 tab 计入当前快照。
-      const currentGroupId = currentGroupIds.length === 1 ? currentGroupIds[0] : null;
-      const sessionValue = (await this.adapter.getStorage(tabSessionKey(workspaceId)))[tabSessionKey(workspaceId)];
-      const session = sessionValue as TabSession | undefined;
-      if (session?.tabs?.length) {
-        const available = new Map<string, number>();
-        for (const tab of existingTabs) {
-          if (!isRestorable(tab) || (!isUngrouped(tab) && tab.groupId !== currentGroupId)) continue;
-          const key = reconciliationKey(tab.url!, tab.pinned ?? false);
-          available.set(key, (available.get(key) ?? 0) + 1);
-        }
+      const storedTopology = (await this.adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
+      const topology = isTopology(storedTopology) ? storedTopology : null;
+      await this.restoreCurrentWorkspace(windowId, workspaceId);
 
-        for (const entry of [...session.tabs].sort((a, b) => a.order - b.order)) {
-          const key = reconciliationKey(entry.url, entry.pinned ?? false);
-          const matched = available.get(key) ?? 0;
-          if (matched > 0) {
-            available.set(key, matched - 1);
-            continue;
-          }
-          try {
-            const created = await this.adapter.createTab({
-              url: entry.url,
-              pinned: entry.pinned ?? false,
-              windowId,
-              index: entry.order,
-              active: false,
-            });
-            await this.adapter.discardTab(created.id);
-          } catch {
-            // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
-          }
+      if (stored[ISOLATION_KEY] !== 'close' && topology?.currentWorkspaceId === workspaceId) {
+        for (const resident of topology.residents) {
+          await this.restoreResidentWorkspace(windowId, resident);
         }
       }
       await this.adapter.updateTab(homeId, { active: true });
@@ -215,6 +210,135 @@ export class SessionContinuity {
       };
       this.resetNativeQuietWindow();
     });
+  }
+
+  private async restoreCurrentWorkspace(windowId: number, workspaceId: string): Promise<void> {
+    const [existingTabs, groups, stored] = await Promise.all([
+      this.adapter.queryTabs(windowId),
+      this.adapter.queryGroups(windowId),
+      this.adapter.getStorage(tabSessionKey(workspaceId)),
+    ]);
+    const currentGroupIds = groups
+      .filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(workspaceId)))
+      .map((group) => group.id);
+    // 标识冲突时不任选组，避免把用户或其他 Workspace 的 tab 计入当前快照。
+    const currentGroupId = currentGroupIds.length === 1 ? currentGroupIds[0] : null;
+    const session = stored[tabSessionKey(workspaceId)] as TabSession | undefined;
+    if (session?.tabs?.length) {
+      const available = new Map<string, SessionContinuityTab[]>();
+      for (const tab of existingTabs) {
+        if (!isRestorable(tab) || (!isUngrouped(tab) && tab.groupId !== currentGroupId)) continue;
+        const key = reconciliationKey(tab.url!, tab.pinned ?? false);
+        available.set(key, [...(available.get(key) ?? []), tab]);
+      }
+      const restoredTabIds: number[] = [];
+      for (const entry of [...session.tabs].sort((a, b) => a.order - b.order)) {
+        const key = reconciliationKey(entry.url, entry.pinned ?? false);
+        const matched = available.get(key)?.shift();
+        if (matched) {
+          restoredTabIds.push(matched.id);
+          continue;
+        }
+        try {
+          const created = await this.adapter.createTab({
+            url: entry.url,
+            pinned: entry.pinned ?? false,
+            windowId,
+            index: entry.order,
+            active: false,
+          });
+          await this.adapter.discardTab(created.id);
+        } catch {
+          // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+        }
+      }
+      for (const tabId of restoredTabIds) {
+        try {
+          await this.adapter.updateTab(tabId, { active: false });
+          await this.adapter.discardTab(tabId);
+        } catch {
+          // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+        }
+      }
+    }
+    if (currentGroupId != null) {
+      const groupTabIds = (await this.adapter.queryTabs(windowId))
+        .filter((tab) => tab.groupId === currentGroupId)
+        .map((tab) => tab.id);
+      if (groupTabIds.length) await this.adapter.ungroupTabs(groupTabIds);
+    }
+  }
+
+  private async restoreResidentWorkspace(windowId: number, resident: ResidentTopology): Promise<void> {
+    if (!(await this.options.isWorkspaceValid(resident.workspaceId))) return;
+    const [groups, stored] = await Promise.all([
+      this.adapter.queryGroups(windowId),
+      this.adapter.getStorage(tabSessionKey(resident.workspaceId)),
+    ]);
+    const session = stored[tabSessionKey(resident.workspaceId)] as TabSession | undefined;
+    const entries = session?.tabs.filter((entry) => !entry.pinned) ?? [];
+    if (!entries.length) return;
+    const matchingGroups = groups.filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(resident.workspaceId)));
+    // 多个稳定身份无法安全判定所有权，保留原样且不创建第三个组。
+    if (matchingGroups.length > 1) return;
+    let groupId = matchingGroups[0]?.id ?? null;
+    const existingTabs = groupId == null
+      ? []
+      : (await this.adapter.queryTabs(windowId)).filter((tab) => tab.groupId === groupId && isRestorable(tab));
+    const available = new Map<string, number>();
+    for (const tab of existingTabs) {
+      const key = reconciliationKey(tab.url!, tab.pinned ?? false);
+      available.set(key, (available.get(key) ?? 0) + 1);
+    }
+    const createdTabs: Array<{ id: number; pinned: boolean }> = [];
+    for (const entry of [...entries].sort((a, b) => a.order - b.order)) {
+      const key = reconciliationKey(entry.url, entry.pinned ?? false);
+      const matched = available.get(key) ?? 0;
+      if (matched > 0) {
+        available.set(key, matched - 1);
+        continue;
+      }
+      try {
+        const created = await this.adapter.createTab({
+          url: entry.url,
+          pinned: entry.pinned ?? false,
+          windowId,
+          index: entry.order,
+          active: false,
+        });
+        createdTabs.push({ id: created.id, pinned: entry.pinned ?? false });
+      } catch {
+        // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+      }
+    }
+    const groupableIds = [...existingTabs, ...createdTabs]
+      .filter((tab) => !tab.pinned)
+      .map((tab) => tab.id);
+    if (groupableIds.length) {
+      groupId = await this.adapter.groupTabs(groupableIds, windowId, groupId ?? undefined);
+      await this.adapter.updateGroup(groupId, { title: resident.title, collapsed: true });
+    }
+    const residentTabs = groupId == null
+      ? []
+      : (await this.adapter.queryTabs(windowId)).filter((tab) => tab.groupId === groupId).map((tab) => tab.id);
+    for (const tabId of [...new Set([...residentTabs, ...createdTabs.map((tab) => tab.id)])]) {
+      try {
+        await this.adapter.updateTab(tabId, { active: false });
+        await this.adapter.discardTab(tabId);
+      } catch {
+        // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+      }
+    }
+  }
+
+  /** 删除 Workspace 时终止旧自动保存，并在队列尾部删除 session 与 topology 引用。 */
+  async clearWorkspaceState(workspaceId: string): Promise<void> {
+    this.generation++;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const cleanup = this.saveQueue.then(() => clearWorkspaceStorage(this.adapter, workspaceId));
+    this.saveQueue = cleanup.catch(() => undefined);
+    await cleanup;
   }
 
   /** 隔离模式切换时同步清理本 ticket 拥有的拓扑元数据，不删除历史会话。 */
@@ -279,7 +403,21 @@ export class SessionContinuity {
       .filter((tab) => tab.groupId == null || tab.groupId === -1 || tab.groupId === currentGroupId)
       .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       .map(toEntry);
-    const topology: CurrentTopology = { currentWorkspaceId: workspaceId };
+    const workspaceIds = await this.options.listWorkspaceIds();
+    const residents = workspaceIds
+      .filter((id) => id !== workspaceId)
+      .flatMap((id) => {
+        const matches = groups.filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(id)));
+        if (matches.length !== 1 || !matches[0]!.title) return [];
+        const groupId = matches[0]!.id;
+        const order = Math.min(
+          ...tabs.filter((tab) => tab.groupId === groupId).map((tab) => tab.index ?? Number.MAX_SAFE_INTEGER),
+        );
+        return [{ workspaceId: id, title: matches[0]!.title!, order }];
+      })
+      .sort((a, b) => a.order - b.order)
+      .map(({ workspaceId: id, title }) => ({ workspaceId: id, title }));
+    const topology: CurrentTopology = { currentWorkspaceId: workspaceId, residents };
     const session: TabSession = { tabs: entries, savedAt: Date.now() };
 
     if (generation !== this.generation || this.recovering) return;
@@ -308,6 +446,42 @@ export class SessionContinuity {
   }
 }
 
+type SessionStorageAdapter = Pick<SessionContinuityAdapter, 'getStorage' | 'setStorage' | 'removeStorage'>;
+
+function createStorageAdapter(): SessionStorageAdapter | null {
+  const chrome = (globalThis as Record<string, unknown>)['chrome'];
+  if (!chrome || typeof chrome !== 'object') return null;
+  const local = ((chrome as Record<string, unknown>)['storage'] as Record<string, unknown> | undefined)?.['local'];
+  if (!local || typeof local !== 'object') return null;
+  const storage = local as ChromeStorageLocal;
+  return {
+    getStorage: (keys) => storage.get(keys),
+    setStorage: (values) => storage.set(values),
+    removeStorage: (keys) => storage.remove(keys),
+  };
+}
+
+async function clearWorkspaceStorage(
+  adapter: SessionStorageAdapter,
+  workspaceId: string,
+): Promise<void> {
+  const topology = (await adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
+  await adapter.removeStorage(tabSessionKey(workspaceId));
+  if (isLegacyTopology(topology)) {
+    if (topology.currentWorkspaceId === workspaceId) await adapter.removeStorage(TOPOLOGY_KEY);
+    return;
+  }
+  if (!isTopology(topology)) return;
+  if (topology.currentWorkspaceId === workspaceId) {
+    await adapter.removeStorage(TOPOLOGY_KEY);
+    return;
+  }
+  const residents = topology.residents.filter((resident) => resident.workspaceId !== workspaceId);
+  if (residents.length !== topology.residents.length) {
+    await adapter.setStorage({ [TOPOLOGY_KEY]: { ...topology, residents } });
+  }
+}
+
 interface ChromeStorageLocal {
   get(keys: string | string[]): Promise<Record<string, unknown>>;
   set(values: Record<string, unknown>): Promise<void>;
@@ -328,8 +502,13 @@ interface ChromeApi {
     create(details: { url: string; pinned: boolean; windowId: number; index: number; active: boolean }): Promise<SessionContinuityTab>;
     update(tabId: number, details: { active: boolean }): Promise<void>;
     discard(tabId: number): Promise<void>;
+    group(details: { tabIds: number[]; groupId?: number; createProperties?: { windowId: number } }): Promise<number>;
+    ungroup(tabIds: number[]): Promise<void>;
   };
-  tabGroups: { query(details: { windowId: number }): Promise<SessionContinuityGroup[]> };
+  tabGroups: {
+    query(details: { windowId: number }): Promise<SessionContinuityGroup[]>;
+    update(groupId: number, details: { title?: string; collapsed?: boolean }): Promise<void>;
+  };
   runtime: { getURL(path: string): string };
 }
 
@@ -361,6 +540,11 @@ export function createProductionChromeAdapter(): SessionContinuityAdapter | null
     createTab: (details) => chrome.tabs.create(details),
     updateTab: (tabId, details) => chrome.tabs.update(tabId, details),
     discardTab: (tabId) => chrome.tabs.discard(tabId),
+    groupTabs: (tabIds, windowId, groupId) => chrome.tabs.group(
+      groupId == null ? { tabIds, createProperties: { windowId } } : { tabIds, groupId },
+    ),
+    ungroupTabs: (tabIds) => chrome.tabs.ungroup(tabIds),
+    updateGroup: (groupId, details) => chrome.tabGroups.update(groupId, details),
     getHomeUrl: () => chrome.runtime.getURL('home.html'),
   };
 }
@@ -369,7 +553,24 @@ async function productionWorkspaceIsValid(workspaceId: string): Promise<boolean>
   return (await listWorkspaces()).some((workspace) => workspace.id === workspaceId);
 }
 
+async function productionWorkspaceIds(): Promise<string[]> {
+  return (await listWorkspaces()).map((workspace) => workspace.id);
+}
+
 const productionAdapter = createProductionChromeAdapter();
 export const sessionContinuity = productionAdapter
-  ? new SessionContinuity(productionAdapter, { isWorkspaceValid: productionWorkspaceIsValid })
+  ? new SessionContinuity(productionAdapter, {
+    isWorkspaceValid: productionWorkspaceIsValid,
+    listWorkspaceIds: productionWorkspaceIds,
+  })
   : null;
+
+/** 删除 Workspace 时通过生产 coordinator 串行清理 session 与冷恢复 topology。 */
+export async function clearWorkspaceSessionContinuityState(workspaceId: string): Promise<void> {
+  if (sessionContinuity) {
+    await sessionContinuity.clearWorkspaceState(workspaceId);
+    return;
+  }
+  const adapter = createProductionChromeAdapter() ?? createStorageAdapter();
+  if (adapter) await clearWorkspaceStorage(adapter, workspaceId);
+}

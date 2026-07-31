@@ -7,6 +7,8 @@ import {
 } from '../sessionContinuity';
 
 const WS_A = 'aaaaaaaa-0000-0000-0000-000000000000';
+const WS_B = 'bbbbbbbb-0000-0000-0000-000000000000';
+const WS_C = 'cccccccc-0000-0000-0000-000000000000';
 const HOME_URL = 'chrome-extension://octane/home.html';
 
 class MemoryChromeAdapter implements SessionContinuityAdapter {
@@ -15,6 +17,7 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   readonly groups = new Map<number, { id: number; windowId: number; title?: string }>();
   windows = [{ id: 1, incognito: false }];
   private nextTabId = 100;
+  private nextGroupId = 100;
 
   async getStorage(keys: string | string[]): Promise<Record<string, unknown>> {
     const names = Array.isArray(keys) ? keys : [keys];
@@ -68,6 +71,29 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
     tab.discarded = true;
   }
 
+  async groupTabs(tabIds: number[], windowId: number, groupId?: number): Promise<number> {
+    const id = groupId ?? this.nextGroupId++;
+    if (!this.groups.has(id)) this.groups.set(id, { id, windowId });
+    for (const tabId of tabIds) {
+      const tab = this.tabs.get(tabId);
+      if (tab) tab.groupId = id;
+    }
+    return id;
+  }
+
+  async ungroupTabs(tabIds: number[]): Promise<void> {
+    for (const tabId of tabIds) {
+      const tab = this.tabs.get(tabId);
+      if (tab) tab.groupId = -1;
+    }
+  }
+
+  async updateGroup(groupId: number, details: { title?: string; collapsed?: boolean }): Promise<void> {
+    const group = this.groups.get(groupId);
+    if (!group) throw new Error('标签组不存在');
+    Object.assign(group, details);
+  }
+
   getHomeUrl(): string {
     return HOME_URL;
   }
@@ -76,6 +102,7 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
 function coordinator(adapter: MemoryChromeAdapter, validWorkspaceIds = [WS_A]) {
   return new SessionContinuity(adapter, {
     isWorkspaceValid: async (workspaceId) => validWorkspaceIds.includes(workspaceId),
+    listWorkspaceIds: async () => validWorkspaceIds,
     debounceMs: 0,
   });
 }
@@ -324,6 +351,236 @@ describe('SessionContinuity — #64 当前 Workspace 冷启动恢复', () => {
   });
 });
 
+describe('SessionContinuity — #66 驻留 Workspace 冷恢复', () => {
+  it.each(['hide', 'hide-discard'] as const)('%s：A 驻留、B 当前后重启 → B 散开，A 折叠并全部释放，Home 活动', async (setting) => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({ tabIsolationSetting: setting, lastWorkspaceId: WS_B });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true, index: 0 }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://a-1.example', groupId: 10, index: 1 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://a-2.example', groupId: 10, index: 2 }));
+    adapter.tabs.set(4, businessTab({ id: 4, url: 'https://a-3.example', groupId: 10, index: 3 }));
+    adapter.tabs.set(5, businessTab({ id: 5, url: 'https://b-1.example', index: 4 }));
+    adapter.tabs.set(6, businessTab({ id: 6, url: 'https://b-2.example', index: 5 }));
+    adapter.tabs.set(7, businessTab({ id: 7, url: 'https://b-3.example', index: 6 }));
+    adapter.tabs.set(8, businessTab({ id: 8, url: 'https://b-4.example', index: 7 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa' });
+
+    const continuity = coordinator(adapter, [WS_A, WS_B]);
+    continuity.notifyTopologyChanged();
+    await continuity.flushAutosave();
+    expect(adapter.storage.get('sessionContinuity.topology')).toEqual({
+      currentWorkspaceId: WS_B,
+      residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+    });
+    await adapter.setStorage({
+      [`tabSession.${WS_A}`]: {
+        tabs: [
+          { url: 'https://a-1.example', order: 1 },
+          { url: 'https://a-2.example', order: 2 },
+          { url: 'https://a-3.example', order: 3 },
+        ],
+        savedAt: 1,
+      },
+    });
+
+    adapter.tabs.clear();
+    adapter.groups.clear();
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true, index: 0 }));
+    await finishColdRecovery(continuity);
+
+    const tabs = await adapter.queryTabs(1);
+    const bTabs = tabs.filter((tab) => tab.url?.startsWith('https://b-'));
+    const aTabs = tabs.filter((tab) => tab.url?.startsWith('https://a-'));
+    const aGroup = Array.from(adapter.groups.values()).find((group) => group.title === 'A ·aaaaaaaa');
+    expect(bTabs).toHaveLength(4);
+    expect(bTabs.every((tab) => tab.groupId === -1 && tab.discarded && !tab.active)).toBe(true);
+    expect(aTabs).toHaveLength(3);
+    expect(aGroup).toMatchObject({ collapsed: true });
+    expect(aTabs.every((tab) => tab.groupId === aGroup?.id && tab.discarded && !tab.active)).toBe(true);
+    expect(tabs.find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
+  });
+
+  it('resident session 含 pinned：只恢复可入组标签，pinned 留在 session 且不泄漏到顶层', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'hide',
+      lastWorkspaceId: WS_B,
+      [`tabSession.${WS_A}`]: {
+        tabs: [
+          { url: 'https://a-group.example', order: 0 },
+          { url: 'https://a-pinned.example', pinned: true, order: 1 },
+        ],
+        savedAt: 1,
+      },
+      [`tabSession.${WS_B}`]: { tabs: [{ url: 'https://b.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': {
+        currentWorkspaceId: WS_B,
+        residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+      },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    const tabs = await adapter.queryTabs(1);
+    const aGroup = Array.from(adapter.groups.values()).find((group) => group.title === 'A ·aaaaaaaa');
+    expect(tabs.filter((tab) => tab.url === 'https://a-group.example')).toEqual([
+      expect.objectContaining({ groupId: aGroup?.id, discarded: true }),
+    ]);
+    expect(tabs.some((tab) => tab.url === 'https://a-pinned.example')).toBe(false);
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toMatchObject({
+      tabs: expect.arrayContaining([expect.objectContaining({ url: 'https://a-pinned.example', pinned: true })]),
+    });
+  });
+
+  it('resident 身份组多命中：fail closed，不新建或重组该 resident', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'hide',
+      lastWorkspaceId: WS_B,
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://a.example', order: 0 }], savedAt: 1 },
+      [`tabSession.${WS_B}`]: { tabs: [{ url: 'https://b.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': {
+        currentWorkspaceId: WS_B,
+        residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+      },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://a.example', groupId: 10 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://a.example', groupId: 11 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa' });
+    adapter.groups.set(11, { id: 11, windowId: 1, title: 'A copy ·aaaaaaaa' });
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.filter((tab) => tab.url === 'https://a.example')).toEqual([
+      expect.objectContaining({ id: 2, groupId: 10 }),
+      expect.objectContaining({ id: 3, groupId: 11 }),
+    ]);
+    expect(Array.from(adapter.groups.values())).toHaveLength(2);
+  });
+
+  it('删除清理等待在途自动保存结束后移除 session 与 topology，旧写不能复活 URL', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({ tabIsolationSetting: 'hide', lastWorkspaceId: WS_A });
+    adapter.tabs.set(1, businessTab({ url: 'https://deleted.example' }));
+    const continuity = coordinator(adapter);
+    const saveStorage = adapter.setStorage.bind(adapter);
+    let releaseWrite: (() => void) | undefined;
+    const writeReleased = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    let signalWriteStarted: (() => void) | undefined;
+    const writeStarted = new Promise<void>((resolve) => { signalWriteStarted = resolve; });
+    adapter.setStorage = async (values) => {
+      if (`tabSession.${WS_A}` in values) {
+        signalWriteStarted?.();
+        await writeReleased;
+      }
+      await saveStorage(values);
+    };
+
+    continuity.notifyTopologyChanged();
+    const flush = continuity.flushAutosave();
+    await writeStarted;
+    const cleanup = continuity.clearWorkspaceState(WS_A);
+    releaseWrite?.();
+    await Promise.all([flush, cleanup]);
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.topology')).toBeUndefined();
+  });
+
+  it('#64 legacy topology 的当前 Workspace 删除时，同时移除 topology 与 tab session', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://deleted.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': { currentWorkspaceId: WS_A },
+    });
+
+    await coordinator(adapter).clearWorkspaceState(WS_A);
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.topology')).toBeUndefined();
+  });
+
+  it('未知 malformed topology 不当作 legacy 删除', async () => {
+    const adapter = new MemoryChromeAdapter();
+    const malformedTopology = { currentWorkspaceId: WS_A, residents: 'unknown' };
+    await adapter.setStorage({
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://deleted.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': malformedTopology,
+    });
+
+    await coordinator(adapter).clearWorkspaceState(WS_A);
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.topology')).toEqual(malformedTopology);
+  });
+
+  it('保存 topology：resident 按标签位置有序，历史 session 未驻留不写入', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({ tabIsolationSetting: 'hide', lastWorkspaceId: WS_B });
+    adapter.tabs.set(1, businessTab({ url: 'https://c.example', groupId: 20, index: 1 }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://a.example', groupId: 10, index: 5 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://b.example', index: 6 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: 'A ·aaaaaaaa' });
+    adapter.groups.set(20, { id: 20, windowId: 1, title: 'C ·cccccccc' });
+
+    const continuity = coordinator(adapter, [WS_A, WS_B, WS_C]);
+    continuity.notifyTopologyChanged();
+    await continuity.flushAutosave();
+
+    expect(adapter.storage.get('sessionContinuity.topology')).toEqual({
+      currentWorkspaceId: WS_B,
+      residents: [
+        { workspaceId: WS_C, title: 'C ·cccccccc' },
+        { workspaceId: WS_A, title: 'A ·aaaaaaaa' },
+      ],
+    });
+  });
+
+  it('close：即使 topology 记录 resident，也只恢复当前 Workspace', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'close',
+      lastWorkspaceId: WS_B,
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://a.example', order: 0 }], savedAt: 1 },
+      [`tabSession.${WS_B}`]: { tabs: [{ url: 'https://b.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': {
+        currentWorkspaceId: WS_B,
+        residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+      },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    expect((await adapter.queryTabs(1)).map((tab) => tab.url)).toContain('https://b.example');
+    expect((await adapter.queryTabs(1)).map((tab) => tab.url)).not.toContain('https://a.example');
+    expect(adapter.groups.size).toBe(0);
+  });
+
+  it('当前 Workspace 原生身份组：恢复后解散；用户组与非 topology 身份组不接管', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'hide',
+      lastWorkspaceId: WS_B,
+      [`tabSession.${WS_B}`]: { tabs: [{ url: 'https://b.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': { currentWorkspaceId: WS_B, residents: [] },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://b.example', groupId: 10 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://user.example', groupId: 20 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: 'B ·bbbbbbbb' });
+    adapter.groups.set(20, { id: 20, windowId: 1, title: '用户标签组' });
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    expect(adapter.tabs.get(2)).toMatchObject({ groupId: -1, active: false, discarded: true });
+    expect(adapter.tabs.get(3)).toMatchObject({ groupId: 20 });
+  });
+});
+
 describe('SessionContinuity — #65 原生会话协调', () => {
   it('原生拓扑变化后：等待新的静默窗口才补齐缺失标签', async () => {
     const adapter = adapterWithSession([
@@ -424,7 +681,7 @@ describe('SessionContinuity — #65 原生会话协调', () => {
 
     const tabs = await adapter.queryTabs(1);
     expect(tabs.filter((tab) => tab.url === 'https://owned.example')).toEqual([
-      expect.objectContaining({ id: 2, groupId: 10 }),
+      expect.objectContaining({ id: 2, groupId: -1 }),
     ]);
   });
 

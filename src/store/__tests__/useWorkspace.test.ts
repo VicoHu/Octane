@@ -571,9 +571,62 @@ describe('useWorkspace — T9 deleteWorkspace 清 hide 孤儿组（隐私）', (
     expect(tabsStore.has(3)).toBe(true);
   });
 
+  it('删 ws：清其冷恢复 topology 当前项或 resident 引用', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: {
+        'sessionContinuity.topology': {
+          currentWorkspaceId: 'wKeep',
+          residents: [
+            { workspaceId: 'wDel', title: 'Del ·dddddddd' },
+            { workspaceId: 'wOther', title: 'Other ·oooooooo' },
+          ],
+        },
+      },
+    });
+    const c = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
+    c.runtime = { getURL: () => 'chrome-extension://octane/home.html' };
+    c.windows = { getAll: async () => [] };
+    c.tabs = { query: async () => [], remove: async () => {} };
+    c.tabGroups = { query: async () => [] };
+    useWorkspace.setState({ workspaces: [wsOf('wDel'), wsOf('wKeep')], currentWorkspaceId: 'wKeep' });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+
+    await useWorkspace.getState().deleteWorkspace('wDel');
+
+    expect(store['sessionContinuity.topology']).toEqual({
+      currentWorkspaceId: 'wKeep',
+      residents: [{ workspaceId: 'wOther', title: 'Other ·oooooooo' }],
+    });
+  });
+
+  it('删 current ws：移除整个冷恢复 topology，避免保留其 URL 引用', async () => {
+    const { store } = installChromeStorageLocal({
+      initial: {
+        'sessionContinuity.topology': {
+          currentWorkspaceId: 'wDel',
+          residents: [{ workspaceId: 'wKeep', title: 'Keep ·kkkkkkkk' }],
+        },
+      },
+    });
+    const c = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
+    c.runtime = { getURL: () => 'chrome-extension://octane/home.html' };
+    c.windows = { getAll: async () => [] };
+    c.tabs = { query: async () => [], remove: async () => {} };
+    c.tabGroups = { query: async () => [] };
+    useWorkspace.setState({ workspaces: [wsOf('wDel'), wsOf('wKeep')], currentWorkspaceId: 'wDel' });
+    ws.deleteWorkspace.mockResolvedValue(undefined);
+    ws.listWorkspaces.mockResolvedValue([wsOf('wKeep')]);
+    cat.listCategories.mockResolvedValue([]);
+
+    await useWorkspace.getState().deleteWorkspace('wDel');
+
+    expect(store['sessionContinuity.topology']).toBeUndefined();
+  });
+
   it('windows.getAll 抛错 → 不阻断 delete（非扩展环境/部分失败容错）', async () => {
     installChromeStorageLocal({ initial: {} });
-    const c = (globalThis as Record<string, unknown>).chrome as Record<string, any>;
+    const c = (globalThis as Record<string, unknown>).chrome as Record<string, unknown>;
     c.windows = {
       getAll: async () => {
         throw new Error('chrome unavailable');
