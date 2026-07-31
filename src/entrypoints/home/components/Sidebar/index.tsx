@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Plus, Trash2, Settings } from 'lucide-react';
 import {
   DndContext,
@@ -78,6 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const activeCat = activeCatId ? categories.find((c) => c.id === activeCatId) ?? null : null;
   // 连发锁:drop 写入期间锁定分类容器(防 store 乐观回滚与回滚竞态)
   const [reordering, setReordering] = useState(false);
+  const categoryActionsDisabled = !!switching || reordering;
   // M5 非法落区:over=null(拖出 categoryList)→ overlay 降透明 .5
   const [invalid, setInvalid] = useState(false);
   const currentWorkspace = currentWorkspaceId
@@ -222,10 +224,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       {currentWorkspaceId && <PinnedArea workspaceId={currentWorkspaceId} openTabs={openTabs} />}
 
       {/* 分类 */}
-      <div className={styles.sectionLabel}>分类</div>
+      <div className={styles.categoryHeader}>
+        <div className={styles.sectionLabel}>分类</div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={styles.categoryAddButton}
+                  aria-label="添加分类"
+                  disabled={categoryActionsDisabled}
+                  onClick={() => {
+                    if (!categoryActionsDisabled) setShowNewCategory(true);
+                  }}
+                />
+              }
+            >
+              <Plus />
+            </TooltipTrigger>
+            <TooltipContent role="tooltip">添加分类</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
       <div className={styles.categoryList}>
         {categories.length === 0 ? (
-          <div className={styles.emptyHint}>暂无分类</div>
+          <div className={styles.emptyHint}>点 + 添加分类</div>
         ) : categories.length > 1 ? (
           <DndContext
             sensors={sensors}
@@ -305,10 +331,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       </div>
 
       <div className={styles.bottomButton}>
-        <Button variant="outline" className={styles.addCategoryButton} onClick={() => setShowNewCategory(true)}>
-          <Plus />
-          添加分类
-        </Button>
         <div className={styles.bottomActions}>
           <Button variant="secondary" onClick={() => setShowManage(true)}>管理</Button>
           {/* 系统设置：点击直开设置中心 Modal（主密码/数据备份/快捷键统一收纳） */}

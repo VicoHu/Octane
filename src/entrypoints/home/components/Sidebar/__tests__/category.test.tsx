@@ -1,4 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act } from '@testing-library/react';
+
+const dndCallbacks = vi.hoisted(() => ({
+  onDragEnd: undefined as ((event: unknown) => void | Promise<void>) | undefined,
+}));
+vi.mock('@dnd-kit/core', async (importActual) => {
+  const actual = await importActual<typeof import('@dnd-kit/core')>();
+  return {
+    ...actual,
+    DndContext: (props: Parameters<typeof actual.DndContext>[0]) => {
+      dndCallbacks.onDragEnd = props.onDragEnd as typeof dndCallbacks.onDragEnd;
+      return <actual.DndContext {...props} />;
+    },
+  };
+});
+
 // lottie-web 由 vitest.config.ts 全局 alias 处理（见 docs/standards/testing.md §4.4.1），无需 vi.mock
 vi.mock('@/store/useCrypto', () => ({
   useCrypto: (sel: (s: Record<string, unknown>) => unknown) =>
@@ -41,6 +57,7 @@ beforeEach(() => {
     categories: [],
     currentWorkspaceId: 'w1',
     currentCategoryId: null,
+    switching: null,
   });
 });
 
@@ -59,9 +76,68 @@ describe('Sidebar 分类列表（Semi List 迁移）', () => {
     expect(selectCategory).toHaveBeenCalledWith('c2');
   });
 
-  it('空分类显示「暂无分类」', () => {
+  it('空分类显示「点 + 添加分类」并保留标题行入口', () => {
     render(<Sidebar openTabs={[]} />);
-    expect(screen.getByText('暂无分类')).toBeInTheDocument();
+
+    expect(screen.getByText('点 + 添加分类')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '添加分类' })).toBeInTheDocument();
+  });
+
+  it('添加分类入口 hover 显示 Tooltip', async () => {
+    const user = userEvent.setup();
+    render(<Sidebar openTabs={[]} />);
+
+    await user.hover(screen.getByRole('button', { name: '添加分类' }));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('添加分类');
+  });
+
+  it('添加分类入口可聚焦并按 Enter 打开 Dialog', async () => {
+    const user = userEvent.setup();
+    render(<Sidebar openTabs={[]} />);
+    const addButton = screen.getByRole('button', { name: '添加分类' });
+
+    addButton.focus();
+    expect(addButton).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('点击添加分类入口打开新建分类 Dialog 并创建分类', async () => {
+    const user = userEvent.setup();
+    const createCategory = vi.fn().mockResolvedValue(undefined);
+    useWorkspace.setState({ createCategory });
+    render(<Sidebar openTabs={[]} />);
+
+    await user.click(screen.getByRole('button', { name: '添加分类' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('分类名称'), '新分类');
+    await user.click(screen.getByRole('button', { name: '确定' }));
+
+    expect(createCategory).toHaveBeenCalledWith('新分类', '📂');
+  });
+
+  it('工作区切换期间禁用添加分类入口且不打开 Dialog', async () => {
+    const user = userEvent.setup();
+    useWorkspace.setState({
+      switching: { toId: 'w1', phase: 'dispose', count: 1, total: 2 },
+    });
+    render(<Sidebar openTabs={[]} />);
+    const addButton = screen.getByRole('button', { name: '添加分类' });
+
+    expect(addButton).toBeDisabled();
+    await user.click(addButton);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('移除底部全宽添加入口并保留管理与设置', () => {
+    render(<Sidebar openTabs={[]} />);
+    const addButton = screen.getByRole('button', { name: '添加分类' });
+
+    expect(addButton).not.toHaveTextContent('添加分类');
+    expect(screen.getByRole('button', { name: '管理' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /设置/ })).toBeInTheDocument();
   });
 
   it('渲染分类项（List.Item main）', () => {
@@ -179,5 +255,31 @@ describe('Sidebar 分类拖拽(T6)', () => {
     setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
     render(<Sidebar openTabs={[]} />);
     expect(screen.getByRole('button', { name: '删除分类 工作' })).toHaveAttribute('data-no-dnd');
+  });
+
+  it('分类重排写入期间禁用添加入口且不打开 Dialog', async () => {
+    const user = userEvent.setup();
+    let resolveReorder: (() => void) | undefined;
+    const reorderPending = new Promise<void>((resolve) => { resolveReorder = resolve; });
+    const reorderCategories = vi.fn(() => reorderPending);
+    setCats([{ id: 'c1', name: '工作', icon: '💼' }, { id: 'c2', name: '生活', icon: '🏠' }], 'c1');
+    useWorkspace.setState({ reorderCategories });
+    render(<Sidebar openTabs={[]} />);
+
+    expect(dndCallbacks.onDragEnd).toBeDefined();
+    act(() => {
+      void dndCallbacks.onDragEnd?.({ active: { id: 'c1' }, over: { id: 'c2' } });
+    });
+
+    expect(reorderCategories).toHaveBeenCalledWith('w1', ['c2', 'c1']);
+    const addButton = screen.getByRole('button', { name: '添加分类' });
+    expect(addButton).toBeDisabled();
+    await user.click(addButton);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveReorder?.();
+      await reorderPending;
+    });
   });
 });
