@@ -47,7 +47,10 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   }
 
   async createTab(details: { url: string; pinned: boolean; windowId: number; index: number; active: boolean }) {
-    const tab = { id: this.nextTabId++, groupId: -1, discarded: false, ...details };
+    // 模拟 Chrome：index clamp 到 [0, 当前窗口 tab 数]，MAX_SAFE_INTEGER 追加到末尾。
+    const count = Array.from(this.tabs.values()).filter((t) => t.windowId === details.windowId).length;
+    const index = Math.max(0, Math.min(details.index, count));
+    const tab = { id: this.nextTabId++, groupId: -1, discarded: false, ...details, index };
     this.tabs.set(tab.id, tab);
     return tab;
   }
@@ -801,7 +804,8 @@ describe("SessionContinuity — #67 恢复失败重试", () => {
 
     await finishColdRecovery(coordinator(adapter));
 
-    expect(businessUrls(adapter)).toEqual(["https://first.example", "https://second.example"]);
+    // first 重试成功后追加到 second 之后（create 时机决定位置，非快照 order）
+    expect(businessUrls(adapter)).toEqual(["https://second.example", "https://first.example"]);
     expect(adapter.storage.get("sessionContinuity.pendingRecovery")).toBeUndefined();
   });
 
@@ -1183,9 +1187,7 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
 
     const messages = recoveryMessages();
     // resident 特定上下文：workspaceId 与 create 阶段
-    expect(messages).toContainEqual(
-      expect.stringContaining(`restoreResident: create failed (ws=${WS_A}`),
-    );
+    expect(messages).toContainEqual(expect.stringContaining(`restoreResident: create failed (ws=${WS_A}`));
     // 确保不是 current 路径误中
     expect(messages.some((m) => m.includes("restoreCurrent: create failed"))).toBe(false);
     // 失败持久化为 resident pending（含 resident 标识）
@@ -1207,9 +1209,7 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
     await continuity.startColdRecovery();
 
     const messages = recoveryMessages();
-    expect(messages).toContainEqual(
-      expect.stringContaining(`restoreResident: group failed (ws=${WS_A}`),
-    );
+    expect(messages).toContainEqual(expect.stringContaining(`restoreResident: group failed (ws=${WS_A}`));
     expect(messages.some((m) => m.includes("restoreCurrent:"))).toBe(false);
     // group 失败后回滚本轮新建的 resident tab
     const tabs = await adapter.queryTabs(1);
@@ -1232,7 +1232,6 @@ describe("SessionContinuity — 恢复失败诊断日志可区分性（matched /
     expect(recoveryMessages()).toContainEqual(expect.stringContaining("restoreResident: update failed on managed tab"));
   });
 });
-
 
 describe("SessionContinuity — 冷恢复后清理原生新标签页噪声", () => {
   function adapterWithNewTabNoise(): MemoryChromeAdapter {
@@ -1273,5 +1272,57 @@ describe("SessionContinuity — 冷恢复后清理原生新标签页噪声", () 
 
     const tabs = await adapter.queryTabs(1);
     expect(tabs.some((tab) => tab.url === "chrome://newtab/")).toBe(true);
+  });
+});
+
+
+describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后）", () => {
+  function adapterWithResidentAndCurrent(): MemoryChromeAdapter {
+    const adapter = new MemoryChromeAdapter();
+    adapter.storage.set("tabIsolationSetting", "hide");
+    adapter.storage.set("lastWorkspaceId", WS_B);
+    // 当前 WS_B 散开 tab
+    adapter.storage.set(`tabSession.${WS_B}`, {
+      tabs: [
+        { url: "https://b1.example", order: 0 },
+        { url: "https://b2.example", order: 1 },
+      ],
+      savedAt: 1,
+    });
+    // 驻留 WS_A 组 tab
+    adapter.storage.set(`tabSession.${WS_A}`, {
+      tabs: [
+        { url: "https://a1.example", order: 0 },
+        { url: "https://a2.example", order: 1 },
+      ],
+      savedAt: 1,
+    });
+    adapter.storage.set("sessionContinuity.topology", {
+      currentWorkspaceId: WS_B,
+      residents: [{ workspaceId: WS_A, title: "A ·aaaaaaaa" }],
+    });
+    adapter.tabs.set(1, businessTab({ id: 1, url: HOME_URL, pinned: true, index: 0, active: true }));
+    return adapter;
+  }
+
+  it("恢复后顺序：Home → 驻留组 → 当前散开 tab", async () => {
+    const adapter = adapterWithResidentAndCurrent();
+    const continuity = coordinator(adapter, [WS_A, WS_B]);
+
+    await continuity.startColdRecovery();
+
+    const tabs = await adapter.queryTabs(1);
+    const aGroup = Array.from(adapter.groups.values()).find((g) => g.title === "A ·aaaaaaaa");
+    expect(aGroup).toBeDefined();
+
+    // 驻留组 tab 的位置应早于当前散开 tab
+    const residentIdx = tabs.findIndex((t) => t.groupId === aGroup!.id);
+    const currentIdx = tabs.findIndex((t) => t.url === "https://b1.example");
+    expect(residentIdx).toBeGreaterThan(0);
+    expect(residentIdx).toBeLessThan(currentIdx);
+
+    // Home 在最前
+    expect(tabs[0]?.url).toBe(HOME_URL);
+    expect(tabs[0]?.pinned).toBe(true);
   });
 });

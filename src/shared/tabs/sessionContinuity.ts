@@ -122,11 +122,7 @@ function isRestorable(tab: SessionContinuityTab): boolean {
 function isNativeNewTab(tab: SessionContinuityTab): boolean {
   if (!tab.url || tab.pinned) return false;
   const url = tab.url.replace(/\/$/, "");
-  return (
-    url === "chrome://newtab" ||
-    url === "chrome://new-tab-page" ||
-    url === "edge://newtab"
-  );
+  return url === "chrome://newtab" || url === "chrome://new-tab-page" || url === "edge://newtab";
 }
 
 function toEntry(tab: SessionContinuityTab): TabEntry {
@@ -454,7 +450,8 @@ export class SessionContinuity {
           url: entry.url,
           pinned: entry.pinned ?? false,
           windowId,
-          index: entry.order,
+          // 追加到窗口末尾：避免用快照相对 order 插到已恢复的驻留组前面。
+          index: Number.MAX_SAFE_INTEGER,
           active: false,
         });
         // 不主动 discard：冷恢复刚创建的 tab 尚未完成加载，chrome.tabs.discard 会
@@ -527,7 +524,8 @@ export class SessionContinuity {
           url: entry.url,
           pinned: false,
           windowId,
-          index: entry.order,
+          // 追加到窗口末尾：驻留组先于当前散开 tab 恢复，追加保证组在前、散开在后。
+          index: Number.MAX_SAFE_INTEGER,
           active: false,
         });
         createdTabIds.push(created.id);
