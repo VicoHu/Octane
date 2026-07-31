@@ -96,6 +96,11 @@ function tabSessionKey(workspaceId: string): string {
   return `${TAB_SESSION_PREFIX}${workspaceId}`;
 }
 
+/** 诊断日志（counts only，不暴露 URL）。真机 service worker console 可见，用于定位冷启动恢复链路。 */
+function logRecovery(message: string): void {
+  console.log(`[octane-recovery] ${message}`);
+}
+
 function isEnabledSetting(value: unknown): value is Exclude<TabIsolationSetting, 'off'> {
   return ENABLED_SETTINGS.includes(value as TabIsolationSetting);
 }
@@ -225,29 +230,46 @@ export class SessionContinuity {
 
   /** runtime.onStartup 的唯一恢复入口；重复调用在本次浏览器启动内幂等。 */
   async startColdRecovery(): Promise<void> {
-    if (this.startupStarted) return;
+    if (this.startupStarted) {
+      logRecovery('startColdRecovery skipped: already started this session');
+      return;
+    }
     this.startupStarted = true;
 
     const stored = await this.adapter.getStorage([ISOLATION_KEY, LAST_WORKSPACE_KEY]);
-    if (!isEnabledSetting(stored[ISOLATION_KEY])) return;
+    if (!isEnabledSetting(stored[ISOLATION_KEY])) {
+      logRecovery(`startColdRecovery abort: isolation disabled (setting=${String(stored[ISOLATION_KEY])})`);
+      return;
+    }
     const workspaceId = stored[LAST_WORKSPACE_KEY];
-    if (typeof workspaceId !== 'string' || !(await this.options.isWorkspaceValid(workspaceId))) return;
+    if (typeof workspaceId !== 'string' || !(await this.options.isWorkspaceValid(workspaceId))) {
+      logRecovery(`startColdRecovery abort: lastWorkspaceId invalid (${String(workspaceId)})`);
+      return;
+    }
 
     const windows = await this.adapter.getNormalWindows();
-    if (windows.length !== 1 || windows[0]?.id == null) return;
+    logRecovery(`startColdRecovery: normalWindows=${windows.length}, workspace=${workspaceId}`);
+    if (windows.length !== 1 || windows[0]?.id == null) {
+      logRecovery(`startColdRecovery abort: expected exactly 1 normal window, got ${windows.length}`);
+      return;
+    }
     const windowId = windows[0].id;
 
     this.recovering = true;
     try {
       const homeId = await this.ensureHomeTab(windowId);
+      logRecovery(`startColdRecovery: homeTab ensured, id=${homeId}`);
       await this.adapter.setStorage({ [RECOVERY_TOKEN_KEY]: { startedAt: Date.now() } });
       await this.waitForNativeTopology();
+      logRecovery('startColdRecovery: native topology settled');
       const priorPendingValue = (await this.adapter.getStorage(PENDING_RECOVERY_KEY))[PENDING_RECOVERY_KEY];
       const priorPending = isPendingRecovery(priorPendingValue) ? priorPendingValue.workspaces : [];
       const processedWorkspaceIds = await this.coldWorkspaceIds(workspaceId, stored[ISOLATION_KEY]);
       const desiredCount = await this.countColdEntries(workspaceId, stored[ISOLATION_KEY]);
+      logRecovery(`startColdRecovery: desiredCount=${desiredCount}, priorPending=${priorPending.length}`);
       let failed = await this.restoreColdTopology(windowId, workspaceId, stored[ISOLATION_KEY]);
       if (failed.length) {
+        logRecovery(`startColdRecovery: first pass failed=${failed.reduce((c, p) => c + p.entries.length, 0)}, retrying`);
         await this.waitForNativeTopology();
         failed = await this.restoreColdTopology(windowId, workspaceId, stored[ISOLATION_KEY]);
       }
@@ -259,6 +281,7 @@ export class SessionContinuity {
         ...failed,
         ...priorPending.filter((pending) => !processedWorkspaceIds.has(pending.workspaceId)),
       ];
+      logRecovery(`startColdRecovery: done restored=${restoredCount}, failed=${failed.reduce((c, p) => c + p.entries.length, 0)}`);
       await this.persistRecoveryResult(failed, restoredCount, failed.length > 0);
       await this.adapter.updateTab(homeId, { active: true });
     } finally {
@@ -413,7 +436,8 @@ export class SessionContinuity {
       try {
         await this.adapter.updateTab(matched.tabId, { active: false });
         await this.adapter.discardTab(matched.tabId);
-      } catch {
+      } catch (e) {
+        logRecovery(`restoreCurrent: discard failed on matched tab (err=${(e as Error).message})`);
         failed.push(matched.entry);
       }
     }
@@ -498,7 +522,8 @@ export class SessionContinuity {
       try {
         await this.adapter.updateTab(tab.id, { active: false });
         await this.adapter.discardTab(tab.id);
-      } catch {
+      } catch (e) {
+        logRecovery(`restoreResident: discard failed on managed tab (err=${(e as Error).message})`);
         failed.push(tab.entry);
       }
     }
