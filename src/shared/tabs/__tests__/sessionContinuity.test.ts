@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createProductionChromeAdapter,
   SessionContinuity,
@@ -323,3 +323,195 @@ describe('SessionContinuity — #64 当前 Workspace 冷启动恢复', () => {
     expect(urls).not.toContain('https://history.example');
   });
 });
+
+describe('SessionContinuity — #65 原生会话协调', () => {
+  it('原生拓扑变化后：等待新的静默窗口才补齐缺失标签', async () => {
+    const adapter = adapterWithSession([
+      { url: 'https://one.example', order: 0 },
+      { url: 'https://two.example', order: 1 },
+    ]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    const continuity = coordinator(adapter);
+    vi.useFakeTimers();
+
+    try {
+      const recovery = continuity.startColdRecovery();
+      await vi.advanceTimersByTimeAsync(99);
+      expect(businessUrls(adapter)).toEqual([]);
+
+      adapter.tabs.set(2, businessTab({ id: 2, url: 'https://one.example', index: 1 }));
+      continuity.notifyTopologyChanged();
+      await vi.advanceTimersByTimeAsync(99);
+      expect(businessUrls(adapter)).toEqual(['https://one.example']);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await recovery;
+      expect(businessUrls(adapter)).toEqual(['https://one.example', 'https://two.example']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('原生拓扑持续变化超过上限：在 timeout 后才按最终拓扑协调', async () => {
+    const adapter = adapterWithSession([{ url: 'https://missing.example', order: 0 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    const continuity = coordinator(adapter);
+    vi.useFakeTimers();
+
+    try {
+      const recovery = continuity.startColdRecovery();
+      for (let elapsed = 0; elapsed < 450; elapsed += 50) {
+        await vi.advanceTimersByTimeAsync(50);
+        continuity.notifyTopologyChanged();
+        expect(businessUrls(adapter)).toEqual([]);
+      }
+      await vi.advanceTimersByTimeAsync(50);
+      await recovery;
+      expect(businessUrls(adapter)).toEqual(['https://missing.example']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ['未原生恢复', [], ['https://one.example', 'https://two.example']],
+    ['部分原生恢复', ['https://one.example'], ['https://one.example', 'https://two.example']],
+    ['完整原生恢复', ['https://one.example', 'https://two.example'], ['https://one.example', 'https://two.example']],
+    ['原生恢复数量超过快照', ['https://one.example', 'https://one.example', 'https://two.example'], ['https://one.example', 'https://one.example', 'https://two.example']],
+  ])('%s：只补齐快照缺失次数', async (_scenario, nativeUrls, expectedUrls) => {
+    const adapter = adapterWithSession([
+      { url: 'https://one.example', order: 0 },
+      { url: 'https://two.example', order: 1 },
+    ]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    nativeUrls.forEach((url, index) => adapter.tabs.set(index + 2, businessTab({ id: index + 2, url, index: index + 1 })));
+
+    await finishColdRecovery(coordinator(adapter));
+
+    expect(businessUrls(adapter)).toEqual(expectedUrls);
+  });
+
+  it('重复 URL、query/hash 与固定状态：按完整 URL 和 pinned 多重集补齐', async () => {
+    const adapter = adapterWithSession([
+      { url: 'https://app.example/item?view=one#top', order: 0 },
+      { url: 'https://app.example/item?view=one#top', order: 1 },
+      { url: 'https://app.example/item?view=two#top', order: 2 },
+      { url: 'not a URL', order: 3 },
+      { url: 'https://app.example/item?view=one#top', pinned: true, order: 4 },
+    ]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://app.example/item?view=one#top', index: 1 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://app.example/item?view=two#other', index: 2 }));
+    adapter.tabs.set(4, businessTab({ id: 4, url: 'not a URL', index: 3 }));
+    adapter.tabs.set(5, businessTab({ id: 5, url: 'https://app.example/item?view=one#top', pinned: true, index: 4 }));
+
+    await finishColdRecovery(coordinator(adapter));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.filter((tab) => tab.url === 'https://app.example/item?view=one#top' && !tab.pinned)).toHaveLength(2);
+    expect(tabs.filter((tab) => tab.url === 'https://app.example/item?view=two#top' && !tab.pinned)).toHaveLength(1);
+    expect(tabs.filter((tab) => tab.url === 'https://app.example/item?view=one#top' && tab.pinned)).toHaveLength(1);
+    expect(tabs.filter((tab) => tab.url === 'not a URL')).toHaveLength(1);
+  });
+
+  it('当前 Workspace 唯一 Octane 身份组已原生恢复：复用 occurrence，不新建重复标签', async () => {
+    const adapter = adapterWithSession([{ url: 'https://owned.example', order: 0 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://owned.example', index: 1, groupId: 10 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: `A ·${WS_A.slice(0, 8)}` });
+
+    await finishColdRecovery(coordinator(adapter));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.filter((tab) => tab.url === 'https://owned.example')).toEqual([
+      expect.objectContaining({ id: 2, groupId: 10 }),
+    ]);
+  });
+
+  it('当前 Workspace 身份组有多个命中：fail closed，不任选其中一个', async () => {
+    const adapter = adapterWithSession([{ url: 'https://owned.example', order: 0 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://owned.example', index: 1, groupId: 10 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://owned.example', index: 2, groupId: 11 }));
+    adapter.groups.set(10, { id: 10, windowId: 1, title: `A ·${WS_A.slice(0, 8)}` });
+    adapter.groups.set(11, { id: 11, windowId: 1, title: `A copy ·${WS_A.slice(0, 8)}` });
+
+    await finishColdRecovery(coordinator(adapter));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.find((tab) => tab.id === 2)).toMatchObject({ groupId: 10 });
+    expect(tabs.find((tab) => tab.id === 3)).toMatchObject({ groupId: 11 });
+    expect(tabs.filter((tab) => tab.url === 'https://owned.example' && tab.groupId === -1)).toHaveLength(1);
+  });
+
+  it('快照外标签、用户组和其他 Workspace Octane 组：保留且不作为当前 Workspace 匹配项', async () => {
+    const wsB = 'bbbbbbbb-0000-0000-0000-000000000000';
+    const adapter = adapterWithSession([{ url: 'https://owned.example', order: 0 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://external.example', index: 1 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: 'https://owned.example', index: 2, groupId: 20 }));
+    adapter.tabs.set(4, businessTab({ id: 4, url: 'https://owned.example', index: 3, groupId: 30 }));
+    adapter.groups.set(20, { id: 20, windowId: 1, title: '用户分组' });
+    adapter.groups.set(30, { id: 30, windowId: 1, title: `B ·${wsB.slice(0, 8)}` });
+
+    await finishColdRecovery(coordinator(adapter));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.find((tab) => tab.id === 2)).toMatchObject({ url: 'https://external.example', groupId: -1 });
+    expect(tabs.find((tab) => tab.id === 3)).toMatchObject({ url: 'https://owned.example', groupId: 20 });
+    expect(tabs.find((tab) => tab.id === 4)).toMatchObject({ url: 'https://owned.example', groupId: 30 });
+    expect(tabs.filter((tab) => tab.url === 'https://owned.example' && tab.groupId === -1)).toHaveLength(1);
+  });
+
+  it('同一 coordinator 重复启动：不重复创建标签，Home 保持激活且新标签已释放', async () => {
+    const adapter = adapterWithSession([{ url: 'https://only-once.example', order: 1 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    const continuity = coordinator(adapter);
+
+    await finishColdRecovery(continuity);
+    await continuity.startColdRecovery();
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.filter((tab) => tab.url === 'https://only-once.example')).toEqual([
+      expect.objectContaining({ active: false, discarded: true }),
+    ]);
+    expect(tabs.find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
+  });
+
+  it('无快照时：原生标签页稳定后仍保持 Home 活动', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({ tabIsolationSetting: 'close', lastWorkspaceId: WS_A });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: false }));
+    adapter.tabs.set(2, businessTab({ id: 2, url: 'https://native.example', index: 1, active: true }));
+
+    await finishColdRecovery(coordinator(adapter));
+
+    expect((await adapter.queryTabs(1)).find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
+  });
+});
+
+async function finishColdRecovery(continuity: SessionContinuity): Promise<void> {
+  vi.useFakeTimers();
+  try {
+    const recovery = continuity.startColdRecovery();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await recovery;
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+function adapterWithSession(tabs: Array<{ url: string; order: number; pinned?: boolean }>): MemoryChromeAdapter {
+  const adapter = new MemoryChromeAdapter();
+  adapter.storage.set('tabIsolationSetting', 'close');
+  adapter.storage.set('lastWorkspaceId', WS_A);
+  adapter.storage.set(`tabSession.${WS_A}`, { tabs, savedAt: 1 });
+  return adapter;
+}
+
+function businessUrls(adapter: MemoryChromeAdapter): string[] {
+  return Array.from(adapter.tabs.values())
+    .filter((tab) => tab.url !== HOME_URL)
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .map((tab) => tab.url!);
+}

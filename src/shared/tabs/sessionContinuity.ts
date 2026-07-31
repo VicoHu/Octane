@@ -8,6 +8,8 @@ const TOPOLOGY_KEY = 'sessionContinuity.topology';
 const LAST_WORKSPACE_KEY = 'lastWorkspaceId';
 const ISOLATION_KEY = 'tabIsolationSetting';
 const ENABLED_SETTINGS: TabIsolationSetting[] = ['close', 'hide-discard', 'hide'];
+const NATIVE_TOPOLOGY_QUIET_MS = 100;
+const NATIVE_TOPOLOGY_TIMEOUT_MS = 500;
 
 export interface SessionContinuityTab {
   id: number;
@@ -83,11 +85,23 @@ function toEntry(tab: SessionContinuityTab): TabEntry {
   return { url: tab.url!, pinned: tab.pinned ?? false, order: tab.index ?? 0 };
 }
 
+function reconciliationKey(url: string, pinned: boolean): string {
+  try {
+    return `${pinned ? '1' : '0'}:${new URL(url).href}`;
+  } catch {
+    return `${pinned ? '1' : '0'}:${url}`;
+  }
+}
+
+function isUngrouped(tab: SessionContinuityTab): boolean {
+  return tab.groupId == null || tab.groupId === -1;
+}
+
 /**
  * 单窗口工作区标签会话连续性。
  *
- * 这个模块只负责 #64 的当前 Workspace tracer bullet：持续保存，以及没有原生业务标签
- * 时的冷恢复。原生会话协调、驻留 Workspace 和失败重试分别由后续 ticket 承担。
+ * 这个模块负责当前 Workspace 的持续保存及冷恢复协调。原生标签页在短暂静默后按 URL、
+ * pinned 和出现次数复用；驻留 Workspace 和失败重试分别由后续 ticket 承担。
  */
 export class SessionContinuity {
   private readonly debounceMs: number;
@@ -96,6 +110,7 @@ export class SessionContinuity {
   private generation = 0;
   private recovering = false;
   private startupStarted = false;
+  private resetNativeQuietWindow: (() => void) | null = null;
 
   constructor(
     private readonly adapter: SessionContinuityAdapter,
@@ -106,7 +121,10 @@ export class SessionContinuity {
 
   /** 由 background 的标签页/标签组事件调用，防抖保存最终拓扑。 */
   notifyTopologyChanged(): void {
-    if (this.recovering) return;
+    if (this.recovering) {
+      this.resetNativeQuietWindow?.();
+      return;
+    }
     this.generation++;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -134,32 +152,69 @@ export class SessionContinuity {
     this.recovering = true;
     try {
       const homeId = await this.ensureHomeTab(windowId);
-      const beforeRestore = await this.adapter.queryTabs(windowId);
-      // #65 之前不接管 Chrome 原生恢复出的业务标签；存在任何可恢复业务页即安全跳过。
-      if (beforeRestore.some(isRestorable)) return;
-
+      await this.waitForNativeTopology();
+      const [existingTabs, groups] = await Promise.all([
+        this.adapter.queryTabs(windowId),
+        this.adapter.queryGroups(windowId),
+      ]);
+      const currentGroupIds = groups
+        .filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(workspaceId)))
+        .map((group) => group.id);
+      // 标识冲突时不任选组，避免把用户或其他 Workspace 的 tab 计入当前快照。
+      const currentGroupId = currentGroupIds.length === 1 ? currentGroupIds[0] : null;
       const sessionValue = (await this.adapter.getStorage(tabSessionKey(workspaceId)))[tabSessionKey(workspaceId)];
       const session = sessionValue as TabSession | undefined;
-      if (!session?.tabs?.length) return;
+      if (session?.tabs?.length) {
+        const available = new Map<string, number>();
+        for (const tab of existingTabs) {
+          if (!isRestorable(tab) || (!isUngrouped(tab) && tab.groupId !== currentGroupId)) continue;
+          const key = reconciliationKey(tab.url!, tab.pinned ?? false);
+          available.set(key, (available.get(key) ?? 0) + 1);
+        }
 
-      for (const entry of [...session.tabs].sort((a, b) => a.order - b.order)) {
-        try {
-          const created = await this.adapter.createTab({
-            url: entry.url,
-            pinned: entry.pinned ?? false,
-            windowId,
-            index: entry.order,
-            active: false,
-          });
-          await this.adapter.discardTab(created.id);
-        } catch {
-          // #67 负责持久失败状态与重试；当前 tracer bullet 保留成功的同级标签恢复。
+        for (const entry of [...session.tabs].sort((a, b) => a.order - b.order)) {
+          const key = reconciliationKey(entry.url, entry.pinned ?? false);
+          const matched = available.get(key) ?? 0;
+          if (matched > 0) {
+            available.set(key, matched - 1);
+            continue;
+          }
+          try {
+            const created = await this.adapter.createTab({
+              url: entry.url,
+              pinned: entry.pinned ?? false,
+              windowId,
+              index: entry.order,
+              active: false,
+            });
+            await this.adapter.discardTab(created.id);
+          } catch {
+            // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+          }
         }
       }
       await this.adapter.updateTab(homeId, { active: true });
     } finally {
       this.recovering = false;
     }
+  }
+
+  private async waitForNativeTopology(): Promise<void> {
+    await new Promise<void>((resolve) => {
+      let quietTimer: ReturnType<typeof setTimeout> | null = null;
+      const settle = () => {
+        if (quietTimer) clearTimeout(quietTimer);
+        clearTimeout(timeoutTimer);
+        this.resetNativeQuietWindow = null;
+        resolve();
+      };
+      const timeoutTimer = setTimeout(settle, NATIVE_TOPOLOGY_TIMEOUT_MS);
+      this.resetNativeQuietWindow = () => {
+        if (quietTimer) clearTimeout(quietTimer);
+        quietTimer = setTimeout(settle, NATIVE_TOPOLOGY_QUIET_MS);
+      };
+      this.resetNativeQuietWindow();
+    });
   }
 
   /** 隔离模式切换时同步清理本 ticket 拥有的拓扑元数据，不删除历史会话。 */
