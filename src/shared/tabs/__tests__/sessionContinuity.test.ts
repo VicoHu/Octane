@@ -1019,3 +1019,64 @@ function businessUrls(adapter: MemoryChromeAdapter): string[] {
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((tab) => tab.url!);
 }
+
+
+describe('SessionContinuity — 恢复失败诊断日志可区分性', () => {
+  function recoveryMessages(): string[] {
+    const calls = (console.log as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return calls
+      .map((call) => String(call[0]))
+      .filter((message) => message.startsWith('[octane-recovery]'));
+  }
+
+  /** 构造一个当前 Workspace 有 1 条业务会话、原生窗口为空的冷启动场景。 */
+  async function coldStartWithOneEntry(): Promise<{ adapter: MemoryChromeAdapter; continuity: SessionContinuity }> {
+    const adapter = new MemoryChromeAdapter();
+    adapter.storage.set('tabIsolationSetting', 'hide');
+    adapter.storage.set('lastWorkspaceId', WS_A);
+    adapter.storage.set(`tabSession.${WS_A}`, {
+      tabs: [{ url: 'https://example.com', order: 0, pinned: false }],
+      savedAt: 1,
+    });
+    return { adapter, continuity: coordinator(adapter) };
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  it('createTab 失败 → emit restoreCurrent: create failed', async () => {
+    const { adapter, continuity } = await coldStartWithOneEntry();
+    const originalCreate = adapter.createTab.bind(adapter);
+    adapter.createTab = async (details) => {
+      // home tab 正常创建，仅业务 entry create 失败
+      if (details.url === HOME_URL) return originalCreate(details);
+      throw new Error('create boom');
+    };
+
+    await continuity.startColdRecovery();
+
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining('restoreCurrent: create failed'));
+    expect(recoveryMessages().some((m) => m.includes('discard failed'))).toBe(false);
+  });
+
+  it('discardTab 失败（新建 tab）→ emit restoreCurrent: discard failed on created tab', async () => {
+    const { adapter, continuity } = await coldStartWithOneEntry();
+    adapter.discardTab = async () => { throw new Error('discard boom'); };
+
+    await continuity.startColdRecovery();
+
+    expect(recoveryMessages()).toContainEqual(
+      expect.stringContaining('restoreCurrent: discard failed on created tab'),
+    );
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining('discard boom'));
+  });
+
+  it('恢复链路完成 → emit done restored/failed 汇总', async () => {
+    const { continuity } = await coldStartWithOneEntry();
+
+    await continuity.startColdRecovery();
+
+    expect(recoveryMessages()).toContainEqual(expect.stringContaining('done restored=1, failed=0'));
+  });
+});
