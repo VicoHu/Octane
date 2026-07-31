@@ -93,7 +93,8 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   }
 
   async removeTabs(tabIds: number[]): Promise<void> {
-    // 先记录被移除 tab 的 (windowId, index)，再删除，最后按窗口补齐空隙（后移 tab 前移）。
+    // 先记录被移除 tab 的 (windowId, index)，再删除，最后按窗口重排（每条幸存 tab 前移等于
+    // 其之前被移除的 tab 数，正确处理非连续多选移除）。
     const removed = new Set(tabIds);
     const removedByWindow = new Map<number, number[]>();
     for (const tabId of tabIds) {
@@ -107,11 +108,11 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
     for (const [groupId] of this.groups) {
       if (!Array.from(this.tabs.values()).some((tab) => tab.groupId === groupId)) this.groups.delete(groupId);
     }
-    for (const [windowId, indices] of removedByWindow) {
-      const threshold = Math.min(...indices);
-      const shift = indices.filter((i) => i >= threshold).length;
+    for (const [windowId, removedIndices] of removedByWindow) {
       for (const t of this.tabs.values()) {
-        if (t.windowId === windowId && (t.index ?? 0) >= threshold) t.index = (t.index ?? 0) - shift;
+        if (t.windowId !== windowId) continue;
+        const before = removedIndices.filter((i) => i < (t.index ?? 0)).length;
+        if (before > 0) t.index = (t.index ?? 0) - before;
       }
     }
   }
@@ -1335,18 +1336,38 @@ describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后�
     expect(aGroup).toBeDefined();
 
     // 完整顺序断言：index 唯一连续，从 Home 开始依次为驻留组（2 tab）+ 当前散开（2 tab）
-    const sequence = tabs.map((t) =>
-      t.groupId === aGroup!.id ? `[A 组]` : t.url,
-    );
-    expect(sequence).toEqual([
-      HOME_URL,
-      "[A 组]",
-      "[A 组]",
-      "https://b1.example",
-      "https://b2.example",
-    ]);
+    const sequence = tabs.map((t) => (t.groupId === aGroup!.id ? `[A 组]` : t.url));
+    expect(sequence).toEqual([HOME_URL, "[A 组]", "[A 组]", "https://b1.example", "https://b2.example"]);
     // index 应唯一连续（位移模型验证）
     const indices = tabs.map((t) => t.index).sort((a, b) => (a ?? 0) - (b ?? 0));
     expect(indices).toEqual([0, 1, 2, 3, 4]);
+  });
+});
+
+
+describe("MemoryChromeAdapter — removeTabs 非连续多选位移", () => {
+  it("移除非连续 index 后幸存 tab index 连续无重复", async () => {
+    const adapter = new MemoryChromeAdapter();
+    // [0,1,2,3,4] 五个散开 tab
+    for (let i = 0; i < 5; i++) {
+      adapter.tabs.set(i + 1, {
+        id: i + 1,
+        windowId: 1,
+        url: `https://t${i}.example`,
+        index: i,
+        groupId: -1,
+        pinned: false,
+        active: false,
+      });
+    }
+    // 移除 index 1 和 3（非连续）
+    const toRemove = Array.from(adapter.tabs.values()).filter((t) => t.index === 1 || t.index === 3).map((t) => t.id);
+    await adapter.removeTabs(toRemove);
+
+    const tabs = await adapter.queryTabs(1);
+    // 幸存: 原 0,2,4 → 新 index 应为 0,1,2（连续无重复）
+    const indices = tabs.map((t) => t.index);
+    expect(indices).toEqual([0, 1, 2]);
+    expect(tabs.map((t) => t.url)).toEqual(["https://t0.example", "https://t2.example", "https://t4.example"]);
   });
 });
