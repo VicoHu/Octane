@@ -22,6 +22,7 @@ import { getWorkspaceBinding, setWorkspaceBinding } from '@/shared/windowWorkspa
 import type { TabIsolationSetting } from '@/shared/tabIsolationSetting';
 import { findGroupByIdentity, makeGroupTitle, wsHash } from '@/shared/tabs/tabGroupIdentity';
 import { Toast } from '@/components/ui/toast';
+import { clearWorkspacePendingRecovery } from '@/shared/tabs/sessionContinuity';
 
 declare const chrome: unknown;
 
@@ -177,6 +178,11 @@ export async function archiveByMode(
     }
     const entries = mine.map((t) => ({ id: t.id!, entry: toEntry(t) }));
     await saveTabSession(fromId, entries.map((e) => e.entry));
+    try {
+      await clearWorkspacePendingRecovery(fromId);
+    } catch {
+      // 新基线已落盘，pending 清理失败不应把 archive 变成关闭标签的硬屏障。
+    }
     onProgress?.({ phase: 'archive', count: entries.length, total: entries.length });
     return { tabs: entries };
   } catch {

@@ -5,6 +5,9 @@ import { IDENTITY_SUFFIX } from './tabGroupIdentity';
 
 const TAB_SESSION_PREFIX = 'tabSession.';
 const TOPOLOGY_KEY = 'sessionContinuity.topology';
+const PENDING_RECOVERY_KEY = 'sessionContinuity.pendingRecovery';
+const RECOVERY_NOTICE_KEY = 'sessionContinuity.recoveryNotice';
+const RECOVERY_TOKEN_KEY = 'sessionContinuity.recoveryToken';
 const LAST_WORKSPACE_KEY = 'lastWorkspaceId';
 const ISOLATION_KEY = 'tabIsolationSetting';
 const ENABLED_SETTINGS: TabIsolationSetting[] = ['close', 'hide-discard', 'hide'];
@@ -52,6 +55,7 @@ export interface SessionContinuityAdapter {
   discardTab(tabId: number): Promise<void>;
   groupTabs(tabIds: number[], windowId: number, groupId?: number): Promise<number>;
   ungroupTabs(tabIds: number[]): Promise<void>;
+  removeTabs(tabIds: number[]): Promise<void>;
   updateGroup(groupId: number, details: { title?: string; collapsed?: boolean }): Promise<void>;
   getHomeUrl(): string;
 }
@@ -70,6 +74,22 @@ interface ResidentTopology {
 interface CurrentTopology {
   currentWorkspaceId: string;
   residents: ResidentTopology[];
+}
+
+interface PendingWorkspaceRecovery {
+  workspaceId: string;
+  entries: TabEntry[];
+  resident?: ResidentTopology;
+}
+
+interface PendingRecovery {
+  workspaces: PendingWorkspaceRecovery[];
+}
+
+export interface RecoveryNotice {
+  restoredCount: number;
+  failedCount: number;
+  shown: boolean;
 }
 
 function tabSessionKey(workspaceId: string): string {
@@ -108,6 +128,25 @@ function isUngrouped(tab: SessionContinuityTab): boolean {
   return tab.groupId == null || tab.groupId === -1;
 }
 
+function mergeEntries(live: TabEntry[], protectedEntries: TabEntry[]): TabEntry[] {
+  const counts = new Map<string, number>();
+  for (const entry of live) {
+    const key = reconciliationKey(entry.url, entry.pinned ?? false);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const merged = [...live];
+  for (const entry of protectedEntries) {
+    const key = reconciliationKey(entry.url, entry.pinned ?? false);
+    const count = counts.get(key) ?? 0;
+    if (count > 0) {
+      counts.set(key, count - 1);
+    } else {
+      merged.push(entry);
+    }
+  }
+  return merged.sort((a, b) => a.order - b.order);
+}
+
 function isTopology(value: unknown): value is CurrentTopology {
   if (!value || typeof value !== 'object') return false;
   const topology = value as Partial<CurrentTopology>;
@@ -115,6 +154,29 @@ function isTopology(value: unknown): value is CurrentTopology {
     topology.residents.every((resident) =>
       typeof resident?.workspaceId === 'string' && typeof resident.title === 'string',
     );
+}
+
+function isPendingRecovery(value: unknown): value is PendingRecovery {
+  if (!value || typeof value !== 'object') return false;
+  const workspaces = (value as Partial<PendingRecovery>).workspaces;
+  return Array.isArray(workspaces) && workspaces.every((workspace) =>
+    typeof workspace?.workspaceId === 'string' && Array.isArray(workspace.entries) &&
+    workspace.entries.every((entry) =>
+      typeof entry?.url === 'string' && typeof entry.order === 'number' &&
+      (entry.pinned == null || typeof entry.pinned === 'boolean'),
+    ) &&
+    (workspace.resident == null || (
+      typeof workspace.resident.workspaceId === 'string' &&
+      typeof workspace.resident.title === 'string'
+    )),
+  );
+}
+
+function isRecoveryNotice(value: unknown): value is RecoveryNotice {
+  if (!value || typeof value !== 'object') return false;
+  const notice = value as Partial<RecoveryNotice>;
+  return typeof notice.restoredCount === 'number' && typeof notice.failedCount === 'number' &&
+    typeof notice.shown === 'boolean';
 }
 
 function isLegacyTopology(value: unknown): value is Pick<CurrentTopology, 'currentWorkspaceId'> {
@@ -178,20 +240,111 @@ export class SessionContinuity {
     this.recovering = true;
     try {
       const homeId = await this.ensureHomeTab(windowId);
+      await this.adapter.setStorage({ [RECOVERY_TOKEN_KEY]: { startedAt: Date.now() } });
       await this.waitForNativeTopology();
-      const storedTopology = (await this.adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
-      const topology = isTopology(storedTopology) ? storedTopology : null;
-      await this.restoreCurrentWorkspace(windowId, workspaceId);
-
-      if (stored[ISOLATION_KEY] !== 'close' && topology?.currentWorkspaceId === workspaceId) {
-        for (const resident of topology.residents) {
-          await this.restoreResidentWorkspace(windowId, resident);
-        }
+      const priorPendingValue = (await this.adapter.getStorage(PENDING_RECOVERY_KEY))[PENDING_RECOVERY_KEY];
+      const priorPending = isPendingRecovery(priorPendingValue) ? priorPendingValue.workspaces : [];
+      const processedWorkspaceIds = await this.coldWorkspaceIds(workspaceId, stored[ISOLATION_KEY]);
+      const desiredCount = await this.countColdEntries(workspaceId, stored[ISOLATION_KEY]);
+      let failed = await this.restoreColdTopology(windowId, workspaceId, stored[ISOLATION_KEY]);
+      if (failed.length) {
+        await this.waitForNativeTopology();
+        failed = await this.restoreColdTopology(windowId, workspaceId, stored[ISOLATION_KEY]);
       }
+      const restoredCount = Math.max(
+        0,
+        desiredCount - failed.reduce((count, pending) => count + pending.entries.length, 0),
+      );
+      failed = [
+        ...failed,
+        ...priorPending.filter((pending) => !processedWorkspaceIds.has(pending.workspaceId)),
+      ];
+      await this.persistRecoveryResult(failed, restoredCount, failed.length > 0);
       await this.adapter.updateTab(homeId, { active: true });
     } finally {
       this.recovering = false;
     }
+  }
+
+  /** 用户从 Home 触发的幂等重试：只补齐仍未满足的 pending occurrence。 */
+  async retryPendingRecovery(): Promise<void> {
+    const stored = await this.adapter.getStorage([ISOLATION_KEY, PENDING_RECOVERY_KEY]);
+    if (!isEnabledSetting(stored[ISOLATION_KEY]) || !isPendingRecovery(stored[PENDING_RECOVERY_KEY])) return;
+    const windows = await this.adapter.getNormalWindows();
+    if (windows.length !== 1 || windows[0]?.id == null) return;
+    const windowId = windows[0].id;
+    this.recovering = true;
+    try {
+      const unresolved: PendingWorkspaceRecovery[] = [];
+      for (const pending of stored[PENDING_RECOVERY_KEY].workspaces) {
+        const failed = pending.resident
+          ? await this.restoreResidentWorkspace(windowId, pending.resident, pending.entries)
+          : await this.restoreCurrentWorkspace(windowId, pending.workspaceId, pending.entries);
+        if (failed.length) unresolved.push({ ...pending, entries: failed });
+      }
+      await this.persistRecoveryResult(unresolved);
+    } finally {
+      this.recovering = false;
+    }
+  }
+
+  private async coldWorkspaceIds(workspaceId: string, setting: unknown): Promise<Set<string>> {
+    const topologyValue = (await this.adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
+    const topology = isTopology(topologyValue) ? topologyValue : null;
+    const ids = setting !== 'close' && topology?.currentWorkspaceId === workspaceId
+      ? [workspaceId, ...topology.residents.map((resident) => resident.workspaceId)]
+      : [workspaceId];
+    return new Set(ids);
+  }
+
+  private async countColdEntries(workspaceId: string, setting: unknown): Promise<number> {
+    const ids = await this.coldWorkspaceIds(workspaceId, setting);
+    let count = 0;
+    for (const id of ids) {
+      const session = (await this.adapter.getStorage(tabSessionKey(id)))[tabSessionKey(id)] as TabSession | undefined;
+      count += session?.tabs.filter((entry) => id === workspaceId || !entry.pinned).length ?? 0;
+    }
+    return count;
+  }
+
+  private async restoreColdTopology(
+    windowId: number,
+    workspaceId: string,
+    setting: unknown,
+  ): Promise<PendingWorkspaceRecovery[]> {
+    const storedTopology = (await this.adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
+    const topology = isTopology(storedTopology) ? storedTopology : null;
+    const failed: PendingWorkspaceRecovery[] = [];
+    const currentFailed = await this.restoreCurrentWorkspace(windowId, workspaceId);
+    if (currentFailed.length) failed.push({ workspaceId, entries: currentFailed });
+    if (setting !== 'close' && topology?.currentWorkspaceId === workspaceId) {
+      for (const resident of topology.residents) {
+        const residentFailed = await this.restoreResidentWorkspace(windowId, resident);
+        if (residentFailed.length) failed.push({ workspaceId: resident.workspaceId, resident, entries: residentFailed });
+      }
+    }
+    return failed;
+  }
+
+  private async persistRecoveryResult(
+    failed: PendingWorkspaceRecovery[],
+    restoredCount = 0,
+    resetNoticeShown = false,
+  ): Promise<void> {
+    if (!failed.length) {
+      await this.adapter.removeStorage([PENDING_RECOVERY_KEY, RECOVERY_NOTICE_KEY]);
+      return;
+    }
+    const failedCount = failed.reduce((count, pending) => count + pending.entries.length, 0);
+    const existingNotice = (await this.adapter.getStorage(RECOVERY_NOTICE_KEY))[RECOVERY_NOTICE_KEY];
+    await this.adapter.setStorage({
+      [PENDING_RECOVERY_KEY]: { workspaces: failed },
+      [RECOVERY_NOTICE_KEY]: {
+        restoredCount,
+        failedCount,
+        shown: resetNoticeShown ? false : (isRecoveryNotice(existingNotice) ? existingNotice.shown : false),
+      } satisfies RecoveryNotice,
+    });
   }
 
   private async waitForNativeTopology(): Promise<void> {
@@ -212,7 +365,11 @@ export class SessionContinuity {
     });
   }
 
-  private async restoreCurrentWorkspace(windowId: number, workspaceId: string): Promise<void> {
+  private async restoreCurrentWorkspace(
+    windowId: number,
+    workspaceId: string,
+    desiredEntries?: TabEntry[],
+  ): Promise<TabEntry[]> {
     const [existingTabs, groups, stored] = await Promise.all([
       this.adapter.queryTabs(windowId),
       this.adapter.queryGroups(windowId),
@@ -221,81 +378,22 @@ export class SessionContinuity {
     const currentGroupIds = groups
       .filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(workspaceId)))
       .map((group) => group.id);
-    // 标识冲突时不任选组，避免把用户或其他 Workspace 的 tab 计入当前快照。
     const currentGroupId = currentGroupIds.length === 1 ? currentGroupIds[0] : null;
     const session = stored[tabSessionKey(workspaceId)] as TabSession | undefined;
-    if (session?.tabs?.length) {
-      const available = new Map<string, SessionContinuityTab[]>();
-      for (const tab of existingTabs) {
-        if (!isRestorable(tab) || (!isUngrouped(tab) && tab.groupId !== currentGroupId)) continue;
-        const key = reconciliationKey(tab.url!, tab.pinned ?? false);
-        available.set(key, [...(available.get(key) ?? []), tab]);
-      }
-      const restoredTabIds: number[] = [];
-      for (const entry of [...session.tabs].sort((a, b) => a.order - b.order)) {
-        const key = reconciliationKey(entry.url, entry.pinned ?? false);
-        const matched = available.get(key)?.shift();
-        if (matched) {
-          restoredTabIds.push(matched.id);
-          continue;
-        }
-        try {
-          const created = await this.adapter.createTab({
-            url: entry.url,
-            pinned: entry.pinned ?? false,
-            windowId,
-            index: entry.order,
-            active: false,
-          });
-          await this.adapter.discardTab(created.id);
-        } catch {
-          // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
-        }
-      }
-      for (const tabId of restoredTabIds) {
-        try {
-          await this.adapter.updateTab(tabId, { active: false });
-          await this.adapter.discardTab(tabId);
-        } catch {
-          // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
-        }
-      }
-    }
-    if (currentGroupId != null) {
-      const groupTabIds = (await this.adapter.queryTabs(windowId))
-        .filter((tab) => tab.groupId === currentGroupId)
-        .map((tab) => tab.id);
-      if (groupTabIds.length) await this.adapter.ungroupTabs(groupTabIds);
-    }
-  }
-
-  private async restoreResidentWorkspace(windowId: number, resident: ResidentTopology): Promise<void> {
-    if (!(await this.options.isWorkspaceValid(resident.workspaceId))) return;
-    const [groups, stored] = await Promise.all([
-      this.adapter.queryGroups(windowId),
-      this.adapter.getStorage(tabSessionKey(resident.workspaceId)),
-    ]);
-    const session = stored[tabSessionKey(resident.workspaceId)] as TabSession | undefined;
-    const entries = session?.tabs.filter((entry) => !entry.pinned) ?? [];
-    if (!entries.length) return;
-    const matchingGroups = groups.filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(resident.workspaceId)));
-    // 多个稳定身份无法安全判定所有权，保留原样且不创建第三个组。
-    if (matchingGroups.length > 1) return;
-    let groupId = matchingGroups[0]?.id ?? null;
-    const existingTabs = groupId == null
-      ? []
-      : (await this.adapter.queryTabs(windowId)).filter((tab) => tab.groupId === groupId && isRestorable(tab));
-    const available = new Map<string, number>();
+    const entries = desiredEntries ?? session?.tabs ?? [];
+    const failed: TabEntry[] = [];
+    const available = new Map<string, SessionContinuityTab[]>();
     for (const tab of existingTabs) {
+      if (!isRestorable(tab) || (!isUngrouped(tab) && tab.groupId !== currentGroupId)) continue;
       const key = reconciliationKey(tab.url!, tab.pinned ?? false);
-      available.set(key, (available.get(key) ?? 0) + 1);
+      available.set(key, [...(available.get(key) ?? []), tab]);
     }
-    const createdTabs: Array<{ id: number; pinned: boolean }> = [];
+    const matchedTabs: Array<{ tabId: number; entry: TabEntry }> = [];
     for (const entry of [...entries].sort((a, b) => a.order - b.order)) {
       const key = reconciliationKey(entry.url, entry.pinned ?? false);
-      const matched = available.get(key) ?? 0;
-      if (matched > 0) {
-        available.set(key, matched - 1);
+      const matched = available.get(key)?.shift();
+      if (matched) {
+        matchedTabs.push({ tabId: matched.id, entry });
         continue;
       }
       try {
@@ -306,29 +404,105 @@ export class SessionContinuity {
           index: entry.order,
           active: false,
         });
-        createdTabs.push({ id: created.id, pinned: entry.pinned ?? false });
+        await this.adapter.discardTab(created.id);
       } catch {
-        // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+        failed.push(entry);
       }
     }
-    const groupableIds = [...existingTabs, ...createdTabs]
-      .filter((tab) => !tab.pinned)
-      .map((tab) => tab.id);
-    if (groupableIds.length) {
-      groupId = await this.adapter.groupTabs(groupableIds, windowId, groupId ?? undefined);
-      await this.adapter.updateGroup(groupId, { title: resident.title, collapsed: true });
-    }
-    const residentTabs = groupId == null
-      ? []
-      : (await this.adapter.queryTabs(windowId)).filter((tab) => tab.groupId === groupId).map((tab) => tab.id);
-    for (const tabId of [...new Set([...residentTabs, ...createdTabs.map((tab) => tab.id)])]) {
+    for (const matched of matchedTabs) {
       try {
-        await this.adapter.updateTab(tabId, { active: false });
-        await this.adapter.discardTab(tabId);
+        await this.adapter.updateTab(matched.tabId, { active: false });
+        await this.adapter.discardTab(matched.tabId);
       } catch {
-        // #67 负责持久失败状态与重试；当前 ticket 保留成功的同级标签恢复。
+        failed.push(matched.entry);
       }
     }
+    if (currentGroupId != null) {
+      try {
+        const groupTabIds = (await this.adapter.queryTabs(windowId))
+          .filter((tab) => tab.groupId === currentGroupId)
+          .map((tab) => tab.id);
+        if (groupTabIds.length) await this.adapter.ungroupTabs(groupTabIds);
+      } catch {
+        return entries;
+      }
+    }
+    return failed;
+  }
+
+  private async restoreResidentWorkspace(
+    windowId: number,
+    resident: ResidentTopology,
+    desiredEntries?: TabEntry[],
+  ): Promise<TabEntry[]> {
+    if (!(await this.options.isWorkspaceValid(resident.workspaceId))) return [];
+    const [groups, stored] = await Promise.all([
+      this.adapter.queryGroups(windowId),
+      this.adapter.getStorage(tabSessionKey(resident.workspaceId)),
+    ]);
+    const session = stored[tabSessionKey(resident.workspaceId)] as TabSession | undefined;
+    const entries = (desiredEntries ?? session?.tabs ?? []).filter((entry) => !entry.pinned);
+    if (!entries.length) return [];
+    const matchingGroups = groups.filter((group) => group.title?.endsWith(IDENTITY_SUFFIX(resident.workspaceId)));
+    if (matchingGroups.length > 1) return entries;
+    let groupId = matchingGroups[0]?.id ?? null;
+    const existingTabs = groupId == null
+      ? []
+      : (await this.adapter.queryTabs(windowId)).filter((tab) => tab.groupId === groupId && isRestorable(tab));
+    const available = new Map<string, SessionContinuityTab[]>();
+    for (const tab of existingTabs) {
+      const key = reconciliationKey(tab.url!, tab.pinned ?? false);
+      available.set(key, [...(available.get(key) ?? []), tab]);
+    }
+    const failed: TabEntry[] = [];
+    const managed: Array<{ id: number; entry: TabEntry }> = [];
+    const createdTabIds: number[] = [];
+    for (const entry of [...entries].sort((a, b) => a.order - b.order)) {
+      const key = reconciliationKey(entry.url, entry.pinned ?? false);
+      const matched = available.get(key)?.shift();
+      if (matched) {
+        managed.push({ id: matched.id, entry });
+        continue;
+      }
+      try {
+        const created = await this.adapter.createTab({
+          url: entry.url,
+          pinned: false,
+          windowId,
+          index: entry.order,
+          active: false,
+        });
+        createdTabIds.push(created.id);
+        managed.push({ id: created.id, entry });
+      } catch {
+        failed.push(entry);
+      }
+    }
+    try {
+      const groupableIds = managed.map((tab) => tab.id);
+      if (groupableIds.length) {
+        groupId = await this.adapter.groupTabs(groupableIds, windowId, groupId ?? undefined);
+        await this.adapter.updateGroup(groupId, { title: resident.title, collapsed: true });
+      }
+    } catch {
+      if (createdTabIds.length) {
+        try {
+          await this.adapter.removeTabs(createdTabIds);
+        } catch {
+          // 清理失败仍保留 pending，后续 Workspace 恢复不应被阻断。
+        }
+      }
+      return [...entries];
+    }
+    for (const tab of managed) {
+      try {
+        await this.adapter.updateTab(tab.id, { active: false });
+        await this.adapter.discardTab(tab.id);
+      } catch {
+        failed.push(tab.entry);
+      }
+    }
+    return failed;
   }
 
   /** 删除 Workspace 时终止旧自动保存，并在队列尾部删除 session 与 topology 引用。 */
@@ -341,13 +515,28 @@ export class SessionContinuity {
     await cleanup;
   }
 
+  /** 显式成功归档建立新基线时，才允许清除该 Workspace 的旧 pending。 */
+  async clearWorkspacePendingRecovery(workspaceId: string): Promise<void> {
+    const cleanup = this.saveQueue.then(() => clearPendingWorkspace(this.adapter, workspaceId));
+    this.saveQueue = cleanup.catch(() => undefined);
+    await cleanup;
+  }
+
   /** 隔离模式切换时同步清理本 ticket 拥有的拓扑元数据，不删除历史会话。 */
   async handleIsolationSettingChanged(): Promise<void> {
     const setting = (await this.adapter.getStorage(ISOLATION_KEY))[ISOLATION_KEY];
     if (!isEnabledSetting(setting)) {
+      this.generation++;
       if (this.timer) clearTimeout(this.timer);
       this.timer = null;
-      await this.adapter.removeStorage(TOPOLOGY_KEY);
+      const cleanup = this.saveQueue.then(() => this.adapter.removeStorage([
+        TOPOLOGY_KEY,
+        PENDING_RECOVERY_KEY,
+        RECOVERY_NOTICE_KEY,
+        RECOVERY_TOKEN_KEY,
+      ]));
+      this.saveQueue = cleanup.catch(() => undefined);
+      await cleanup;
       return;
     }
     this.notifyTopologyChanged();
@@ -398,11 +587,16 @@ export class SessionContinuity {
       .map((group) => group.id);
     // 标识重复时不任选组，防止用户或其他 Workspace 标签页进入当前快照。
     const currentGroupId = currentGroupIds.length === 1 ? currentGroupIds[0] : null;
-    const entries = tabs
+    const liveEntries = tabs
       .filter(isRestorable)
       .filter((tab) => tab.groupId == null || tab.groupId === -1 || tab.groupId === currentGroupId)
       .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
       .map(toEntry);
+    const pendingValue = (await this.adapter.getStorage(PENDING_RECOVERY_KEY))[PENDING_RECOVERY_KEY];
+    const protectedEntries = isPendingRecovery(pendingValue)
+      ? pendingValue.workspaces.find((pending) => pending.workspaceId === workspaceId && !pending.resident)?.entries ?? []
+      : [];
+    const entries = mergeEntries(liveEntries, protectedEntries);
     const workspaceIds = await this.options.listWorkspaceIds();
     const residents = workspaceIds
       .filter((id) => id !== workspaceId)
@@ -461,12 +655,33 @@ function createStorageAdapter(): SessionStorageAdapter | null {
   };
 }
 
+async function clearPendingWorkspace(
+  adapter: SessionStorageAdapter,
+  workspaceId: string,
+): Promise<void> {
+  const stored = await adapter.getStorage([PENDING_RECOVERY_KEY, RECOVERY_NOTICE_KEY]);
+  const pendingValue = stored[PENDING_RECOVERY_KEY];
+  if (!isPendingRecovery(pendingValue)) return;
+  const workspaces = pendingValue.workspaces.filter((pending) => pending.workspaceId !== workspaceId);
+  if (!workspaces.length) {
+    await adapter.removeStorage([PENDING_RECOVERY_KEY, RECOVERY_NOTICE_KEY]);
+  } else if (workspaces.length !== pendingValue.workspaces.length) {
+    const notice = stored[RECOVERY_NOTICE_KEY];
+    const failedCount = workspaces.reduce((count, pending) => count + pending.entries.length, 0);
+    await adapter.setStorage({
+      [PENDING_RECOVERY_KEY]: { workspaces },
+      ...(isRecoveryNotice(notice) ? { [RECOVERY_NOTICE_KEY]: { ...notice, failedCount } } : {}),
+    });
+  }
+}
+
 async function clearWorkspaceStorage(
   adapter: SessionStorageAdapter,
   workspaceId: string,
 ): Promise<void> {
   const topology = (await adapter.getStorage(TOPOLOGY_KEY))[TOPOLOGY_KEY];
   await adapter.removeStorage(tabSessionKey(workspaceId));
+  await clearPendingWorkspace(adapter, workspaceId);
   if (isLegacyTopology(topology)) {
     if (topology.currentWorkspaceId === workspaceId) await adapter.removeStorage(TOPOLOGY_KEY);
     return;
@@ -504,6 +719,7 @@ interface ChromeApi {
     discard(tabId: number): Promise<void>;
     group(details: { tabIds: number[]; groupId?: number; createProperties?: { windowId: number } }): Promise<number>;
     ungroup(tabIds: number[]): Promise<void>;
+    remove(tabIds: number[]): Promise<void>;
   };
   tabGroups: {
     query(details: { windowId: number }): Promise<SessionContinuityGroup[]>;
@@ -544,6 +760,7 @@ export function createProductionChromeAdapter(): SessionContinuityAdapter | null
       groupId == null ? { tabIds, createProperties: { windowId } } : { tabIds, groupId },
     ),
     ungroupTabs: (tabIds) => chrome.tabs.ungroup(tabIds),
+    removeTabs: (tabIds) => chrome.tabs.remove(tabIds),
     updateGroup: (groupId, details) => chrome.tabGroups.update(groupId, details),
     getHomeUrl: () => chrome.runtime.getURL('home.html'),
   };
@@ -564,6 +781,31 @@ export const sessionContinuity = productionAdapter
     listWorkspaceIds: productionWorkspaceIds,
   })
   : null;
+
+/** Home 只消费计数 notice；读取后标记，避免 reload 重复弹出。 */
+export async function takeRecoveryNotice(): Promise<RecoveryNotice | null> {
+  const adapter = createProductionChromeAdapter() ?? createStorageAdapter();
+  if (!adapter) return null;
+  const notice = (await adapter.getStorage(RECOVERY_NOTICE_KEY))[RECOVERY_NOTICE_KEY];
+  if (!isRecoveryNotice(notice) || notice.shown) return null;
+  await adapter.setStorage({ [RECOVERY_NOTICE_KEY]: { ...notice, shown: true } });
+  return notice;
+}
+
+/** Home 的重试动作只委托深模块，不在 UI 侧接触恢复 entry 或 URL。 */
+export async function retryPendingRecovery(): Promise<void> {
+  if (sessionContinuity) await sessionContinuity.retryPendingRecovery();
+}
+
+/** 显式 archive 成功建立新基线后清理该 Workspace 的 pending。 */
+export async function clearWorkspacePendingRecovery(workspaceId: string): Promise<void> {
+  if (sessionContinuity) {
+    await sessionContinuity.clearWorkspacePendingRecovery(workspaceId);
+    return;
+  }
+  const adapter = createProductionChromeAdapter() ?? createStorageAdapter();
+  if (adapter) await clearPendingWorkspace(adapter, workspaceId);
+}
 
 /** 删除 Workspace 时通过生产 coordinator 串行清理 session 与冷恢复 topology。 */
 export async function clearWorkspaceSessionContinuityState(workspaceId: string): Promise<void> {

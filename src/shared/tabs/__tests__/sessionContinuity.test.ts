@@ -88,6 +88,13 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
     }
   }
 
+  async removeTabs(tabIds: number[]): Promise<void> {
+    for (const tabId of tabIds) this.tabs.delete(tabId);
+    for (const [groupId] of this.groups) {
+      if (!Array.from(this.tabs.values()).some((tab) => tab.groupId === groupId)) this.groups.delete(groupId);
+    }
+  }
+
   async updateGroup(groupId: number, details: { title?: string; collapsed?: boolean }): Promise<void> {
     const group = this.groups.get(groupId);
     if (!group) throw new Error('标签组不存在');
@@ -218,6 +225,7 @@ describe('SessionContinuity — #64 当前 Workspace 冷启动恢复', () => {
   it('production adapter：只查询并返回非隐身 normal 窗口', async () => {
     const originalChrome = (globalThis as Record<string, unknown>).chrome;
     let query: unknown;
+    let removed: number[] | undefined;
     (globalThis as Record<string, unknown>).chrome = {
       storage: { local: { get: async () => ({}), set: async () => {}, remove: async () => {} } },
       windows: {
@@ -235,6 +243,7 @@ describe('SessionContinuity — #64 当前 Workspace 冷启动恢复', () => {
         create: async () => businessTab(),
         update: async () => {},
         discard: async () => {},
+        remove: async (tabIds: number[]) => { removed = tabIds; },
       },
       tabGroups: { query: async () => [] },
       runtime: { getURL: () => HOME_URL },
@@ -245,6 +254,8 @@ describe('SessionContinuity — #64 当前 Workspace 冷启动恢复', () => {
       expect(adapter).not.toBeNull();
       expect(await adapter!.getNormalWindows()).toEqual([{ id: 1, incognito: false }]);
       expect(query).toEqual({ windowTypes: ['normal'] });
+      await adapter!.removeTabs([9]);
+      expect(removed).toEqual([9]);
     } finally {
       (globalThis as Record<string, unknown>).chrome = originalChrome;
     }
@@ -744,6 +755,242 @@ describe('SessionContinuity — #65 原生会话协调', () => {
     await finishColdRecovery(coordinator(adapter));
 
     expect((await adapter.queryTabs(1)).find((tab) => tab.url === HOME_URL)).toMatchObject({ active: true });
+  });
+});
+
+describe('SessionContinuity — #67 恢复失败重试', () => {
+  it('create 首次失败：拓扑稳定后自动重试一次，成功 sibling 不受阻塞且不留 pending', async () => {
+    const adapter = adapterWithSession([
+      { url: 'https://first.example', order: 0 },
+      { url: 'https://second.example', order: 1 },
+    ]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    const create = adapter.createTab.bind(adapter);
+    let failed = false;
+    adapter.createTab = async (details) => {
+      if (details.url === 'https://first.example' && !failed) {
+        failed = true;
+        throw new Error('transient create failure');
+      }
+      return create(details);
+    };
+
+    await finishColdRecovery(coordinator(adapter));
+
+    expect(businessUrls(adapter)).toEqual(['https://first.example', 'https://second.example']);
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toBeUndefined();
+  });
+
+  it('resident group 首次失败：自动重试后折叠组恢复，当前 Workspace sibling 不受阻塞', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'hide',
+      lastWorkspaceId: WS_B,
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://a.example', order: 0 }], savedAt: 1 },
+      [`tabSession.${WS_B}`]: { tabs: [{ url: 'https://b.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.topology': {
+        currentWorkspaceId: WS_B,
+        residents: [{ workspaceId: WS_A, title: 'A ·aaaaaaaa' }],
+      },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    const updateGroup = adapter.updateGroup.bind(adapter);
+    let failed = false;
+    adapter.updateGroup = async (groupId, details) => {
+      if (!failed) {
+        failed = true;
+        throw new Error('transient group failure');
+      }
+      await updateGroup(groupId, details);
+    };
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    expect((await adapter.queryTabs(1)).some((tab) => tab.url === 'https://b.example' && tab.groupId === -1)).toBe(true);
+    expect((await adapter.queryTabs(1)).filter((tab) => tab.url === 'https://a.example')).toHaveLength(1);
+    expect(Array.from(adapter.groups.values()).find((group) => group.title === 'A ·aaaaaaaa')).toMatchObject({ collapsed: true });
+    expect(Array.from(adapter.groups.values()).every((group) => group.title != null)).toBe(true);
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toBeUndefined();
+  });
+
+  it('discard 持续失败：自动重试一次后持久化 pending，普通 autosave 仍保护该 entry', async () => {
+    const adapter = adapterWithSession([{ url: 'https://failed.example', order: 0 }]);
+    adapter.storage.set('sessionContinuity.recoveryNotice', { restoredCount: 1, failedCount: 1, shown: true });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.discardTab = async () => { throw new Error('discard failure'); };
+
+    const continuity = coordinator(adapter);
+    await finishColdRecovery(continuity);
+    const pending = adapter.storage.get('sessionContinuity.pendingRecovery') as {
+      workspaces: Array<{ workspaceId: string; entries: Array<{ url: string }> }>;
+    };
+    expect(pending.workspaces).toEqual([
+      expect.objectContaining({ workspaceId: WS_A, entries: [{ url: 'https://failed.example', order: 0 }] }),
+    ]);
+    expect(adapter.storage.get('sessionContinuity.recoveryNotice')).toMatchObject({ shown: false });
+
+    adapter.tabs.clear();
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    continuity.notifyTopologyChanged();
+    await continuity.flushAutosave();
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toMatchObject({
+      tabs: [expect.objectContaining({ url: 'https://failed.example' })],
+    });
+  });
+
+  it('手动重试：已被外部补齐 occurrence 时不再创建，成功后清 pending', async () => {
+    const adapter = adapterWithSession([{ url: 'https://manual.example', order: 0 }]);
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+    adapter.discardTab = async () => { throw new Error('discard failure'); };
+    const continuity = coordinator(adapter);
+    await finishColdRecovery(continuity);
+    adapter.discardTab = async (id) => {
+      const tab = adapter.tabs.get(id);
+      if (tab) tab.discarded = true;
+    };
+
+    await continuity.retryPendingRecovery();
+
+    expect((await adapter.queryTabs(1)).filter((tab) => tab.url === 'https://manual.example')).toHaveLength(1);
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toBeUndefined();
+  });
+
+  it('冷恢复只计算本次 topology 的 restoredCount，不扣未处理 pending', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'close',
+      lastWorkspaceId: WS_A,
+      [`tabSession.${WS_A}`]: { tabs: [{ url: 'https://restored.example', order: 0 }], savedAt: 1 },
+      'sessionContinuity.pendingRecovery': {
+        workspaces: [{ workspaceId: WS_B, entries: [{ url: 'https://later.example', order: 0 }] }],
+      },
+      'sessionContinuity.recoveryNotice': { restoredCount: 0, failedCount: 1, shown: true },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    expect(adapter.storage.get('sessionContinuity.recoveryNotice')).toMatchObject({
+      restoredCount: 1,
+      failedCount: 1,
+      shown: false,
+    });
+  });
+
+  it('冷恢复只处理当前 topology：保留未驻留 Workspace 的旧 pending', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'close',
+      lastWorkspaceId: WS_A,
+      [`tabSession.${WS_A}`]: { tabs: [], savedAt: 1 },
+      'sessionContinuity.pendingRecovery': {
+        workspaces: [{ workspaceId: WS_B, entries: [{ url: 'https://later.example', order: 0 }] }],
+      },
+    });
+    adapter.tabs.set(1, businessTab({ url: HOME_URL, pinned: true, active: true }));
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toEqual({
+      workspaces: [{ workspaceId: WS_B, entries: [{ url: 'https://later.example', order: 0 }] }],
+    });
+  });
+
+  it('删除 Workspace：清除其 pending entry，其他 Workspace pending 保留', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      'sessionContinuity.pendingRecovery': {
+        workspaces: [
+          { workspaceId: WS_A, entries: [{ url: 'https://deleted.example', order: 0 }] },
+          { workspaceId: WS_B, entries: [{ url: 'https://kept.example', order: 0 }] },
+        ],
+      },
+      'sessionContinuity.recoveryNotice': { restoredCount: 2, failedCount: 2, shown: false },
+    });
+
+    await coordinator(adapter, [WS_A, WS_B]).clearWorkspaceState(WS_A);
+
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toEqual({
+      workspaces: [{ workspaceId: WS_B, entries: [{ url: 'https://kept.example', order: 0 }] }],
+    });
+    expect(adapter.storage.get('sessionContinuity.recoveryNotice')).toMatchObject({ failedCount: 1 });
+  });
+
+  it('malformed resident pending 不参与恢复且保留原存储', async () => {
+    const adapter = new MemoryChromeAdapter();
+    const malformed = {
+      workspaces: [{
+        workspaceId: WS_A,
+        entries: [{ url: 'https://kept.example', order: 0 }],
+        resident: { workspaceId: WS_A },
+      }],
+    };
+    await adapter.setStorage({ tabIsolationSetting: 'hide', 'sessionContinuity.pendingRecovery': malformed });
+
+    await coordinator(adapter).retryPendingRecovery();
+
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toEqual(malformed);
+  });
+
+  it('切换 isolation 到 off：等待在途 autosave 后移除恢复元数据，保留 session', async () => {
+    const adapter = new MemoryChromeAdapter();
+    await adapter.setStorage({
+      tabIsolationSetting: 'close',
+      lastWorkspaceId: WS_A,
+      'sessionContinuity.pendingRecovery': { workspaces: [] },
+      'sessionContinuity.recoveryNotice': { restoredCount: 1, failedCount: 1, shown: false },
+      'sessionContinuity.recoveryToken': { startedAt: 1 },
+    });
+    adapter.tabs.set(1, businessTab({ url: 'https://saved.example' }));
+    const setStorage = adapter.setStorage.bind(adapter);
+    let releaseWrite: (() => void) | undefined;
+    const writeReleased = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    let signalWriteStarted: (() => void) | undefined;
+    const writeStarted = new Promise<void>((resolve) => { signalWriteStarted = resolve; });
+    adapter.setStorage = async (values) => {
+      if ('sessionContinuity.topology' in values) {
+        signalWriteStarted?.();
+        await writeReleased;
+      }
+      await setStorage(values);
+    };
+    const continuity = coordinator(adapter);
+    continuity.notifyTopologyChanged();
+    const saving = continuity.flushAutosave();
+    await writeStarted;
+    adapter.storage.set('tabIsolationSetting', 'off');
+    const disabled = continuity.handleIsolationSettingChanged();
+
+    releaseWrite?.();
+    await Promise.all([saving, disabled]);
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toMatchObject({
+      tabs: [expect.objectContaining({ url: 'https://saved.example' })],
+    });
+    expect(adapter.storage.get('sessionContinuity.topology')).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.recoveryNotice')).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.recoveryToken')).toBeUndefined();
+  });
+
+  it('切换 isolation 到 off：清 pending/recovery notice，保留最新 session', async () => {
+    const adapter = new MemoryChromeAdapter();
+    const session = { tabs: [{ url: 'https://kept.example', order: 0 }], savedAt: 1 };
+    await adapter.setStorage({
+      tabIsolationSetting: 'off',
+      [`tabSession.${WS_A}`]: session,
+      'sessionContinuity.pendingRecovery': { workspaces: [] },
+      'sessionContinuity.recoveryNotice': { restoredCount: 1, failedCount: 1 },
+      'sessionContinuity.recoveryToken': { startedAt: 1 },
+    });
+
+    await coordinator(adapter).handleIsolationSettingChanged();
+
+    expect(adapter.storage.get(`tabSession.${WS_A}`)).toEqual(session);
+    expect(adapter.storage.get('sessionContinuity.pendingRecovery')).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.recoveryNotice')).toBeUndefined();
+    expect(adapter.storage.get('sessionContinuity.recoveryToken')).toBeUndefined();
   });
 });
 

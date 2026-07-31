@@ -10,6 +10,7 @@ import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
 import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';
 import { useOpenTabs } from './hooks/useOpenTabs';
+import { useRecoveryNotice } from './hooks/useRecoveryNotice';
 import '@/styles/global.css';
 import './App.css';
 import '@/styles/semi-theme-override.css';
@@ -23,6 +24,7 @@ const App: React.FC = () => {
   const checkStatus = useCrypto((s) => s.checkStatus);
   const openTabs = useOpenTabs();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useRecoveryNotice();
 
   useEffect(() => {
     checkStatus();

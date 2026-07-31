@@ -98,6 +98,30 @@ describe('requestWorkspaceSwitch — 正常切换编排', () => {
   });
 });
 
+describe('archiveByMode — #67 显式新基线', () => {
+  it('归档成功：清除该 Workspace 的旧 pending，保留其他 Workspace pending', async () => {
+    const { c, store } = mockChromeWithStorage({
+      'sessionContinuity.pendingRecovery': {
+        workspaces: [
+          { workspaceId: 'ws-a', entries: [{ url: 'https://old.example', order: 0 }] },
+          { workspaceId: 'ws-b', entries: [{ url: 'https://other.example', order: 0 }] },
+        ],
+      },
+      'sessionContinuity.recoveryNotice': { restoredCount: 3, failedCount: 2, shown: false },
+    });
+    vi.mocked(c.tabs.query).mockResolvedValue([
+      { id: 10, windowId: 100, url: 'https://new.example', index: 0 },
+    ] as never);
+
+    await archiveByMode(c as never, 100, 'ws-a', 'close');
+
+    expect(store['sessionContinuity.pendingRecovery']).toEqual({
+      workspaces: [{ workspaceId: 'ws-b', entries: [{ url: 'https://other.example', order: 0 }] }],
+    });
+    expect(store['sessionContinuity.recoveryNotice']).toMatchObject({ failedCount: 1 });
+  });
+});
+
 describe('requestWorkspaceSwitch — per-window 串行队列（rev4 #2：防并发覆盖）', () => {
   it('同窗并发：第二个请求的 archive 等第一个完成才执行', async () => {
     const { c } = mockChromeWithStorage({ 'windowWorkspaceBinding.100': 'ws-a' });
