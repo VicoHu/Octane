@@ -646,15 +646,18 @@ describe("SessionContinuity — #65 原生会话协调", () => {
 
     try {
       const recovery = continuity.startColdRecovery();
-      await vi.advanceTimersByTimeAsync(99);
+      // 未达静默窗口（1500ms）：不补齐
+      await vi.advanceTimersByTimeAsync(1000);
       expect(businessUrls(adapter)).toEqual([]);
 
       adapter.tabs.set(2, businessTab({ id: 2, url: "https://one.example", index: 1 }));
       continuity.notifyTopologyChanged();
-      await vi.advanceTimersByTimeAsync(99);
+      // 静默窗口重置后仍 < 1500ms：原生 one 在，但未补齐缺失的 two
+      await vi.advanceTimersByTimeAsync(1000);
       expect(businessUrls(adapter)).toEqual(["https://one.example"]);
 
-      await vi.advanceTimersByTimeAsync(1);
+      // 超过静默窗口：settle 后恢复补齐缺失项 two
+      await vi.advanceTimersByTimeAsync(1000);
       await recovery;
       expect(businessUrls(adapter)).toEqual(["https://one.example", "https://two.example"]);
     } finally {
@@ -670,12 +673,14 @@ describe("SessionContinuity — #65 原生会话协调", () => {
 
     try {
       const recovery = continuity.startColdRecovery();
-      for (let elapsed = 0; elapsed < 450; elapsed += 50) {
-        await vi.advanceTimersByTimeAsync(50);
+      // 持续变化未达 timeout（8000ms）：一直不协调
+      for (let elapsed = 0; elapsed < 7500; elapsed += 500) {
+        await vi.advanceTimersByTimeAsync(500);
         continuity.notifyTopologyChanged();
         expect(businessUrls(adapter)).toEqual([]);
       }
-      await vi.advanceTimersByTimeAsync(50);
+      // 超过 timeout 后才按最终拓扑协调
+      await vi.advanceTimersByTimeAsync(1000);
       await recovery;
       expect(businessUrls(adapter)).toEqual(["https://missing.example"]);
     } finally {
@@ -1062,7 +1067,8 @@ async function finishColdRecovery(continuity: SessionContinuity): Promise<void> 
   vi.useFakeTimers();
   try {
     const recovery = continuity.startColdRecovery();
-    await vi.advanceTimersByTimeAsync(1_000);
+    // 推进超过 NATIVE_TOPOLOGY_TIMEOUT_MS（8s），让 waitForNativeTopology 走 timeout 兑底后完成。
+    await vi.advanceTimersByTimeAsync(9_000);
     await recovery;
   } finally {
     vi.useRealTimers();
@@ -1344,7 +1350,6 @@ describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后�
   });
 });
 
-
 describe("MemoryChromeAdapter — removeTabs 非连续多选位移", () => {
   it("移除非连续 index 后幸存 tab index 连续无重复", async () => {
     const adapter = new MemoryChromeAdapter();
@@ -1361,7 +1366,9 @@ describe("MemoryChromeAdapter — removeTabs 非连续多选位移", () => {
       });
     }
     // 移除 index 1 和 3（非连续）
-    const toRemove = Array.from(adapter.tabs.values()).filter((t) => t.index === 1 || t.index === 3).map((t) => t.id);
+    const toRemove = Array.from(adapter.tabs.values())
+      .filter((t) => t.index === 1 || t.index === 3)
+      .map((t) => t.id);
     await adapter.removeTabs(toRemove);
 
     const tabs = await adapter.queryTabs(1);

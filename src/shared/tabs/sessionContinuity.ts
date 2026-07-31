@@ -11,8 +11,10 @@ const RECOVERY_TOKEN_KEY = "sessionContinuity.recoveryToken";
 const LAST_WORKSPACE_KEY = "lastWorkspaceId";
 const ISOLATION_KEY = "tabIsolationSetting";
 const ENABLED_SETTINGS: TabIsolationSetting[] = ["close", "hide-discard", "hide"];
-const NATIVE_TOPOLOGY_QUIET_MS = 100;
-const NATIVE_TOPOLOGY_TIMEOUT_MS = 500;
+// Chrome 原生 session restore（"继续浏览"开启）可能持续数秒：Octane 必须等其充分稳定后再介入，
+// 否则刚 create 的 tab 会被 Chrome 后续的恢复过程吞掉。静默窗口 1.5s、硬上限 8s。
+const NATIVE_TOPOLOGY_QUIET_MS = 1500;
+const NATIVE_TOPOLOGY_TIMEOUT_MS = 8000;
 
 export interface SessionContinuityTab {
   id: number;
