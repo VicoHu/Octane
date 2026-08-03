@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import * as TodoQueryService from '@/services/TodoQueryService';
 import * as TaskService from '@/services/TaskService';
+import * as TaskListService from '@/services/TaskListService';
+import * as TaskTagService from '@/services/TaskTagService';
 import type {
   TaskDetail,
   TaskQuery,
@@ -14,6 +16,12 @@ import type {
   PatchTaskInput,
   TaskCompletionResult,
 } from '@/services/TaskService';
+import type {
+  TaskListArchiveResult,
+  TaskListInput,
+  TaskListPatch,
+} from '@/services/TaskListService';
+import type { TaskTagInput, TaskTagPatch } from '@/services/TaskTagService';
 import type { Task } from '@/shared/types';
 
 type Mutation = { kind: string; entityId?: string } | null;
@@ -47,6 +55,18 @@ interface TodoDataState {
   deleteTaskPermanently: (taskId: string) => Promise<void>;
   emptyTrash: (scope: WorkspaceScope) => Promise<number>;
   reorderTasks: (workspaceId: string, listId: string | null, orderedIds: string[]) => Promise<void>;
+  createTaskList: (workspaceId: string, input: TaskListInput) => Promise<void>;
+  updateTaskList: (taskListId: string, patch: TaskListPatch) => Promise<void>;
+  archiveTaskList: (taskListId: string, options?: { allowIncompleteTasks?: boolean }) => Promise<TaskListArchiveResult>;
+  restoreTaskList: (taskListId: string) => Promise<void>;
+  getTaskListDeleteImpact: (taskListId: string) => Promise<{ undeletedTaskCount: number; deletedTaskCount: number }>;
+  deleteTaskListPermanently: (taskListId: string) => Promise<void>;
+  reorderTaskLists: (workspaceId: string, orderedIds: string[]) => Promise<void>;
+  createTaskTag: (workspaceId: string, input: TaskTagInput) => Promise<void>;
+  updateTaskTag: (taskTagId: string, patch: TaskTagPatch) => Promise<void>;
+  getTaskTagDeleteImpact: (taskTagId: string) => Promise<{ affectedTaskCount: number }>;
+  deleteTaskTag: (taskTagId: string) => Promise<void>;
+  reorderTaskTags: (workspaceId: string, orderedIds: string[]) => Promise<void>;
   reset: () => void;
 }
 
@@ -179,6 +199,43 @@ export const useTodoData = create<TodoDataState>((set, get) => {
     deleteTaskPermanently: (taskId) =>
       runMutation('deleteTaskPermanently', taskId, () => TaskService.deleteTaskPermanently(taskId), ['navigation', 'query', 'detail']),
     emptyTrash: (scope) => runMutation('emptyTrash', undefined, () => TaskService.emptyTrash(scope), ['navigation', 'query', 'detail']),
+
+    createTaskList: async (workspaceId, input) => {
+      await runMutation('createTaskList', workspaceId, () => TaskListService.createTaskList(workspaceId, input), ['navigation', 'query']);
+    },
+    updateTaskList: async (taskListId, patch) => {
+      await runMutation('updateTaskList', taskListId, () => TaskListService.updateTaskList(taskListId, patch), ['navigation', 'query']);
+    },
+    archiveTaskList: async (taskListId, options) => {
+      const mutation = { kind: 'archiveTaskList', entityId: taskListId };
+      set({ mutation });
+      try {
+        const result = await TaskListService.archiveTaskList(taskListId, options);
+        if (result.status === 'archived') await refresh('navigation', 'query');
+        return result;
+      } finally {
+        if (get().mutation === mutation) set({ mutation: null });
+      }
+    },
+    restoreTaskList: async (taskListId) => {
+      await runMutation('restoreTaskList', taskListId, () => TaskListService.restoreTaskList(taskListId), ['navigation', 'query']);
+    },
+    getTaskListDeleteImpact: (taskListId) => TaskListService.getTaskListDeleteImpact(taskListId),
+    deleteTaskListPermanently: (taskListId) =>
+      runMutation('deleteTaskListPermanently', taskListId, () => TaskListService.deleteTaskListPermanently(taskListId), ['navigation', 'query']),
+    reorderTaskLists: (workspaceId, orderedIds) =>
+      runMutation('reorderTaskLists', workspaceId, () => TaskListService.reorderTaskLists(workspaceId, orderedIds), ['navigation', 'query']),
+    createTaskTag: async (workspaceId, input) => {
+      await runMutation('createTaskTag', workspaceId, () => TaskTagService.createTaskTag(workspaceId, input), ['navigation', 'query']);
+    },
+    updateTaskTag: async (taskTagId, patch) => {
+      await runMutation('updateTaskTag', taskTagId, () => TaskTagService.updateTaskTag(taskTagId, patch), ['navigation', 'query']);
+    },
+    getTaskTagDeleteImpact: (taskTagId) => TaskTagService.getTaskTagDeleteImpact(taskTagId),
+    deleteTaskTag: (taskTagId) =>
+      runMutation('deleteTaskTag', taskTagId, () => TaskTagService.deleteTaskTag(taskTagId), ['navigation', 'query']),
+    reorderTaskTags: (workspaceId, orderedIds) =>
+      runMutation('reorderTaskTags', workspaceId, () => TaskTagService.reorderTaskTags(workspaceId, orderedIds), ['navigation', 'query']),
 
     reorderTasks: async (workspaceId, listId, orderedIds) => {
       const previousQueryResult = get().queryResult;

@@ -23,10 +23,92 @@
   padding: 12px;
 }
 
-.navigationPlaceholder {
+.scopeToggle {
+  width: 100%;
+}
+
+.scopeToggle > button {
+  flex: 1;
+}
+
+.navSections {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navSectionHeader {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
+}
+
+.navGroup h3,
+.navSections h3 {
+  margin: 8px 0 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.navItem,
+.navEntity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.navItem {
+  width: 100%;
+  min-height: 34px;
+  gap: 8px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  padding: 6px 8px 6px 5px;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+}
+
+.navItem svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+
+.navItem > span:not(.navCount) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navItem:hover {
+  background: var(--accent);
+}
+
+.navItemSelected {
+  border-left-color: var(--primary);
+  background: var(--accent);
+  font-weight: 600;
+}
+
+.navCount {
+  min-width: 18px;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: right;
+}
+
+.navEntity > .navItem {
+  flex: 1;
 }
 
 .navigationSheet {
@@ -58,7 +140,8 @@
   background: var(--card);
 }
 
-.paneHeader {
+.paneHeader,
+.taskListHeader {
   display: flex;
   min-height: 48px;
   align-items: center;
@@ -67,6 +150,24 @@
   border-bottom: 1px solid var(--border);
 }
 
+.taskListHeader {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.taskListTitle,
+.taskListTitle > div,
+.taskListControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taskListTitle > div {
+  display: block;
+}
+
+.taskListTitle h1,
 .paneHeader h1,
 .paneHeader h2 {
   margin: 0;
@@ -81,6 +182,137 @@
   padding: 16px;
   color: var(--muted-foreground);
   font-size: 14px;
+}
+
+.taskListTitle span,
+.taskSearchSummary,
+.taskRowMeta,
+.emptyTasks {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.searchBar {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.taskScroll {
+  min-height: 0;
+  flex: 1;
+}
+
+.taskRow {
+  display: flex;
+  min-height: 56px;
+  align-items: flex-start;
+  gap: 8px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px 10px 9px;
+  cursor: pointer;
+}
+
+.taskRow:hover {
+  background: var(--accent);
+}
+
+.taskRowSelected {
+  border-left-color: var(--primary);
+  background: var(--accent);
+}
+
+.taskRowSelected .taskRowTitle {
+  font-weight: 600;
+}
+
+.taskRowCompleted {
+  opacity: 0.65;
+}
+
+.taskRowMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.taskRowTitleLine,
+.taskRowMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.taskRowTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskRowMeta {
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.taskRowMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.taskRowMeta svg,
+.priority svg,
+.completedHeading svg {
+  width: 14px;
+  height: 14px;
+}
+
+.taskSearchSummary {
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.priorityHigh { color: var(--priority-high); }
+.priorityMedium { color: var(--priority-medium); }
+.priorityLow { color: var(--priority-low); }
+.overdue { color: var(--destructive); font-weight: 600; }
+.workspaceMeta { color: var(--foreground); }
+
+.completedGroup {
+  border-top: 1px solid var(--border);
+}
+
+.completedHeading {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.completedHeading[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.emptyTasks {
+  padding: 16px;
+  text-align: center;
 }
 
 @media (min-width: 1200px) {

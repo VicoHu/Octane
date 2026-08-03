@@ -18,9 +18,27 @@ const task = vi.hoisted(() => ({
   emptyTrash: vi.fn(),
   reorderTasks: vi.fn(),
 }));
+const taskList = vi.hoisted(() => ({
+  createTaskList: vi.fn(),
+  updateTaskList: vi.fn(),
+  archiveTaskList: vi.fn(),
+  restoreTaskList: vi.fn(),
+  getTaskListDeleteImpact: vi.fn(),
+  deleteTaskListPermanently: vi.fn(),
+  reorderTaskLists: vi.fn(),
+}));
+const taskTag = vi.hoisted(() => ({
+  createTaskTag: vi.fn(),
+  updateTaskTag: vi.fn(),
+  getTaskTagDeleteImpact: vi.fn(),
+  deleteTaskTag: vi.fn(),
+  reorderTaskTags: vi.fn(),
+}));
 
 vi.mock('@/services/TodoQueryService', () => query);
 vi.mock('@/services/TaskService', () => task);
+vi.mock('@/services/TaskListService', () => taskList);
+vi.mock('@/services/TaskTagService', () => taskTag);
 
 import { useTodoData } from '@/store/useTodoData';
 
@@ -168,5 +186,46 @@ describe('useTodoData — 拖拽重排', () => {
 
     expect(result.current.queryResult).toBe(original);
     expect(result.current.queryResult?.active.map((row) => row.id)).toEqual(['task-1', 'task-2']);
+  });
+});
+
+describe('useTodoData — 清单和标签命令', () => {
+  it('创建清单成功后刷新导航和当前查询', async () => {
+    query.loadNavigation.mockResolvedValue(navigationOf('navigation'));
+    query.queryTasks.mockResolvedValue(queryOf('task-1'));
+    taskList.createTaskList.mockResolvedValue({ id: 'list-1' });
+    const { result } = renderHook(() => useTodoData());
+    const scope = { kind: 'workspace', workspaceId: 'workspace-1' } as const;
+    const taskQuery = { scope, view: { kind: 'inbox' } as const, status: 'active' as const, priority: 'all' as const, search: '', sort: 'manual' as const, today: '2026-08-20' };
+
+    await act(async () => {
+      await result.current.loadNavigation(scope, '2026-08-20');
+      await result.current.loadQuery(taskQuery);
+      await result.current.createTaskList('workspace-1', { name: '项目', color: 'green' });
+    });
+
+    expect(taskList.createTaskList).toHaveBeenCalledWith('workspace-1', { name: '项目', color: 'green' });
+    expect(query.loadNavigation).toHaveBeenCalledTimes(2);
+    expect(query.queryTasks).toHaveBeenCalledTimes(2);
+  });
+
+  it('归档清单需要确认时不刷新快照', async () => {
+    taskList.archiveTaskList.mockResolvedValue({ status: 'confirmation-required', incompleteCount: 2 });
+    const { result } = renderHook(() => useTodoData());
+
+    const archiveResult = await act(async () => result.current.archiveTaskList('list-1'));
+
+    expect(archiveResult).toEqual({ status: 'confirmation-required', incompleteCount: 2 });
+    expect(query.loadNavigation).not.toHaveBeenCalled();
+    expect(query.queryTasks).not.toHaveBeenCalled();
+  });
+
+  it('标签删除影响查询直接转发给服务层', async () => {
+    taskTag.getTaskTagDeleteImpact.mockResolvedValue({ affectedTaskCount: 3 });
+    const { result } = renderHook(() => useTodoData());
+
+    await expect(result.current.getTaskTagDeleteImpact('tag-1')).resolves.toEqual({ affectedTaskCount: 3 });
+
+    expect(taskTag.getTaskTagDeleteImpact).toHaveBeenCalledWith('tag-1');
   });
 });
