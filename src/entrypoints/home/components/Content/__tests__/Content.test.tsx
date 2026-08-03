@@ -107,6 +107,23 @@ beforeEach(() => {
 });
 
 
+describe('Content 全局快捷键门控', () => {
+  it('inactive 时 Ctrl/Cmd + K 不聚焦搜索，重新激活后恢复响应', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Content openTabs={[]} active={false} />);
+    const searchInput = screen.getByPlaceholderText('搜索书签、分类或已打开页面...');
+    const anotherButton = screen.getAllByRole('button', { name: '添加书签' })[0]!;
+    await user.click(anotherButton);
+    await user.keyboard('{Control>}k{/Control}');
+
+    expect(searchInput).not.toHaveFocus();
+
+    rerender(<Content openTabs={[]} active />);
+    await user.keyboard('{Control>}k{/Control}');
+    expect(searchInput).toHaveFocus();
+  });
+});
+
 describe('Content runtime favicon 分发', () => {
   it('匹配打开 Tab 后把 runtime favicon 传给 BookmarkCard', () => {
     bookmarksState.bookmarks = [{

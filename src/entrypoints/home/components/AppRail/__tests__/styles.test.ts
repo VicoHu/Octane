@@ -49,6 +49,13 @@ describe('AppRail — 工作区导航样式', () => {
     expect(appCss).not.toContain('.app-rail-workspace-button.is-current::before');
   });
 
+  it('主页与待办事项共用互斥的激活态样式', () => {
+    const activePage = ruleBody(appCss, '.app-rail-button.is-active');
+
+    expect(activePage).toContain('background: var(--primary);');
+    expect(activePage).toContain('color: #202829;');
+  });
+
   it('当前工作区悬停时保持品牌绿选中态', () => {
     const currentWorkspaceHover = ruleBody(
       appCss,

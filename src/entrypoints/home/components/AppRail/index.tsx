@@ -1,4 +1,5 @@
-import { ExternalLink, Home, Search } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { CheckSquare, ExternalLink, Home, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -9,11 +10,18 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useWorkspace } from '@/store/useWorkspace';
-import { switchWorkspace } from '@/entrypoints/home/utils/workspaceSwitcher';
 import { Spinner } from '@/components/ui/spinner';
 import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 
-export function AppRail() {
+export type AppPage = 'home' | 'tasks';
+
+interface AppRailProps {
+  activePage: AppPage;
+  onNavigate: (page: AppPage) => void;
+  onWorkspaceSelect: (workspaceId: string) => void;
+}
+
+export function AppRail({ activePage, onNavigate, onWorkspaceSelect }: AppRailProps) {
   const workspaces = useWorkspace((state) => state.workspaces);
   const currentWorkspaceId = useWorkspace((state) => state.currentWorkspaceId);
   const switching = useWorkspace((state) => state.switching);
@@ -42,7 +50,7 @@ export function AppRail() {
                         aria-label={`切换到工作区 ${workspace.name}`}
                         aria-pressed={isCurrent}
                         disabled={!!switching}
-                        onClick={() => void switchWorkspace(workspace.id)}
+                        onClick={() => onWorkspaceSelect(workspace.id)}
                       />
                     }
                   >
@@ -59,9 +67,20 @@ export function AppRail() {
         </div>
         <Separator className="app-rail-separator" />
         <div className="app-rail-group">
-          <Button variant="ghost" size="icon" className="app-rail-button is-active" aria-label="主页">
+          <PrimaryNavigationButton
+            active={activePage === 'home'}
+            label="主页"
+            onClick={() => onNavigate('home')}
+          >
             <Home />
-          </Button>
+          </PrimaryNavigationButton>
+          <PrimaryNavigationButton
+            active={activePage === 'tasks'}
+            label="待办事项"
+            onClick={() => onNavigate('tasks')}
+          >
+            <CheckSquare />
+          </PrimaryNavigationButton>
           <Button variant="ghost" size="icon" className="app-rail-button" aria-label="搜索" disabled>
             <Search />
           </Button>
@@ -73,5 +92,37 @@ export function AppRail() {
       <div className="app-rail-spacer" />
       <div className="app-rail-avatar" aria-hidden="true" />
     </aside>
+  );
+}
+
+function PrimaryNavigationButton({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('app-rail-button', active && 'is-active')}
+            aria-label={label}
+            aria-current={active ? 'page' : undefined}
+            onClick={onClick}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="right" role="tooltip">{label}</TooltipContent>
+    </Tooltip>
   );
 }

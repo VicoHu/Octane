@@ -1,0 +1,114 @@
+.todoPage {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--content-bg);
+}
+
+.desktopNavigation {
+  width: 240px;
+  min-width: 240px;
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+}
+
+.navigationContents {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.navigationPlaceholder {
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.navigationSheet {
+  width: min(86vw, 320px);
+  max-width: none;
+}
+
+.resizableGroup {
+  min-width: 0;
+  flex: 1;
+}
+
+.resizeHandle {
+  flex: 0 0 1px;
+}
+
+.listPane,
+.detailPane {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--content-bg);
+}
+
+.detailPane {
+  border-left: 1px solid var(--border);
+  background: var(--card);
+}
+
+.paneHeader {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.paneHeader h1,
+.paneHeader h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.paneBody {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+@media (min-width: 1200px) {
+  .listPane .paneHeader > button {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .desktopNavigation {
+    display: none;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1199px) {
+  .todoPage {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .todoPage {
+    width: 100%;
+  }
+
+  .listPane,
+  .detailPane {
+    width: 100%;
+    border-left: 0;
+  }
+}

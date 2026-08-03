@@ -2,20 +2,29 @@ import React, { useEffect, useState } from 'react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useCrypto } from '@/store/useCrypto';
-import { Sidebar } from './components/Sidebar';
-import { Content } from './components/Content';
-import { AppRail } from './components/AppRail';
+import { useTodoData } from '@/store/useTodoData';
+import { useTodoView } from '@/store/useTodoView';
+import { AppRail, type AppPage } from './components/AppRail';
+import { HomePageShell } from './components/HomePageShell';
+import { TodoPage } from './components/TodoPage';
 import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
 import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';
 import { useOpenTabs } from './hooks/useOpenTabs';
 import { useRecoveryNotice } from './hooks/useRecoveryNotice';
+import { switchWorkspace } from './utils/workspaceSwitcher';
 import '@/styles/global.css';
 import './App.css';
 import '@/styles/semi-theme-override.css';
-import { Button } from '@/components/ui/button';
-import { Menu, X } from 'lucide-react';
+
+const TASK_STORES = new Set<DbChangeEvent['store']>([
+  'taskLists',
+  'tasks',
+  'checklistItems',
+  'taskTags',
+  'taskTagAssignments',
+]);
 
 const App: React.FC = () => {
   const loadWorkspaces = useWorkspace((s) => s.loadWorkspaces);
@@ -23,8 +32,24 @@ const App: React.FC = () => {
   const loadBookmarks = useBookmarks((s) => s.loadBookmarks);
   const checkStatus = useCrypto((s) => s.checkStatus);
   const openTabs = useOpenTabs();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activePage, setActivePage] = useState<AppPage>('home');
+  const [hasVisitedTasks, setHasVisitedTasks] = useState(false);
   useRecoveryNotice();
+
+  const navigate = (page: AppPage) => {
+    if (page === 'tasks') setHasVisitedTasks(true);
+    setActivePage(page);
+  };
+
+  const handleWorkspaceSelect = async (workspaceId: string) => {
+    await switchWorkspace(workspaceId);
+    if (activePage === 'tasks') {
+      useTodoView.getState().onWorkspaceSelected(
+        workspaceId,
+        useTodoData.getState().detail?.task.workspaceId,
+      );
+    }
+  };
 
   useEffect(() => {
     checkStatus();
@@ -49,6 +74,8 @@ const App: React.FC = () => {
       // loadBookmarks 不调，书签列表陈旧。这里手动补一次。
       const cat = useWorkspace.getState().currentCategoryId;
       if (cat) loadBookmarks(cat);
+      useTodoData.getState().invalidate();
+      useTodoView.getState().selectTask(null);
     };
     channel?.addEventListener('message', onMessage);
     return () => {
@@ -64,7 +91,9 @@ const App: React.FC = () => {
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
     const onMessage = async (e: MessageEvent<DbChangeEvent>) => {
       const { store } = e.data ?? {};
-      if (store === 'pinnedTabs') {
+      if (TASK_STORES.has(store)) {
+        useTodoData.getState().invalidate();
+      } else if (store === 'pinnedTabs') {
         const wsId = useWorkspace.getState().currentWorkspaceId;
         if (wsId) await usePinnedTabs.getState().loadPinnedTabs(wsId);
       } else if (store === 'bookmarks') {
@@ -86,31 +115,29 @@ const App: React.FC = () => {
     <>
       <UnlockModal />
       <div className="app-frame">
-      <div className="app-layout">
-        <AppRail />
-        <aside className={`app-sidebar${mobileNavOpen ? ' is-mobile-open' : ''}`} id="sidebar-container">
-          <div className="app-sidebar-mobile-header">
-            <span>导航</span>
-            <Button variant="ghost" size="icon-sm" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)}>
-              <X />
-            </Button>
-          </div>
-          <Sidebar openTabs={openTabs} />
-        </aside>
-        {mobileNavOpen && <button className="app-mobile-backdrop" aria-label="关闭导航" onClick={() => setMobileNavOpen(false)} />}
-        <main className="app-content" data-mobile-nav-open={mobileNavOpen}>
-          <Button
-            variant="outline"
-            size="icon"
-            className="app-mobile-menu"
-            aria-label="打开导航"
-            onClick={() => setMobileNavOpen(true)}
-          >
-            <Menu />
-          </Button>
-          <Content openTabs={openTabs} />
-        </main>
-      </div>
+        <div className="app-layout">
+          <AppRail
+            activePage={activePage}
+            onNavigate={navigate}
+            onWorkspaceSelect={(workspaceId) => void handleWorkspaceSelect(workspaceId)}
+          />
+          <HomePageShell
+            active={activePage === 'home'}
+            activePage={activePage}
+            onNavigate={navigate}
+            openTabs={openTabs}
+          />
+          {hasVisitedTasks && (
+            <div
+              hidden={activePage !== 'tasks'}
+              inert={activePage !== 'tasks'}
+              aria-hidden={activePage !== 'tasks'}
+              className="todo-page-shell"
+            >
+              <TodoPage active={activePage === 'tasks'} activePage={activePage} onNavigate={navigate} />
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

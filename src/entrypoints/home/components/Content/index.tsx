@@ -66,9 +66,10 @@ type View = 'bookmarks' | 'tabs';
 
 interface ContentProps {
   openTabs: OpenTab[];
+  active?: boolean;
 }
 
-export const Content: React.FC<ContentProps> = ({ openTabs }) => {
+export const Content: React.FC<ContentProps> = ({ openTabs, active = true }) => {
   const categories = useWorkspace((s) => s.categories);
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
   const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
@@ -229,6 +230,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
   }, [currentWorkspaceId, loadPinnedTabs]);
 
   useEffect(() => {
+    if (!active) return;
     const focusSearch = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -237,7 +239,7 @@ export const Content: React.FC<ContentProps> = ({ openTabs }) => {
     };
     window.addEventListener('keydown', focusSearch);
     return () => window.removeEventListener('keydown', focusSearch);
-  }, []);
+  }, [active]);
 
   // 过滤书签：文本搜索（名称/URL/描述/Tag 名称）AND Tag 筛选（多选 AND）
   const filteredBookmarks = useMemo(() => {

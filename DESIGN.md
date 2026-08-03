@@ -27,6 +27,18 @@ colors:
   content-bg: "#F8FAFC" # 内容区底
   card-bg: "#FFFFFF" # 卡片底
   danger: "#EF4444" # 危险/删除，保持红
+  priority-high: "#DC2626"
+  priority-medium: "#B45309"
+  priority-low: "#2563EB"
+  priority-none: "#64748B"
+  todo-gray: "#64748B"
+  todo-red: "#DC2626"
+  todo-amber: "#B45309"
+  todo-green: "#007D63"
+  todo-cyan: "#0E7490"
+  todo-blue: "#2563EB"
+  todo-violet: "#7C3AED"
+  todo-pink: "#BE185D"
   # 深色侧栏（属 Logo 炭灰族，禁用 Semi 冷黑 #232429）
   sidebar-bg: "#202829"
   sidebar-surface: "#2D3436"
@@ -141,6 +153,8 @@ components:
 - **text-primary / text-secondary**：正文 / 次文本，浅底对比 ≥4.5:1。
 - **muted `#64748B`**：**仅**元信息/占位，贴 AA 下限，**不得用于长正文**。
 - **danger `#EF4444`**：危险/删除，保持红，勿与品牌绿混。
+- **priority-high / priority-medium / priority-low / priority-none**：待办优先级辅助色，分别为 `#DC2626`、`#B45309`、`#2563EB`、`#64748B`；必须同时配合图标、文字或结构信号。
+- **todo-gray / todo-red / todo-amber / todo-green / todo-cyan / todo-blue / todo-violet / todo-pink**：待办清单与标签调色板，分别为 `#64748B`、`#DC2626`、`#B45309`、`#007D63`、`#0E7490`、`#2563EB`、`#7C3AED`、`#BE185D`。
 - **sidebar-bg / sidebar-surface**：深色侧栏属 Logo 炭灰族，**禁用** Semi 通用冷黑 `#232429`（偏蓝、与绿相冲）。
 
 ## Typography
