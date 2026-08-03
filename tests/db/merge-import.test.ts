@@ -1,8 +1,8 @@
+/* eslint-disable testing-library/no-await-sync-queries */
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { getDB, resetDB, putRecord, getAll, getByKey, mergeImportRaw } from '@/shared/db/database';
 import type { BackupData, Bookmark, Category, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
-import { ContextType } from '@/shared/types';
 
 /**
  * mergeImportRaw 数据层单测(0.1.11.3 第3步)。
@@ -43,6 +43,7 @@ const metaNew: CryptoMetadata = { id: 'singleton', salt: 'S-NEW', iterations: 60
 const remappedData: BackupData = {
   workspaces: [wsNew], categories: [catNew], bookmarks: [bmNew], contexts: [],
   pinnedTabs: [pinNew], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('mergeImportRaw — 合并导入(分享包,不覆盖接收方现有数据)', () => {

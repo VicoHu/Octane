@@ -13,7 +13,7 @@ vi.mock('lottie-web', () => ({
     registerAnimation() {},
   },
 }));
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { LocalBackupSection } from '@/components/backup/LocalBackupSection';
 import { useBackup } from '@/store/useBackup';
 import * as BackupService from '@/services/BackupService';
@@ -32,19 +32,19 @@ describe('LocalBackupSection', () => {
 
   it('选合法文件 → 弹出覆盖确认 Modal', async () => {
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({
-      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
-    });
+      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null, taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [] },
+    } as never);
     render(<LocalBackupSection />);
     const input = document.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, { target: { files: [new File(['x'], 'b.json')] } });
     // Modal 标题为「确认覆盖全部数据」，用更具体的子串避免与按钮文案歧义
-    await waitFor(() => expect(screen.getByText(/确认覆盖全部数据/)).toBeTruthy());
+    expect(await screen.findByText(/确认覆盖全部数据/)).toBeTruthy();
   });
 
   it('未勾选确认 Checkbox 时，确认按钮禁用', async () => {
     vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({
-      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null },
-    });
+      ok: true, kind: 'backup', data: { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null, taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [] },
+    } as never);
     render(<LocalBackupSection />);
     fireEvent.change(document.querySelector('input[type="file"]') as HTMLInputElement, {
       target: { files: [new File(['x'], 'b.json')] },

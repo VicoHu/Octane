@@ -14,7 +14,7 @@ import styles from './LocalBackupSection.module.css';
 export function LocalBackupSection() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const { status, errorMessage, pendingData, pickFile, confirmImport, cancelImport, exportData } = useBackup();
+  const { status, errorMessage, pendingBackup, pickFile, confirmImport, cancelImport, exportData } = useBackup();
 
   const handleExport = async () => {
     await exportData();
@@ -38,7 +38,7 @@ export function LocalBackupSection() {
     else if (s === 'error') Toast.error(useBackup.getState().errorMessage || '导入失败');
   };
 
-  const modalOpen = status === 'confirming' && pendingData !== null;
+  const modalOpen = status === 'confirming' && pendingBackup !== null;
   const exporting = status === 'running' && !modalOpen;
 
   return (
@@ -66,8 +66,9 @@ export function LocalBackupSection() {
           </DialogHeader>
           <div className={styles.backupConfirmBody}>
             <Typography.Text>
-              此操作将清除当前全部工作区、书签与上下文，并替换为备份内容，不可撤销。
-              {pendingData?.cryptoMetadata ? ' 备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
+              此操作将清除当前全部工作区、书签与待办，并替换为备份内容，不可撤销。
+              {pendingBackup?.data.cryptoMetadata ? ' 备份含加密数据，恢复后请用导出端主密码解锁。' : ''}
+              {pendingBackup?.isLegacyWithoutTodo ? ' 该备份不含待办数据，恢复后将清空当前全部待办。' : ''}
             </Typography.Text>
             <label className="flex items-center gap-2">
               <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(c)} />

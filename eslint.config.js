@@ -81,7 +81,9 @@ export default tseslint.config(
       'testing-library/prefer-screen-queries': 'warn',
       'testing-library/no-wait-for-side-effects': 'warn',
       // 以下 recommended 自带 error，存量冲突量大，统一降 warn
-      'testing-library/no-await-sync-queries': 'warn',
+      // off：getByKey/getByIndex/getAll 是本项目的 async DB helper（非 RTL 同步 query），
+      // 该规则 100% 误判并自动删除 await，禁用它（详见 docs/standards/testing.md）
+      'testing-library/no-await-sync-queries': 'off',
       'testing-library/render-result-naming-convention': 'warn',
       'testing-library/prefer-find-by': 'warn',
       // tests/setup.ts 手动 cleanup（vitest 自动清理前保留），存量降 warn

@@ -22,6 +22,7 @@ const senderMeta: CryptoMetadata = { id: 'singleton', salt: 'S1', iterations: 60
 
 const fullPackage: BackupData = {
   workspaces: [ws], categories: [cat], bookmarks: [bm], contexts: [encCtx], pinnedTabs: [], cryptoMetadata: senderMeta,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 beforeEach(async () => {
@@ -71,6 +72,7 @@ describe('applyShareImport — 分享包合并导入编排', () => {
     // 加密 context 未入库
     expect(await getAll('contexts')).toHaveLength(0);
     // 接收方 cryptoMetadata 保留(salt 仍 DIFFERENT)
+    // eslint-disable-next-line testing-library/no-await-sync-queries
     const gotMeta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
     expect(gotMeta?.salt).toBe('DIFFERENT');
   });
@@ -79,6 +81,7 @@ describe('applyShareImport — 分享包合并导入编排', () => {
     const structurePackage: BackupData = { ...fullPackage, contexts: [], cryptoMetadata: null };
     await applyShareImport(structurePackage, { workspaceIds: ['ws-s'], categoryIds: [] });
     expect(await getAll('contexts')).toHaveLength(0);
+    // eslint-disable-next-line testing-library/no-await-sync-queries
     expect(await getByKey("cryptoMetadata", "singleton")).toBeUndefined();
   });
 
@@ -126,6 +129,7 @@ describe('applyShareImport — T2 多工作区 order 重映射(Success Criteria 
       contexts: [],
       pinnedTabs: [],
       cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
 
     const result = await applyShareImport(sharePkg, { workspaceIds: ['ws-s1', 'ws-s2'], categoryIds: [] });

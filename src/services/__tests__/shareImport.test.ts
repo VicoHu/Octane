@@ -37,6 +37,7 @@ const shareData: BackupData = {
   ],
   pinnedTabs: [{ id: 'pin-old', workspaceId: 'ws-old', name: 'p', url: 'https://p.com', order: 0, createdAt: 1 }],
   cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('remapShareIds — 重映射分享包所有 ID(主键 + FK)', () => {
@@ -221,6 +222,7 @@ const multiWsData: BackupData = {
     { id: 'pin-y1', workspaceId: 'ws-y', name: 'p', url: 'u', order: 7, createdAt: 3 },
   ],
   cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('reorderForImport — 分享导入 order 重映射(T2 纯函数)', () => {
@@ -341,6 +343,7 @@ const tagShareData: BackupData = {
   contexts: [],
   pinnedTabs: [],
   cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('remapShareIds — Tag 原样保留（#55）', () => {

@@ -36,6 +36,7 @@ const payload: BackupData = {
   bookmarks: [tamperedBm],
   contexts: [realCtx],
   cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('applyImport', () => {

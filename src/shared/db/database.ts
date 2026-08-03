@@ -7,6 +7,11 @@ import type {
   Context,
   CryptoMetadata,
   PinnedTab,
+  Task,
+  TaskList,
+  ChecklistItem,
+  TaskTag,
+  TaskTagAssignment,
   Workspace,
 } from '@/shared/types';
 
@@ -258,42 +263,51 @@ export async function deleteRecord(storeName: StoreName, key: string): Promise<v
 
 // ========== 级联删除 ==========
 
-/** 级联删除工作区：Workspace → Categories + Bookmarks + Contexts + PinnedTabs */
+/** 级联删除工作区：Workspace 及其书签、待办和常驻标签子记录。 */
 export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(
-    ['workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs'],
+    [
+      'workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs',
+      'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+    ],
     'readwrite',
   );
 
   const categories = await tx.objectStore('categories').index('by-workspaceId').getAll(workspaceId);
-  const categoryIds = new Set(categories.map((c) => c.id));
-
   const bookmarks = await tx.objectStore('bookmarks').index('by-workspaceId').getAll(workspaceId);
-  const bookmarkIds = bookmarks.map((b) => b.id);
+  const tasks = await tx.objectStore('tasks').index('by-workspaceId').getAll(workspaceId) as Task[];
 
-  for (const bookmarkId of bookmarkIds) {
-    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmarkId);
-    for (const ctx of contexts) {
-      await tx.objectStore('contexts').delete(ctx.id);
-    }
+  for (const task of tasks) {
+    const checklistItems = await tx.objectStore('checklistItems').index('by-taskId').getAll(task.id) as ChecklistItem[];
+    for (const item of checklistItems) await tx.objectStore('checklistItems').delete(item.id);
+    const assignments = await tx.objectStore('taskTagAssignments').index('by-taskId').getAll(task.id) as TaskTagAssignment[];
+    for (const assignment of assignments) await tx.objectStore('taskTagAssignments').delete([assignment.taskId, assignment.tagId]);
+    await tx.objectStore('tasks').delete(task.id);
   }
-  for (const bookmarkId of bookmarkIds) {
-    await tx.objectStore('bookmarks').delete(bookmarkId);
+
+  const taskLists = await tx.objectStore('taskLists').index('by-workspaceId').getAll(workspaceId) as TaskList[];
+  for (const taskList of taskLists) await tx.objectStore('taskLists').delete(taskList.id);
+  const taskTags = await tx.objectStore('taskTags').index('by-workspaceId').getAll(workspaceId) as TaskTag[];
+  for (const taskTag of taskTags) await tx.objectStore('taskTags').delete(taskTag.id);
+
+  for (const bookmark of bookmarks) {
+    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmark.id);
+    for (const context of contexts) await tx.objectStore('contexts').delete(context.id);
+    await tx.objectStore('bookmarks').delete(bookmark.id);
   }
-  for (const categoryId of categoryIds) {
-    await tx.objectStore('categories').delete(categoryId);
-  }
-  // 删除该工作区的常驻标签（per-workspace，与书签解耦但同属工作区）
+  for (const category of categories) await tx.objectStore('categories').delete(category.id);
+
   const pins = await tx.objectStore('pinnedTabs').index('by-workspaceId').getAll(workspaceId);
-  for (const pin of pins) {
-    await tx.objectStore('pinnedTabs').delete(pin.id);
-  }
+  for (const pin of pins) await tx.objectStore('pinnedTabs').delete(pin.id);
   await tx.objectStore('workspaces').delete(workspaceId);
 
   await tx.done;
   broadcast('bookmarks', 'delete');
   broadcast('pinnedTabs', 'delete');
+  broadcast('tasks', 'delete');
+  broadcast('taskLists', 'delete');
+  broadcast('taskTags', 'delete');
 }
 
 /** 级联删除分类：Category → Bookmarks + Contexts */
@@ -346,8 +360,7 @@ const BOOKMARK_IMPORT_STORES = [
 ] as const;
 
 /**
- * 导出全部数据（6 表存储态）。
- * contexts 取底层 getAll（含密文，不解密）——禁止用会解密的 ContextService.getContexts。
+ * 导出全部数据。contexts 取底层 getAll（含密文，不解密）。
  */
 export async function exportAllData(): Promise<BackupData> {
   return {
@@ -357,6 +370,11 @@ export async function exportAllData(): Promise<BackupData> {
     contexts: await getAll<Context>('contexts'),
     pinnedTabs: await getAll<PinnedTab>('pinnedTabs'),
     cryptoMetadata: (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null,
+    taskLists: await getAll<TaskList>('taskLists'),
+    taskTags: await getAll<TaskTag>('taskTags'),
+    tasks: await getAll<Task>('tasks'),
+    checklistItems: await getAll<ChecklistItem>('checklistItems'),
+    taskTagAssignments: await getAll<TaskTagAssignment>('taskTagAssignments'),
   };
 }
 
@@ -374,9 +392,16 @@ export async function replaceAllDataRaw(data: BackupData): Promise<void> {
     await tx.objectStore(s).clear();
   }
   for (const ws of data.workspaces) await tx.objectStore('workspaces').put(ws);
+  for (const taskList of data.taskLists) await tx.objectStore('taskLists').put(taskList);
+  for (const taskTag of data.taskTags) await tx.objectStore('taskTags').put(taskTag);
   for (const c of data.categories) await tx.objectStore('categories').put(c);
   for (const b of data.bookmarks) await tx.objectStore('bookmarks').put(b);
   for (const ctx of data.contexts) await tx.objectStore('contexts').put(ctx);
+  for (const task of data.tasks) await tx.objectStore('tasks').put(task);
+  for (const item of data.checklistItems) await tx.objectStore('checklistItems').put(item);
+  for (const assignment of data.taskTagAssignments) {
+    await tx.objectStore('taskTagAssignments').put(assignment);
+  }
   // 可选字段：仅当显式提供时 clear+put；缺失则不动该 store
   if (data.pinnedTabs) {
     await tx.objectStore('pinnedTabs').clear();

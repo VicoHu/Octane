@@ -5,10 +5,12 @@ import type { BackupData, ShareSelection } from '@/shared/types';
 
 const emptyData: BackupData = {
   workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 // 分享导入消息样本（含 selection + pinnedTabs）
 const shareData: BackupData = {
   workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 const sel: ShareSelection = { workspaceIds: ['ws-1'], categoryIds: [] };
 

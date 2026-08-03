@@ -73,8 +73,10 @@ describe('replaceAllDataRaw', () => {
     await putRecord('workspaces', { ...ws, id: 'old', name: '旧' });
     const data: BackupData = {
       workspaces: [ws], categories: [cat], bookmarks: [bm], contexts: [encCtx], cryptoMetadata: meta,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
     await replaceAllDataRaw(data);
+    // eslint-disable-next-line testing-library/no-await-sync-queries
     expect(await getByKey('workspaces', 'old')).toBeUndefined();   // 旧数据被清
     expect(await getAll('workspaces')).toHaveLength(1);
     expect((await getAll<Context>('contexts'))[0]!.encryptedData).toBe('BASE64_CIPHER');
@@ -84,8 +86,10 @@ describe('replaceAllDataRaw', () => {
     await putRecord('cryptoMetadata', meta);
     const data: BackupData = {
       workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
     await replaceAllDataRaw(data);
+    // eslint-disable-next-line testing-library/no-await-sync-queries
     const kept = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
     expect(kept?.salt).toBe('S');   // 本机原值未被清空
   });
@@ -95,8 +99,10 @@ describe('replaceAllDataRaw', () => {
     const data: BackupData = {
       workspaces: [], categories: [], bookmarks: [], contexts: [],
       cryptoMetadata: { ...meta, salt: 'NEW' },
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
     await replaceAllDataRaw(data);
+    // eslint-disable-next-line testing-library/no-await-sync-queries
     expect((await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton'))?.salt).toBe('NEW');
   });
 });

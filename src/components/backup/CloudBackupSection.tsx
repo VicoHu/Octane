@@ -13,8 +13,8 @@ import { useBackup } from "@/store/useBackup";
 import { useCrypto } from "@/store/useCrypto";
 import { cloudProviders, getCloudProvider } from "@/services/cloud/providers";
 import { getCloudConfig, getLastBackupAt } from "@/services/CloudStorageService";
+import type { ValidatedBackup } from "@/services/BackupService";
 import { S3_PRESETS, WEBDAV_PRESETS } from "@/services/cloud/presets";
-import type { BackupData } from "@/shared/types";
 import type {
   BackupVersion,
   CloudStorageConfig,
@@ -54,7 +54,7 @@ export function CloudBackupSection() {
   const [forms, setForms] = useState<Partial<Record<ProviderId, Record<string, string>>>>({});
   const [lastBackup, setLastBackup] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [restoreData, setRestoreData] = useState<BackupData | null>(null);
+  const [restoreData, setRestoreData] = useState<ValidatedBackup | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyStatus, setHistoryStatus] = useState<"idle" | "loading" | "list" | "empty" | "error">("idle");
@@ -184,7 +184,7 @@ export function CloudBackupSection() {
     if (!restoreData) return;
     setBusy(true);
     try {
-      await useBackup.getState().applyCloudRestore(restoreData);
+      await useBackup.getState().applyCloudRestore(restoreData.data);
       setRestoreData(null);
       Toast.success("恢复完成，如含加密数据请用原密码解锁");
     } catch {
@@ -344,8 +344,9 @@ export function CloudBackupSection() {
           </DialogHeader>
           <div className={styles.confirmBody}>
             <Typography.Text>
-              此操作将清除当前全部工作区、书签与上下文，并替换为云端备份内容，不可撤销。
-              {restoreData?.cryptoMetadata ? " 云端备份含加密数据，恢复后请用导出端主密码解锁。" : ""}
+              此操作将清除当前全部工作区、书签与待办，并替换为云端备份内容，不可撤销。
+              {restoreData?.data.cryptoMetadata ? " 云端备份含加密数据，恢复后请用导出端主密码解锁。" : ""}
+              {restoreData?.isLegacyWithoutTodo ? " 该备份不含待办数据，恢复后将清空当前全部待办。" : ""}
             </Typography.Text>
             <label className="flex items-center gap-2">
               <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(c)} />

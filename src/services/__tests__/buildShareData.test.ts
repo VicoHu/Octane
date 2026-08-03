@@ -20,6 +20,7 @@ const meta: CryptoMetadata = { id: 'singleton', salt: 'S1', iterations: 600000, 
 const all: BackupData = {
   workspaces: [ws1, ws2], categories: [cat1a, cat1b, cat2a], bookmarks: [bm1a, bm1b, bm2a],
   contexts: [encCtx], pinnedTabs: [pin1, pin2], cryptoMetadata: meta,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('buildShareData — 分享包精确取数', () => {

@@ -86,8 +86,10 @@ vi.mock("@/services/cloud/providers", () => ({
 
 import { CloudBackupSection } from "../CloudBackupSection";
 import type { BackupData } from "@/shared/types";
+import type { ValidatedBackup } from "@/services/BackupService";
 
-const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null };
+const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null, taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [] };
+const okBackup: ValidatedBackup = { ok: true, kind: 'backup', version: 6, exportedAt: 1000, appVersion: '0.0.0', containsTodoData: false, isLegacyWithoutTodo: false, data: okData };
 
 const btn = (text: string): HTMLButtonElement => screen.getByText(text).closest("button") as HTMLButtonElement;
 
@@ -198,7 +200,7 @@ describe("CloudBackupSection", () => {
   });
 
   it("点击「从云恢复」→ 下载解析成功 → 弹破坏性确认 Modal（未勾选时确认禁用）", async () => {
-    store.restoreFromCloud.mockResolvedValue(okData);
+    store.restoreFromCloud.mockResolvedValue(okBackup);
     render(<CloudBackupSection />);
     expect(await screen.findByText("上传备份")).toBeTruthy();
     await userEvent.click(btn("从云恢复"));
@@ -211,7 +213,7 @@ describe("CloudBackupSection", () => {
   });
 
   it("确认覆盖 → applyCloudRestore", async () => {
-    store.restoreFromCloud.mockResolvedValue(okData);
+    store.restoreFromCloud.mockResolvedValue(okBackup);
     store.applyCloudRestore.mockResolvedValue(undefined);
     render(<CloudBackupSection />);
     expect(await screen.findByText("上传备份")).toBeTruthy();
@@ -268,7 +270,7 @@ describe("CloudBackupSection", () => {
 
     it("恢复指定版本 → restoreCloudVersion → 复用破坏性确认 Dialog", async () => {
       store.listCloudBackups.mockResolvedValue([version]);
-      store.restoreCloudVersion.mockResolvedValue(okData);
+      store.restoreCloudVersion.mockResolvedValue(okBackup);
       render(<CloudBackupSection />);
       expect(await screen.findByText("上传备份")).toBeTruthy();
       await userEvent.click(btn("历史版本"));

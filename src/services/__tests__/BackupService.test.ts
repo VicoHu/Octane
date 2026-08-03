@@ -14,12 +14,19 @@ function makeFile(dataOver: Partial<BackupData> = {}, fileOver: Partial<BackupFi
     version: BACKUP_VERSION,
     exportedAt: 1000,
     appVersion: '0.1.3.4',
-    data: { workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null, ...dataOver },
+    data: {
+      workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
+      ...dataOver,
+    },
     ...fileOver,
   };
 }
 
-const okData: BackupData = { workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null };
+const okData: BackupData = {
+  workspaces: [], categories: [], bookmarks: [], contexts: [], pinnedTabs: [], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
+};
 
 describe('validateBackup', () => {
   it('合法空备份 → ok', () => {
@@ -36,8 +43,8 @@ describe('validateBackup', () => {
     expect(validateBackup(makeFile({}, { schema: 'other' as never })).ok).toBe(false);
   });
 
-  it('version=6（未知版本，超出已发布）→ 拒绝', () => {
-    expect(validateBackup(makeFile({}, { version: 6 } as never)).ok).toBe(false);
+  it('version=7（未知版本，超出已发布）→ 拒绝', () => {
+    expect(validateBackup(makeFile({}, { version: 7 } as never)).ok).toBe(false);
   });
 
   it('version=3（v3 新格式）→ ok', () => {
