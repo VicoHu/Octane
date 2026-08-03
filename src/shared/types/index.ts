@@ -98,11 +98,82 @@ export interface CryptoMetadata {
   createdAt: number;
 }
 
+/** 待办优先级 */
+export type TaskPriority = 'high' | 'medium' | 'low' | 'none';
+
+/** 待办状态 */
+export type TaskStatus = 'active' | 'completed';
+
+/** 待办固定调色板颜色 */
+export type TodoColor = 'gray' | 'red' | 'amber' | 'green' | 'cyan' | 'blue' | 'violet' | 'pink';
+
+/** 待办清单 */
+export interface TaskList {
+  id: string;
+  workspaceId: string;
+  name: string;
+  normalizedName: string;
+  color: TodoColor;
+  order: number;
+  archivedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办任务 */
+export interface Task {
+  id: string;
+  workspaceId: string;
+  listId: string | null;
+  containerKey: string;
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  dueDate: string | null;
+  status: TaskStatus;
+  order: number;
+  completedAt: number | null;
+  deletedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办检查项 */
+export interface ChecklistItem {
+  id: string;
+  taskId: string;
+  text: string;
+  isCompleted: boolean;
+  completedAt: number | null;
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办标签 */
+export interface TaskTag {
+  id: string;
+  workspaceId: string;
+  name: string;
+  normalizedName: string;
+  color: TodoColor;
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办任务与标签关联 */
+export interface TaskTagAssignment {
+  taskId: string;
+  tagId: string;
+  createdAt: number;
+}
+
 /** IndexedDB 数据库名称 */
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** 第三方 favicon 来源。 */
 export type ThirdPartyFaviconSource = 'icon-horse';

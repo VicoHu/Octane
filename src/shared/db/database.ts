@@ -18,6 +18,11 @@ interface OctaneDB extends IDBPDatabase {
   cryptoMetadata: IDBPObjectStore<OctaneDB, ['cryptoMetadata']>;
   favicons: IDBPObjectStore<OctaneDB, ['favicons']>;
   pinnedTabs: IDBPObjectStore<OctaneDB, ['pinnedTabs']>;
+  taskLists: IDBPObjectStore<OctaneDB, ['taskLists']>;
+  tasks: IDBPObjectStore<OctaneDB, ['tasks']>;
+  checklistItems: IDBPObjectStore<OctaneDB, ['checklistItems']>;
+  taskTags: IDBPObjectStore<OctaneDB, ['taskTags']>;
+  taskTagAssignments: IDBPObjectStore<OctaneDB, ['taskTagAssignments']>;
 }
 
 type StoreName =
@@ -27,7 +32,12 @@ type StoreName =
   | 'contexts'
   | 'cryptoMetadata'
   | 'favicons'
-  | 'pinnedTabs';
+  | 'pinnedTabs'
+  | 'taskLists'
+  | 'tasks'
+  | 'checklistItems'
+  | 'taskTags'
+  | 'taskTagAssignments';
 
 /**
  * 数据变更事件：数据库写入后广播，让其他上下文（side panel）重新读取刷新。
@@ -162,6 +172,31 @@ export async function runUpgrade(
         await store.put(b);
       }
     }
+  }
+
+  // 待办数据表结构（v6→v7）：仅创建空表与索引，不改写既有记录。
+  if (oldVersion < 7) {
+    const taskLists = db.createObjectStore('taskLists', { keyPath: 'id' });
+    taskLists.createIndex('by-workspaceId', 'workspaceId');
+    taskLists.createIndex('by-workspaceId-normalizedName', ['workspaceId', 'normalizedName'], { unique: true });
+
+    const tasks = db.createObjectStore('tasks', { keyPath: 'id' });
+    tasks.createIndex('by-workspaceId', 'workspaceId');
+    tasks.createIndex('by-containerKey', 'containerKey');
+    tasks.createIndex('by-listId', 'listId');
+    tasks.createIndex('by-dueDate', 'dueDate');
+    tasks.createIndex('by-deletedAt', 'deletedAt');
+
+    const checklistItems = db.createObjectStore('checklistItems', { keyPath: 'id' });
+    checklistItems.createIndex('by-taskId', 'taskId');
+
+    const taskTags = db.createObjectStore('taskTags', { keyPath: 'id' });
+    taskTags.createIndex('by-workspaceId', 'workspaceId');
+    taskTags.createIndex('by-workspaceId-normalizedName', ['workspaceId', 'normalizedName'], { unique: true });
+
+    const taskTagAssignments = db.createObjectStore('taskTagAssignments', { keyPath: ['taskId', 'tagId'] });
+    taskTagAssignments.createIndex('by-taskId', 'taskId');
+    taskTagAssignments.createIndex('by-tagId', 'tagId');
   }
 }
 
@@ -301,8 +336,14 @@ export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
 
 // ========== 全量导出 / 覆盖导入 ==========
 
-const DATA_STORES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
+const DATA_STORES = [
+  'workspaces', 'categories', 'bookmarks', 'contexts',
+  'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+] as const;
 const ALL_STORES = [...DATA_STORES, 'cryptoMetadata', 'pinnedTabs'] as const;
+const BOOKMARK_IMPORT_STORES = [
+  'workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'pinnedTabs',
+] as const;
 
 /**
  * 导出全部数据（6 表存储态）。
@@ -362,7 +403,7 @@ export async function replaceAllDataRaw(data: BackupData): Promise<void> {
  */
 export async function mergeImportRaw(remapped: BackupData, cryptoMeta?: CryptoMetadata): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction([...ALL_STORES], 'readwrite');
+  const tx = db.transaction([...BOOKMARK_IMPORT_STORES], 'readwrite');
   for (const ws of remapped.workspaces) await tx.objectStore('workspaces').put(ws);
   for (const c of remapped.categories) await tx.objectStore('categories').put(c);
   for (const b of remapped.bookmarks) await tx.objectStore('bookmarks').put(b);
