@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ChevronDown, RotateCcw, Trash2, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
@@ -58,11 +57,11 @@ function formatTime(value: number | null): string {
   return value === null ? "未记录" : new Date(value).toLocaleString();
 }
 
-function ReadonlyField({ label, children }: { label: string; children: ReactNode }) {
+function ReadonlyField({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={styles.detailField}>
       <span className={styles.fieldLabel}>{label}</span>
-      <div className={styles.readonlyValue}>{children}</div>
+      <div className={className ? `${styles.readonlyValue} ${className}` : styles.readonlyValue}>{children}</div>
     </div>
   );
 }
@@ -306,9 +305,9 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
 
   const task = detail?.task;
   const selectedTagIds = tagOverride ?? detail?.taskTags.map((tag) => tag.id) ?? [];
-  const listId = listOverride === undefined ? (task?.listId ?? null) : listOverride;
+  const listId = listOverride === undefined ? task?.listId ?? null : listOverride;
   const priority = priorityOverride ?? task?.priority ?? "none";
-  const dueDate = dueDateOverride === undefined ? (task?.dueDate ?? null) : dueDateOverride;
+  const dueDate = dueDateOverride === undefined ? task?.dueDate ?? null : dueDateOverride;
   const archived = detail?.taskList?.archivedAt != null;
   const trashed = task?.deletedAt !== null;
   const readOnly = Boolean(archived || trashed);
@@ -511,6 +510,12 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
   const taskListName = detail.taskList?.name ?? "收集箱";
   const tagsText = detail.taskTags.length ? detail.taskTags.map((tag) => tag.name).join("、") : "无标签";
   const priorityLabel = PRIORITIES.find((item) => item.value === task.priority)?.label ?? "无优先级";
+  // 触发器直接展示已选标签名（覆盖未落库时也能正确显示），空态走占位样式
+  const tagNameById = new Map([...availableTags, ...detail.taskTags].map((tag) => [tag.id, tag.name]));
+  const selectedTagNames = selectedTagIds
+    .map((id) => tagNameById.get(id))
+    .filter(Boolean)
+    .join("、");
 
   return (
     <section className={styles.detailPane} aria-label="待办详情">
@@ -539,173 +544,106 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
             </Button>
           </div>
         )}
-        <div className={styles.detailField}>
-          <Label htmlFor="task-title">标题</Label>
-          <Input
-            ref={titleRef}
-            id="task-title"
-            aria-label="标题"
-            value={title}
-            disabled={readOnly}
-            aria-invalid={Boolean(titleError)}
-            onChange={(event) => {
-              updateDraft({ title: event.target.value });
-              setTitleError("");
-            }}
-            onBlur={() => void commitDraft()}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                event.preventDefault();
-                void commitDraft();
-              }
-            }}
-          />
-          {titleError && <p className={styles.fieldError}>{titleError}</p>}
-        </div>
-        <div className={styles.detailField}>
-          <Label htmlFor="task-description">描述</Label>
-          <Textarea
-            id="task-description"
-            aria-label="描述"
-            value={description}
-            disabled={readOnly}
-            onChange={(event) => updateDraft({ description: event.target.value })}
-            onBlur={() => void commitDraft()}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                event.preventDefault();
-                void commitDraft();
-              }
-            }}
-          />
-        </div>
-        <div className={styles.detailGrid}>
-          <ReadonlyField label="工作区">
-            <span>{detail.workspace.name}</span>
-            {!trashed && (
-              <Button size="sm" variant="outline" onClick={openMove}>
-                移动待办
-              </Button>
-            )}
-          </ReadonlyField>
-          {readOnly ? (
-            <ReadonlyField label="任务清单">{taskListName}</ReadonlyField>
-          ) : (
-            <div className={styles.detailField}>
-              <Label>任务清单</Label>
-              <Select value={listId ?? "__inbox__"} disabled={isPending("list")} onValueChange={changeList}>
-                <SelectTrigger aria-label="任务清单">
-                  <SelectValue>
-                    {(value) =>
-                      value === "__inbox__"
-                        ? "收集箱"
-                        : (activeLists.find((item) => item.id === value)?.name ?? "收集箱")
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__inbox__">收集箱</SelectItem>
-                  {activeLists.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {readOnly ? (
-            <ReadonlyField label="任务标签">{tagsText}</ReadonlyField>
-          ) : (
-            <div className={styles.detailField}>
-              <Label>任务标签</Label>
-              <Popover>
-                <PopoverTrigger
-                  render={
-                    <Button variant="outline" aria-label="任务标签" disabled={isPending("tags")}>
-                      {" "}
-                      {selectedTagIds.length ? `任务标签 ${selectedTagIds.length}` : "任务标签"}
-                    </Button>
-                  }
-                />
-                <PopoverContent>
-                  {availableTags.length === 0 ? (
-                    <p>没有任务标签</p>
-                  ) : (
-                    availableTags.map((tag) => (
-                      <label key={tag.id} className={styles.tagOption}>
-                        <Checkbox
-                          checked={selectedTagIds.includes(tag.id)}
-                          disabled={isPending("tags")}
-                          onCheckedChange={(checked) => changeTags(tag.id, Boolean(checked))}
-                        />
-                        {tag.name}
-                      </label>
-                    ))
-                  )}
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-          {readOnly ? (
-            <ReadonlyField label="优先级">{priorityLabel}</ReadonlyField>
-          ) : (
-            <div className={styles.detailField}>
-              <Label>优先级</Label>
-              <Select
-                value={priority}
-                disabled={isPending("priority")}
-                onValueChange={(value) => {
-                  if (value && PRIORITIES.some((item) => item.value === value)) changePriority(value as TaskPriority);
-                }}
-              >
-                <SelectTrigger aria-label="优先级">
-                  <SelectValue>
-                    {(value) => PRIORITIES.find((item) => item.value === value)?.label ?? "无优先级"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {readOnly ? (
-            <ReadonlyField label="截止日期">{task.dueDate ?? "未设置"}</ReadonlyField>
-          ) : (
-            <div className={styles.detailField}>
-              <Label htmlFor="task-due-date">截止日期</Label>
-              <Input
-                id="task-due-date"
-                aria-label="截止日期"
-                type="date"
-                value={dueDate ?? ""}
-                disabled={isPending("dueDate")}
-                onChange={(event) => changeDueDate(event.target.value || null)}
+        {/* 可编辑态：选项上置（完成/截止/优先级），滴答清单式 */}
+        {!readOnly && (
+          <div className={styles.detailTopBar}>
+            <label className={styles.completeControl}>
+              <Checkbox
+                aria-label={task.status === "completed" ? "取消完成" : "完成待办"}
+                checked={task.status === "completed"}
+                disabled={isPending("completion")}
+                onCheckedChange={(checked) => void toggleCompletion(Boolean(checked))}
               />
-            </div>
-          )}
-          {readOnly ? (
+              {task.status === "completed" ? "已完成" : "进行中"}
+            </label>
+            <span className={styles.barSpacer} />
+            <Input
+              id="task-due-date"
+              aria-label="截止日期"
+              type="date"
+              className={styles.barDate}
+              value={dueDate ?? ""}
+              disabled={isPending("dueDate")}
+              onChange={(event) => changeDueDate(event.target.value || null)}
+            />
+            <Select
+              value={priority}
+              disabled={isPending("priority")}
+              onValueChange={(value) => {
+                if (value && PRIORITIES.some((item) => item.value === value)) changePriority(value as TaskPriority);
+              }}
+            >
+              <SelectTrigger aria-label="优先级">
+                <SelectValue>
+                  {(value) => PRIORITIES.find((item) => item.value === value)?.label ?? "无优先级"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {PRIORITIES.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        {/* 标题/描述：无边框输入，更多区域给内容 */}
+        <Input
+          ref={titleRef}
+          id="task-title"
+          aria-label="标题"
+          className={styles.titleInput}
+          value={title}
+          disabled={readOnly}
+          aria-invalid={Boolean(titleError)}
+          onChange={(event) => {
+            updateDraft({ title: event.target.value });
+            setTitleError("");
+          }}
+          onBlur={() => void commitDraft()}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              event.preventDefault();
+              void commitDraft();
+            }
+          }}
+        />
+        {titleError && <p className={styles.fieldError}>{titleError}</p>}
+        <Textarea
+          id="task-description"
+          aria-label="描述"
+          className={styles.descriptionInput}
+          placeholder="添加描述"
+          value={description}
+          disabled={readOnly}
+          onChange={(event) => updateDraft({ description: event.target.value })}
+          onBlur={() => void commitDraft()}
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+              event.preventDefault();
+              void commitDraft();
+            }
+          }}
+        />
+        {/* 只读态（已归档/废纸篓）：元信息两列网格 */}
+        {readOnly && (
+          <div className={styles.detailGrid}>
+            <ReadonlyField label="工作区" className={styles.inlineField}>
+              <span>{detail.workspace.name}</span>
+              {!trashed && (
+                <Button size="sm" variant="outline" onClick={openMove}>
+                  移动待办
+                </Button>
+              )}
+            </ReadonlyField>
+            <ReadonlyField label="任务清单">{taskListName}</ReadonlyField>
+            <ReadonlyField label="任务标签">{tagsText}</ReadonlyField>
+            <ReadonlyField label="优先级">{priorityLabel}</ReadonlyField>
+            <ReadonlyField label="截止日期">{task.dueDate ?? "未设置"}</ReadonlyField>
             <ReadonlyField label="完成状态">{task.status === "completed" ? "已完成" : "进行中"}</ReadonlyField>
-          ) : (
-            <div className={styles.detailField}>
-              <Label>完成状态</Label>
-              <label className={styles.completeControl}>
-                <Checkbox
-                  aria-label={task.status === "completed" ? "取消完成" : "完成待办"}
-                  checked={task.status === "completed"}
-                  disabled={isPending("completion")}
-                  onCheckedChange={(checked) => void toggleCompletion(Boolean(checked))}
-                />
-                {task.status === "completed" ? "已完成" : "进行中"}
-              </label>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         {archived && detail.taskList && (
           <Button
             variant="outline"
@@ -722,6 +660,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
             <div className={styles.addChecklist}>
               <Input
                 aria-label="添加检查项"
+                placeholder="添加检查项"
                 value={newChecklistText}
                 disabled={checklistCreating}
                 onChange={(event) => setNewChecklistText(event.target.value)}
@@ -777,33 +716,108 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
           <span>完成：{formatTime(task.completedAt)}</span>
           <span>删除：{formatTime(task.deletedAt)}</span>
         </section>
-        <div className={styles.detailActions}>
-          {trashed ? (
-            <>
-              <Button
-                variant="outline"
-                disabled={isPending("task-restore")}
-                onClick={() => void runPending("task-restore", () => restoreTask(task.id), "恢复待办失败")}
-              >
-                <RotateCcw data-icon="inline-start" />
-                恢复待办
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={isPending("task-permanent-delete")}
-                onClick={() => setDeleteConfirm(true)}
-              >
+        {readOnly ? (
+          <div className={styles.detailActions}>
+            {trashed ? (
+              <>
+                <Button
+                  variant="outline"
+                  disabled={isPending("task-restore")}
+                  onClick={() => void runPending("task-restore", () => restoreTask(task.id), "恢复待办失败")}
+                >
+                  <RotateCcw data-icon="inline-start" />
+                  恢复待办
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={isPending("task-permanent-delete")}
+                  onClick={() => setDeleteConfirm(true)}
+                >
+                  <Trash2 data-icon="inline-start" />
+                  永久删除
+                </Button>
+              </>
+            ) : (
+              <Button variant="destructive" disabled={isPending("task-delete")} onClick={removeTask}>
                 <Trash2 data-icon="inline-start" />
-                永久删除
+                删除待办
               </Button>
-            </>
-          ) : (
-            <Button variant="destructive" disabled={isPending("task-delete")} onClick={removeTask}>
-              <Trash2 data-icon="inline-start" />
-              删除待办
+            )}
+          </div>
+        ) : (
+          /* 可编辑态：选项下置（清单/标签居左，移动/删除居右） */
+          <div className={styles.detailBottomBar}>
+            <Select value={listId ?? "__inbox__"} disabled={isPending("list")} onValueChange={changeList}>
+              <SelectTrigger aria-label="任务清单">
+                <SelectValue>
+                  {(value) =>
+                    value === "__inbox__" ? "收集箱" : activeLists.find((item) => item.id === value)?.name ?? "收集箱"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__inbox__">收集箱</SelectItem>
+                {activeLists.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    aria-label="任务标签"
+                    disabled={isPending("tags")}
+                    className={styles.tagTrigger}
+                  >
+                    <span
+                      className={
+                        selectedTagNames ? styles.tagTriggerText : `${styles.tagTriggerText} ${styles.tagTriggerEmpty}`
+                      }
+                    >
+                      {selectedTagNames || "选择标签"}
+                    </span>
+                    <ChevronDown />
+                  </Button>
+                }
+              />
+              <PopoverContent>
+                {availableTags.length === 0 ? (
+                  <p className={styles.emptyChecklist}>没有任务标签</p>
+                ) : (
+                  availableTags.map((tag) => (
+                    <label key={tag.id} className={styles.tagOption}>
+                      <Checkbox
+                        checked={selectedTagIds.includes(tag.id)}
+                        disabled={isPending("tags")}
+                        onCheckedChange={(checked) => changeTags(tag.id, Boolean(checked))}
+                      />
+                      {tag.name}
+                    </label>
+                  ))
+                )}
+              </PopoverContent>
+            </Popover>
+            <span className={styles.barSpacer} />
+            <span className={styles.bottomWorkspace}>{detail.workspace.name}</span>
+            <Button variant="ghost" size="sm" onClick={openMove}>
+              移动待办
             </Button>
-          )}
-        </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="删除待办"
+              className={styles.deleteButton}
+              disabled={isPending("task-delete")}
+              onClick={removeTask}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        )}
       </div>
       {moveOpen && (
         <TaskMoveDialog
