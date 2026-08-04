@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe('Sidebar 版本检测入口', () => {
-  it('商店渠道点击版本号后显示 loading，并在五秒后提示已是最新版本', async () => {
+  it('商店渠道点击版本号后显示加载态，并在五秒后提示已是最新版本', async () => {
     const user = userEvent.setup();
     const { requestUpdateCheck } = setupChrome(CWS_EXTENSION_ID);
     render(<Sidebar openTabs={[]} />);

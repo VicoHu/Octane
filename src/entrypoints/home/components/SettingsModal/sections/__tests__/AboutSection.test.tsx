@@ -67,7 +67,7 @@ describe('AboutSection', () => {
     expect(tabsCreate).toHaveBeenCalledWith({ url: UPDATE_URL.manual });
   });
 
-  it('CWS 渠道点击检测更新后显示 loading，并刷新为立即更新状态', async () => {
+  it('CWS 渠道点击检测更新后显示加载态，并刷新为立即更新状态', async () => {
     const user = userEvent.setup();
     const { requestUpdateCheck, triggerPendingUpdate } = setupChrome({ id: CWS_EXTENSION_ID });
     render(<AboutSection />);

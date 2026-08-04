@@ -103,7 +103,7 @@ beforeEach(() => {
 });
 
 describe('Content Tag 筛选器（#52）', () => {
-  describe('视图切换计数 badge（#90）', () => {
+  describe('视图切换计数徽标（#90）', () => {
     it('显示过滤后标签页的已存数与当前书签结果的激活数', () => {
       bookmarksState.bookmarks = [
         makeBookmark('b1', '文档', ['React'], { url: 'https://example.com/docs' }),
