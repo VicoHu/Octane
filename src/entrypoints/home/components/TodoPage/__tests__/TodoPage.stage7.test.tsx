@@ -194,4 +194,25 @@ describe('TaskListPane — 完成、删除与快捷创建', () => {
     await waitFor(() => expect(useTodoView.getState().selectedTaskId).toBe('t2'));
     expect(toast.success).toHaveBeenCalledWith(expect.objectContaining({ action: expect.objectContaining({ label: '恢复' }) }));
   });
+
+  it('删除后切到废纸篓能看到该待办（hiddenIds 不跨视图泄漏）', async () => {
+    const user = userEvent.setup();
+    const softDeleteTask = vi.fn().mockResolvedValue(undefined);
+    useTodoData.setState({ queryResult: { active: [row()], completed: [], total: 1, effectiveSort: 'manual' }, softDeleteTask } as never);
+    useTodoView.setState({ selectedTaskId: 't1', statusFilter: 'active', view: { kind: 'inbox' } });
+
+    render(<TaskListPane onOpenNavigation={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: '整理发布更多操作' }));
+    await user.click(await screen.findByRole('menuitem', { name: '删除待办' }));
+
+    // 乐观隐藏生效：收集箱中暂时不可见
+    await waitFor(() => expect(screen.queryByText('整理发布')).not.toBeInTheDocument());
+
+    // 切到废纸篓，新查询结果已含刚删除的待办
+    const deletedRow = row({ task: { ...row().task, deletedAt: 100 } });
+    useTodoData.setState({ queryResult: { active: [deletedRow], completed: [], total: 1, effectiveSort: 'manual' } } as never);
+    useTodoView.setState({ view: { kind: 'trash' } });
+
+    expect(await screen.findByText('整理发布')).toBeInTheDocument();
+  });
 });

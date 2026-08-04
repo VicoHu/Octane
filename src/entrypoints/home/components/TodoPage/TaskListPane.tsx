@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/refs */
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -117,6 +117,11 @@ export function TaskListPane({
   const [pendingCompletion, setPendingCompletion] = useState<{ task: Task; incompleteChecklistCount: number } | null>(
     null,
   );
+  // hiddenIds 是针对当前列表的乐观隐藏（完成/删除 + 撤销 Toast）；
+  // 列表上下文一变，新查询已含最新写入，过期的隐藏集合应清空，否则切到废纸篓也看不到刚删的任务。
+  useEffect(() => {
+    setHiddenIds(new Set());
+  }, [scopeMode, view, statusFilter, priorityFilter, searchQuery, sortMode]);
   const active = (queryResult?.active ?? []).filter((row) => !hiddenIds.has(row.id));
   const completed = (queryResult?.completed ?? []).filter((row) => !hiddenIds.has(row.id));
   const rows = [...active, ...completed];
