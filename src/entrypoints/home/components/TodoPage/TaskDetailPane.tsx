@@ -143,15 +143,17 @@ function ChecklistRow({
         onChange={(event) => setText(event.target.value)}
         onBlur={() => void save()}
       />
-      <IconButton label={`上移「${item.text}」`} disabled={pending.reorder} onClick={() => onMove(item, -1)}>
-        <ArrowUp />
-      </IconButton>
-      <IconButton label={`下移「${item.text}」`} disabled={pending.reorder} onClick={() => onMove(item, 1)}>
-        <ArrowDown />
-      </IconButton>
-      <IconButton label={`删除「${item.text}」`} disabled={pending.delete} onClick={() => onDelete(item.id)}>
-        <Trash2 />
-      </IconButton>
+      <span className={styles.checklistActions}>
+        <IconButton label={`上移「${item.text}」`} disabled={pending.reorder} onClick={() => onMove(item, -1)}>
+          <ArrowUp />
+        </IconButton>
+        <IconButton label={`下移「${item.text}」`} disabled={pending.reorder} onClick={() => onMove(item, 1)}>
+          <ArrowDown />
+        </IconButton>
+        <IconButton label={`删除「${item.text}」`} disabled={pending.delete} onClick={() => onDelete(item.id)}>
+          <Trash2 />
+        </IconButton>
+      </span>
     </div>
   );
 }

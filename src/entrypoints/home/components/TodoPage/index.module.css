@@ -429,6 +429,38 @@
   min-height: 36px;
 }
 
+/* 检查项轻量化：无边框输入（hover 显底线、focus 显焦点环） */
+.checklistItem input {
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.checklistItem input:hover {
+  border-bottom-color: var(--border);
+}
+
+.checklistItem input:focus-visible {
+  outline: 2px solid var(--primary-focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+/* 操作按钮 hover/聚焦才显示；visibility 保持占位，避免布局抖动 */
+.checklistActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  visibility: hidden;
+}
+
+.checklistItem:hover .checklistActions,
+.checklistItem:focus-within .checklistActions {
+  visibility: visible;
+}
+
 .readonlyValue {
   display: flex;
   min-height: 36px;
@@ -563,6 +595,17 @@
 
 .taskRowCompleted {
   opacity: 0.65;
+}
+
+/* 行内「更多操作」hover/聚焦/菜单展开才显示（移动端常显，见底部媒体查询） */
+.rowMore {
+  visibility: hidden;
+}
+
+.taskRow:hover .rowMore,
+.taskRow:focus-within .rowMore,
+.rowMore[aria-expanded="true"] {
+  visibility: visible;
 }
 
 .taskRowMain {
@@ -728,6 +771,12 @@
     align-items: center;
     justify-content: center;
     margin: -4px 0 -4px -4px;
+  }
+
+  /* 触屏无 hover，行内操作与检查项操作常显 */
+  .rowMore,
+  .checklistActions {
+    visibility: visible;
   }
 
   .todoPage {
