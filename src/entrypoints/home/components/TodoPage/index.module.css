@@ -543,6 +543,58 @@
   font-size: 12px;
 }
 
+/* 快速添加：与任务卡片同族的白卡片（+ 号为该区唯一绿色信号） */
+.quickAdd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.quickAddInput {
+  position: relative;
+  min-width: 160px;
+  flex: 1;
+}
+
+.quickAddInput > svg {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--primary-text);
+  pointer-events: none;
+}
+
+.quickAddInput > input {
+  padding-left: 32px;
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--transition-normal);
+}
+
+.quickAddInput > input:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.quickAddInput > input:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
+.quickAddControl {
+  min-width: 96px;
+}
+
+.quickAdd input,
+.quickAdd button {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  box-shadow: none;
+}
+
 .taskScroll {
   min-height: 0;
   flex: 1;

@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useTodoData } from "@/store/useTodoData";
 import type { TodoView } from "@/services/TodoQueryService";
 import type { TaskPriority, Workspace } from "@/shared/types";
+import styles from "./index.module.css";
 
 interface QuickAddTaskProps {
   view: TodoView;
@@ -59,11 +60,10 @@ export function QuickAddTask({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-3 py-2" aria-label="快速添加">
-      <div className="relative min-w-40 flex-1">
-        <Plus className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 opacity-50" />
+    <div className={styles.quickAdd} aria-label="快速添加">
+      <div className={styles.quickAddInput}>
+        <Plus />
         <Input
-          className="pl-8"
           aria-label="快速添加待办"
           placeholder="添加待办"
           value={title}
@@ -77,7 +77,7 @@ export function QuickAddTask({
         />
       </div>
       {isSystemAggregate && (
-        <div className="min-w-24">
+        <div className={styles.quickAddControl}>
           <Label className="sr-only">工作区</Label>
           <Select value={workspaceId} onValueChange={(value) => setWorkspaceId(value ?? "")}>
             <SelectTrigger aria-label="工作区">
@@ -96,7 +96,7 @@ export function QuickAddTask({
         </div>
       )}
       {view.kind === "next7" && (
-        <div className="min-w-36">
+        <div className={styles.quickAddControl}>
           <Label className="sr-only" htmlFor="quick-add-due-date">
             截止日期
           </Label>
