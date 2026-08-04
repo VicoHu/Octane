@@ -215,4 +215,28 @@ describe('TaskListPane — 完成、删除与快捷创建', () => {
 
     expect(await screen.findByText('整理发布')).toBeInTheDocument();
   });
+
+  it('废纸篓行菜单为「恢复待办 / 永久删除」，永久删除需二次确认', async () => {
+    const user = userEvent.setup();
+    const deleteTaskPermanently = vi.fn().mockResolvedValue(undefined);
+    const restoreTask = vi.fn().mockResolvedValue({ ...row().task, deletedAt: null });
+    useTodoData.setState({
+      queryResult: { active: [row({ task: { ...row().task, deletedAt: 100 } })], completed: [], total: 1, effectiveSort: 'manual' },
+      deleteTaskPermanently, restoreTask,
+    } as never);
+    useTodoView.setState({ selectedTaskId: 't1', view: { kind: 'trash' } });
+
+    render(<TaskListPane onOpenNavigation={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: '整理发布更多操作' }));
+    // 废纸篓菜单不再出现误导性的「删除待办」，而是「恢复待办 / 永久删除」
+    expect(await screen.findByRole('menuitem', { name: '恢复待办' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '删除待办' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '永久删除' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('menuitem', { name: '永久删除' }));
+    expect(await screen.findByRole('heading', { name: '永久删除待办' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '永久删除' }));
+
+    await waitFor(() => expect(deleteTaskPermanently).toHaveBeenCalledWith('t1'));
+  });
 });

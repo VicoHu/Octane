@@ -94,6 +94,7 @@ export function TaskListPane({
   const setTaskCompletion = useTodoData((state) => state.setTaskCompletion);
   const softDeleteTask = useTodoData((state) => state.softDeleteTask);
   const restoreTask = useTodoData((state) => state.restoreTask);
+  const deleteTaskPermanently = useTodoData((state) => state.deleteTaskPermanently);
   const reorderTasks = useTodoData((state) => state.reorderTasks);
   const scopeMode = useTodoView((state) => state.scopeMode);
   const view = useTodoView((state) => state.view);
@@ -117,6 +118,8 @@ export function TaskListPane({
   const [pendingCompletion, setPendingCompletion] = useState<{ task: Task; incompleteChecklistCount: number } | null>(
     null,
   );
+  const [pendingPermanentDelete, setPendingPermanentDelete] = useState<Task | null>(null);
+  const isTrashView = view.kind === "trash";
   // hiddenIds 是针对当前列表的乐观隐藏（完成/删除 + 撤销 Toast）；
   // 列表上下文一变，新查询已含最新写入，过期的隐藏集合应清空，否则切到废纸篓也看不到刚删的任务。
   useEffect(() => {
@@ -234,6 +237,33 @@ export function TaskListPane({
       Toast.error("重排待办失败，已恢复原顺序");
     }
   };
+  const restoreFromTrash = (task: Task) => {
+    setHiddenIds((ids) => new Set(ids).add(task.id));
+    void restoreTask(task.id).then(() =>
+      setHiddenIds((ids) => {
+        const next = new Set(ids);
+        next.delete(task.id);
+        return next;
+      }),
+    );
+    Toast.success({
+      content: "待办已恢复",
+      duration: 5000,
+      action: {
+        label: "撤销",
+        onClick: () => {
+          void softDeleteTask(task.id);
+        },
+      },
+    });
+  };
+  const confirmPermanentDelete = async () => {
+    const task = pendingPermanentDelete;
+    if (!task) return;
+    setPendingPermanentDelete(null);
+    await deleteTaskPermanently(task.id);
+    if (selectedTaskId === task.id) selectTask(null);
+  };
   const title = titleForView(view, rows);
   const manualAvailable = scopeMode === "current" && (view.kind === "inbox" || view.kind === "list");
 
@@ -337,9 +367,12 @@ export function TaskListPane({
                 selected={selectedTaskId === row.id}
                 scopeMode={scopeMode}
                 today={today}
+                trash={isTrashView}
                 onSelect={select}
                 onToggleCompletion={(task, checked) => void complete(task, checked)}
                 onDelete={(task) => void remove(task)}
+                onRestore={restoreFromTrash}
+                onPermanentDelete={setPendingPermanentDelete}
               />
             ))}
           </SortableContext>
@@ -362,9 +395,12 @@ export function TaskListPane({
                   selected={selectedTaskId === row.id}
                   scopeMode={scopeMode}
                   today={today}
+                  trash={isTrashView}
                   onSelect={select}
                   onToggleCompletion={(task, checked) => void complete(task, checked)}
                   onDelete={(task) => void remove(task)}
+                  onRestore={restoreFromTrash}
+                  onPermanentDelete={setPendingPermanentDelete}
                 />
               ))}
           </section>
@@ -416,6 +452,29 @@ export function TaskListPane({
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => void confirmCompletion()}>仍然完成</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingPermanentDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPermanentDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>永久删除待办</AlertDialogTitle>
+            <AlertDialogDescription>此操作无法撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={pendingPermanentDelete?.id === undefined}
+              onClick={() => void confirmPermanentDelete()}
+            >
+              永久删除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
