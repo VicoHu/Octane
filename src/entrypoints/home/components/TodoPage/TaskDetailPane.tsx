@@ -573,7 +573,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
                 if (value && PRIORITIES.some((item) => item.value === value)) changePriority(value as TaskPriority);
               }}
             >
-              <SelectTrigger aria-label="优先级">
+              <SelectTrigger aria-label="优先级" className={styles.barTrigger}>
                 <SelectValue>
                   {(value) => PRIORITIES.find((item) => item.value === value)?.label ?? "无优先级"}
                 </SelectValue>

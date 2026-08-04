@@ -340,6 +340,26 @@
   width: auto;
 }
 
+/* 顶条控件 ghost 化：默认无边框无影，hover 显中性底，focus 保留焦点环 */
+.barDate,
+.barTrigger {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.barDate:hover,
+.barTrigger:hover {
+  background: var(--accent);
+}
+
+.barDate:focus-visible,
+.barTrigger:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
 .bottomWorkspace {
   color: var(--muted-foreground);
   font-size: 12px;
