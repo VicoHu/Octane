@@ -237,32 +237,40 @@ export function TaskListPane({
       Toast.error("重排待办失败，已恢复原顺序");
     }
   };
-  const restoreFromTrash = (task: Task) => {
+  const restoreFromTrash = async (task: Task) => {
     setHiddenIds((ids) => new Set(ids).add(task.id));
-    void restoreTask(task.id).then(() =>
+    try {
+      await restoreTask(task.id);
+      Toast.success({
+        content: "待办已恢复",
+        duration: 5000,
+        action: {
+          label: "撤销",
+          onClick: () => {
+            void softDeleteTask(task.id);
+          },
+        },
+      });
+    } catch {
       setHiddenIds((ids) => {
         const next = new Set(ids);
         next.delete(task.id);
         return next;
-      }),
-    );
-    Toast.success({
-      content: "待办已恢复",
-      duration: 5000,
-      action: {
-        label: "撤销",
-        onClick: () => {
-          void softDeleteTask(task.id);
-        },
-      },
-    });
+      });
+      Toast.error("恢复待办失败");
+    }
   };
   const confirmPermanentDelete = async () => {
     const task = pendingPermanentDelete;
     if (!task) return;
-    setPendingPermanentDelete(null);
-    await deleteTaskPermanently(task.id);
-    if (selectedTaskId === task.id) selectTask(null);
+    try {
+      await deleteTaskPermanently(task.id);
+      setPendingPermanentDelete(null);
+      if (selectedTaskId === task.id) selectTask(null);
+    } catch {
+      setPendingPermanentDelete(null);
+      Toast.error("永久删除待办失败");
+    }
   };
   const title = titleForView(view, rows);
   const manualAvailable = scopeMode === "current" && (view.kind === "inbox" || view.kind === "list");
