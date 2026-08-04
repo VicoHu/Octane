@@ -98,11 +98,82 @@ export interface CryptoMetadata {
   createdAt: number;
 }
 
+/** 待办优先级 */
+export type TaskPriority = 'high' | 'medium' | 'low' | 'none';
+
+/** 待办状态 */
+export type TaskStatus = 'active' | 'completed';
+
+/** 待办固定调色板颜色 */
+export type TodoColor = 'gray' | 'red' | 'amber' | 'green' | 'cyan' | 'blue' | 'violet' | 'pink';
+
+/** 待办清单 */
+export interface TaskList {
+  id: string;
+  workspaceId: string;
+  name: string;
+  normalizedName: string;
+  color: TodoColor;
+  order: number;
+  archivedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办任务 */
+export interface Task {
+  id: string;
+  workspaceId: string;
+  listId: string | null;
+  containerKey: string;
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  dueDate: string | null;
+  status: TaskStatus;
+  order: number;
+  completedAt: number | null;
+  deletedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办检查项 */
+export interface ChecklistItem {
+  id: string;
+  taskId: string;
+  text: string;
+  isCompleted: boolean;
+  completedAt: number | null;
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办标签 */
+export interface TaskTag {
+  id: string;
+  workspaceId: string;
+  name: string;
+  normalizedName: string;
+  color: TodoColor;
+  order: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 待办任务与标签关联 */
+export interface TaskTagAssignment {
+  taskId: string;
+  tagId: string;
+  createdAt: number;
+}
+
 /** IndexedDB 数据库名称 */
 export const DB_NAME = 'octane-db';
 
 /** IndexedDB 数据库版本号 */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** 第三方 favicon 来源。 */
 export type ThirdPartyFaviconSource = 'icon-horse';
@@ -173,10 +244,10 @@ export interface TabSession {
 
 /** 备份文件 schema 标识 */
 export const BACKUP_SCHEMA = 'octane-backup';
-/** 当前备份格式版本（导出时写入；v2 起含 pinnedTabs，v3 起含 kind，v4 起书签带 order，v5 起书签带 tags） */
-export const BACKUP_VERSION = 5;
-/** 导入时接受的版本集合（v1 旧备份缺 pinnedTabs；v1/v2 无 kind → 默认 backup；v1/v2/v3 书签无 order → 解析时回填；v4 及以下书签无 tags → 解析时回填） */
-export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3, 4, 5];
+/** 当前备份格式版本（v6 起完整包含待办五表） */
+export const BACKUP_VERSION = 6;
+/** 导入时接受的版本集合（v1-v5 缺少待办五表时规范化为空数组） */
+export const ACCEPTED_BACKUP_VERSIONS: readonly number[] = [1, 2, 3, 4, 5, 6];
 
 /** 备份文件种类：backup=全量覆盖恢复（灾备），share=部分合并导入（分享） */
 export type BackupKind = 'backup' | 'share';
@@ -193,18 +264,20 @@ export interface ShareSelection {
   categoryIds: string[];
 }
 
-/** 备份数据载荷：6 表存储态（contexts 含密文，不解密） */
+/** 备份数据载荷：书签与待办存储态（contexts 含密文，不解密） */
 export interface BackupData {
   workspaces: Workspace[];
   categories: Category[];
   bookmarks: Bookmark[];
   contexts: Context[];
-  /**
-   * 常驻标签（v4 起）。v1 旧备份无此字段 → 解析时补 []（T3 BackupService 处理）；
-   * 此处保持 optional 以便 T1 数据层先行、向后解析不报错。
-   */
+  /** v1 旧备份缺失时，解析阶段保留 undefined 以维持历史 pinnedTabs 恢复语义。 */
   pinnedTabs?: PinnedTab[];
   cryptoMetadata: CryptoMetadata | null;
+  taskLists: TaskList[];
+  tasks: Task[];
+  checklistItems: ChecklistItem[];
+  taskTags: TaskTag[];
+  taskTagAssignments: TaskTagAssignment[];
 }
 
 /** 备份文件顶层结构 */

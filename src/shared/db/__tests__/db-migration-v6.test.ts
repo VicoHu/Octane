@@ -120,7 +120,7 @@ describe('DB migration v5→v6（Bookmark tags 回填）', () => {
     expect(bmA1?.tags).toEqual(['前端', 'React']);
   });
 
-  it('全新安装（v6）：7 个 store 齐备', async () => {
+  it('全新安装（v7）：12 个 store 齐备', async () => {
     const db = await getDB();
     for (const store of [
       'workspaces',
@@ -130,6 +130,11 @@ describe('DB migration v5→v6（Bookmark tags 回填）', () => {
       'cryptoMetadata',
       'favicons',
       'pinnedTabs',
+      'taskLists',
+      'tasks',
+      'checklistItems',
+      'taskTags',
+      'taskTagAssignments',
     ]) {
       expect(db.objectStoreNames.contains(store)).toBe(true);
     }

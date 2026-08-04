@@ -1,8 +1,8 @@
+/* eslint-disable testing-library/no-await-sync-queries */
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { getDB, resetDB, putRecord, getAll, getByKey, mergeImportRaw } from '@/shared/db/database';
 import type { BackupData, Bookmark, Category, CryptoMetadata, PinnedTab, Workspace } from '@/shared/types';
-import { ContextType } from '@/shared/types';
 
 /**
  * mergeImportRaw 数据层单测(0.1.11.3 第3步)。
@@ -43,6 +43,7 @@ const metaNew: CryptoMetadata = { id: 'singleton', salt: 'S-NEW', iterations: 60
 const remappedData: BackupData = {
   workspaces: [wsNew], categories: [catNew], bookmarks: [bmNew], contexts: [],
   pinnedTabs: [pinNew], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('mergeImportRaw — 合并导入(分享包,不覆盖接收方现有数据)', () => {
@@ -61,6 +62,19 @@ describe('mergeImportRaw — 合并导入(分享包,不覆盖接收方现有数�
     expect(await getAll('workspaces')).toHaveLength(2);
     expect(await getAll('categories')).toHaveLength(1);
     expect(await getAll('bookmarks')).toHaveLength(1);
+  });
+
+  it('事务只打开书签相关 store，不触碰待办 store', async () => {
+    const db = await getDB();
+    const transactionSpy = vi.spyOn(db, 'transaction');
+
+    await mergeImportRaw(remappedData);
+
+    expect(transactionSpy).toHaveBeenCalledWith(
+      ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'pinnedTabs'],
+      'readwrite',
+    );
+    transactionSpy.mockRestore();
   });
 
   it('cryptoMeta 传入 → 写入 cryptoMetadata(全拷贝包,salt 相同场景)', async () => {

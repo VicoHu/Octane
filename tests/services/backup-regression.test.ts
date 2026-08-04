@@ -138,6 +138,7 @@ describe('灾备回归网 — pinnedTabs 覆盖分支（replaceAllDataRaw 零覆
     const data: BackupData = {
       workspaces: [], categories: [], bookmarks: [], contexts: [],
       pinnedTabs: [pin], cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
     await replaceAllDataRaw(data);
     expect(await getByKey('pinnedTabs', 'pin-old')).toBeUndefined();
@@ -149,6 +150,7 @@ describe('灾备回归网 — pinnedTabs 覆盖分支（replaceAllDataRaw 零覆
     await putRecord('pinnedTabs', { ...pin, id: 'pin-keep' });
     const data: BackupData = {
       workspaces: [], categories: [], bookmarks: [], contexts: [], cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     };
     await replaceAllDataRaw(data);
     expect(await getAll('pinnedTabs')).toHaveLength(1);

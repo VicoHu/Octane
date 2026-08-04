@@ -1,0 +1,830 @@
+.todoPage {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--content-bg);
+}
+
+.desktopNavigation {
+  width: 240px;
+  min-width: 240px;
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+}
+
+.navigationContents {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* 分段控件（当前/所有工作区、进行中/已完成/全部）：胶囊容器 + 圆角项，选中项白底微影（8/12 圆角体系） */
+.scopeToggle,
+.segmented {
+  gap: 2px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.scopeToggle {
+  width: 100%;
+}
+
+.scopeToggle > button,
+.segmented > button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-secondary);
+}
+
+.scopeToggle > button {
+  flex: 1;
+}
+
+/* base-ui Toggle 的选中态是 aria-pressed="true"（不是 data-state） */
+.scopeToggle > button[aria-pressed="true"],
+.segmented > button[aria-pressed="true"] {
+  background: var(--card-bg);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.navSections {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navSectionHeader {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.navGroup h3,
+.navSections h3 {
+  margin: 8px 0 2px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.navItem,
+.navEntity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.navItem {
+  position: relative;
+  width: 100%;
+  min-height: 34px;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 6px 8px;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+}
+
+.navItem svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+
+.navItem > span:not(.navCount) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navItem:hover {
+  background: var(--accent);
+}
+
+.navItemSelected {
+  background: var(--accent);
+  font-weight: 600;
+}
+
+/* 选中绿竖条对齐主页分类项：rounded 项内嵌 3px 条 */
+.navItemSelected::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--primary);
+  content: "";
+}
+
+.navCount {
+  min-width: 18px;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  text-align: right;
+}
+
+.navEntity > .navItem {
+  flex: 1;
+}
+
+.navigationSheet {
+  width: min(86vw, 320px);
+  max-width: none;
+}
+
+.resizableGroup {
+  min-width: 0;
+  flex: 1;
+}
+
+.resizeHandle {
+  flex: 0 0 1px;
+  background: var(--border);
+  transition: background-color 150ms ease;
+}
+
+.resizeHandle:hover,
+.resizeHandle:active {
+  background: var(--primary);
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.listPane,
+.detailPane {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--content-bg);
+}
+
+.detailPane {
+  border-left: 1px solid var(--border);
+  background: var(--card);
+  container-type: inline-size;
+  container-name: detail;
+}
+
+.paneHeader,
+.taskListHeader {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.taskListHeader {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 0;
+}
+
+.taskListTitle,
+.taskListTitle > div,
+.taskListControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.taskListTitle > div {
+  display: block;
+}
+
+/* 列表页 H1 对齐主页书签头部（DESIGN.md title 24px），副标题走 caption */
+.taskListTitle h1 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.paneHeader h1,
+.paneHeader h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.paneBody,
+.detailBody {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+
+.detailBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--foreground);
+}
+
+.detailField {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+/* 元信息区（只读态）：短关联字段两列网格，窄屏回落单列 */
+.detailGrid {
+  display: grid;
+  gap: 12px;
+}
+
+@container detail (min-width: 460px) {
+  .detailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .systemFields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 12px;
+  }
+}
+
+/* 标题：无边框大输入；描述：弹性大文本区 —— 更多区域给输入（参考滴答清单详情） */
+.titleInput {
+  height: auto;
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.titleInput:hover {
+  border-bottom-color: var(--border);
+}
+
+.descriptionInput {
+  min-height: 120px;
+  flex: 1;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  resize: none;
+}
+
+/* 选项分散到上下两条工具条 */
+.detailTopBar,
+.detailBottomBar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detailBottomBar {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.barSpacer {
+  flex: 1;
+}
+
+.barDate {
+  width: auto;
+}
+
+/* 顶条控件 ghost 化：默认无边框无影，hover 显中性底，focus 保留焦点环 */
+.barDate,
+.barTrigger {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.barDate:hover,
+.barTrigger:hover {
+  background: var(--accent);
+}
+
+.barDate:focus-visible,
+.barTrigger:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
+.bottomWorkspace {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.deleteButton {
+  color: var(--destructive);
+}
+
+/* 标签触发器：左对齐显示已选标签名，取代居中空按钮 */
+.tagTrigger {
+  max-width: 220px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tagTriggerText {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tagTriggerEmpty {
+  color: var(--muted-foreground);
+}
+
+.inlineField,
+.completeControl,
+.addChecklist,
+.checklistItem,
+.detailActions,
+.draftError,
+.tagOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inlineField {
+  justify-content: space-between;
+}
+
+.completeControl,
+.tagOption {
+  min-height: 32px;
+}
+
+.checklistSection {
+  display: grid;
+  gap: 8px;
+}
+
+.checklistSection h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.addChecklist input,
+.checklistItem input {
+  min-width: 0;
+  flex: 1;
+}
+
+.checklistItem {
+  min-height: 36px;
+}
+
+/* 检查项轻量化：无边框输入（hover 显底线、focus 显焦点环） */
+.checklistItem input {
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.checklistItem input:hover {
+  border-bottom-color: var(--border);
+}
+
+/* 操作按钮 hover/聚焦才显示；visibility 保持占位，避免布局抖动 */
+.checklistActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  visibility: hidden;
+}
+
+.checklistItem:hover .checklistActions,
+.checklistItem:focus-within .checklistActions {
+  visibility: visible;
+}
+
+.readonlyValue {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+}
+
+.fieldLabel {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.emptyChecklist {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.systemFields {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.detailActions {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.fieldError,
+.draftError {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.draftError {
+  flex-wrap: wrap;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.taskListTitle span,
+.taskSearchSummary,
+.taskRowMeta,
+.emptyTasks {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* 搜索改为弹窗触发（参考滴答清单）：仅保留顶栏放大镜按钮，激活态绿字 */
+.searchTriggerActive {
+  color: var(--primary-text);
+}
+
+.searchDialogInput {
+  position: relative;
+}
+
+.searchDialogInput > svg {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.searchDialogInput > input {
+  padding-right: 36px;
+  padding-left: 32px;
+}
+
+.searchDialogInput > button {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+.searchDialogHint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* 快速添加：与任务卡片同族的白卡片（+ 号为该区唯一绿色信号） */
+.quickAdd {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.quickAddInput {
+  position: relative;
+  min-width: 160px;
+  flex: 1;
+}
+
+.quickAddInput > svg {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--primary-text);
+  pointer-events: none;
+}
+
+.quickAddInput > input {
+  padding-left: 32px;
+  border-radius: var(--radius-md);
+  transition: box-shadow var(--transition-normal);
+}
+
+.quickAddInput > input:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+.quickAddInput > input:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
+.quickAddControl {
+  min-width: 24px;
+}
+
+.quickAdd input,
+.quickAdd button {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  box-shadow: none;
+}
+
+.taskScroll {
+  min-height: 0;
+  flex: 1;
+  padding-bottom: 8px;
+}
+
+/* 任务行卡片化，对齐主页书签卡片：白底 + 1px 四边边框 + rounded-md + hover 极轻影；勾选/菜单垂直居中 */
+.taskRow {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: box-shadow var(--transition-normal);
+}
+
+.taskRow:hover {
+  box-shadow: var(--shadow-soft);
+}
+
+/* 选中态：纯白底 + 内嵌 3px 绿竖条 + 浅影，层次靠影不靠底色 */
+.taskRowSelected {
+  background: var(--card-bg);
+  box-shadow:
+    inset 3px 0 0 0 var(--primary),
+    var(--shadow-soft);
+}
+
+.taskRowSelected .taskRowTitle {
+  font-weight: 600;
+}
+
+.taskRowCompleted {
+  opacity: 0.65;
+}
+
+/* 行内「更多操作」hover/聚焦/菜单展开才显示（移动端常显，见底部媒体查询） */
+.rowMore {
+  visibility: hidden;
+}
+
+.taskRow:hover .rowMore,
+.taskRow:focus-within .rowMore,
+.rowMore[aria-expanded="true"] {
+  visibility: visible;
+}
+
+.taskRowMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.taskRowTitleLine,
+.taskRowMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.taskRowTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taskRowMeta {
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.taskRowMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.taskRowMeta svg,
+.priority svg,
+.completedHeading svg {
+  width: 14px;
+  height: 14px;
+}
+
+.taskSearchSummary {
+  margin: 4px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.priorityHigh {
+  color: var(--priority-high);
+}
+.priorityMedium {
+  color: var(--priority-medium);
+}
+.priorityLow {
+  color: var(--priority-low);
+}
+.overdue {
+  color: var(--destructive);
+  font-weight: 600;
+}
+.workspaceMeta {
+  color: var(--foreground);
+}
+
+.completedGroup {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.completedHeading {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 10px 12px;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.completedHeading[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.emptyTasks {
+  padding: 16px;
+  text-align: center;
+}
+
+@media (min-width: 1200px) {
+  .listPane .paneHeader > button {
+    display: none;
+  }
+}
+
+@media (max-width: 1199px) {
+  .desktopNavigation {
+    display: none;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1199px) {
+  .todoPage {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  :global(
+      body:has([data-todo-mobile="true"])
+        :is(
+          button,
+          input,
+          textarea,
+          select,
+          a[href],
+          [role="button"],
+          [role="checkbox"],
+          [role="combobox"],
+          [role="menuitem"],
+          [role="option"],
+          [role="radio"],
+          [role="tab"]
+        )
+    ) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .mobileDetailAction {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .navigationSheet .scopeToggle > button,
+  .navigationSheet .navItem,
+  .navigationSheet .navSectionHeader,
+  .navigationSheet .navSectionHeader button,
+  .navigationSheet .navEntity > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .navigationSheet .navEntity {
+    gap: 8px;
+  }
+
+  .taskRowCompletion {
+    display: flex;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    margin: -4px 0 -4px -4px;
+  }
+
+  /* 触屏无 hover，行内操作与检查项操作常显 */
+  .rowMore,
+  .checklistActions {
+    visibility: visible;
+  }
+
+  .todoPage {
+    width: 100%;
+  }
+
+  .listPane,
+  .detailPane {
+    width: 100%;
+    border-left: 0;
+  }
+}

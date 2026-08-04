@@ -20,6 +20,7 @@ const data: BackupData = {
   contexts: [],
   pinnedTabs: [],
   cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 
 describe('applyImport — 广播 pinnedTabs（T3）', () => {
@@ -27,16 +28,19 @@ describe('applyImport — 广播 pinnedTabs（T3）', () => {
     vi.clearAllMocks();
   });
 
-  it('导入完成后对 5 个数据 store（含 pinnedTabs）触发 broadcastChange put', async () => {
+  it('导入完成后对全部业务 store（书签 5 表 + 待办 5 表）触发 broadcastChange put', async () => {
     await applyImport(data);
 
     // 写入 + 全量广播都被调用
     expect(replaceAllDataRaw).toHaveBeenCalledWith(data);
     expect(broadcastImport).toHaveBeenCalledTimes(1);
 
-    // 5 个数据 store 各触发一次 put（含 action 第二参数）
+    // 全部业务 store 各触发一次 put（含待办 5 表）
     const calls = vi.mocked(broadcastChange).mock.calls;
-    for (const store of ['workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs']) {
+    for (const store of [
+      'workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs',
+      'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+    ]) {
       expect(calls.some((c) => c[0] === store && c[1] === 'put')).toBe(true);
     }
   });

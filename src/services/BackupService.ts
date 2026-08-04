@@ -3,19 +3,43 @@ import {
   BACKUP_VERSION,
   ACCEPTED_BACKUP_VERSIONS,
 } from '@/shared/types';
-import type { BackupData, BackupKind, Bookmark, Category, Context, CryptoMetadata, PinnedTab, Workspace, ShareSelection } from '@/shared/types';
+import type {
+  BackupData,
+  BackupKind,
+  Bookmark,
+  Category,
+  Context,
+  CryptoMetadata,
+  PinnedTab,
+  ShareSelection,
+  Task,
+  TaskList,
+  TaskTag,
+  Workspace,
+} from '@/shared/types';
 import { exportAllData, replaceAllDataRaw, mergeImportRaw, getAll, getByKey, broadcastChange, broadcastImport } from '@/shared/db/database';
 import { syncContextMeta } from '@/services/ContextService';
 import { lock } from '@/services/CryptoService';
 import { remapShareIds, resolveNameConflicts, filterEncryptedBySalt, recomputeRedundancy, reorderForImport } from '@/services/shareImport';
 import type { ExistingNames } from '@/services/shareImport';
 import { validateTag, MAX_TAG_LENGTH, MAX_TAG_COUNT } from '@/shared/utils/tagRules';
+import { normalizeTodoName, taskContainerKey, validateDueDate } from '@/shared/tasks/taskRules';
 
-export type ValidationResult =
-  | { ok: true; data: BackupData; kind: BackupKind }
-  | { ok: false; error: string };
+export interface ValidatedBackup {
+  ok: true;
+  data: BackupData;
+  kind: BackupKind;
+  version: number;
+  exportedAt: number;
+  appVersion: string;
+  containsTodoData: boolean;
+  isLegacyWithoutTodo: boolean;
+}
+
+export type ValidationResult = ValidatedBackup | { ok: false; error: string };
 
 const DATA_TABLES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
+const TODO_TABLES = ['taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments'] as const;
 // pinnedTabs 故意不在 DATA_TABLES：它是 BackupData 的 optional 字段（v1 旧备份无此字段），
 // 校验与 replaceAllDataRaw 都按「字段缺失→保留现有数据，存在→覆盖」单独处理（见 database.ts）。
 
@@ -25,6 +49,117 @@ function isObj(v: unknown): v is Record<string, unknown> {
 
 function hasString(v: unknown, ...keys: string[]): boolean {
   return isObj(v) && keys.every((k) => typeof v[k] === 'string');
+}
+
+function isTimestamp(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isOrder(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function validateTodoData(data: BackupData): string | null {
+  const workspaceIds = new Set(data.workspaces.map((workspace) => workspace.id));
+  const taskLists = new Map<string, TaskList>();
+  const taskTags = new Map<string, TaskTag>();
+  const tasks = new Map<string, Task>();
+  const listNames = new Set<string>();
+  const tagNames = new Set<string>();
+
+  for (const list of data.taskLists) {
+    if (!hasString(list, 'id', 'workspaceId', 'name', 'normalizedName')
+      || !workspaceIds.has(list.workspaceId)
+      || !isOrder(list.order)
+      || !isTimestamp(list.createdAt)
+      || !isTimestamp(list.updatedAt)
+      || (list.archivedAt !== null && !isTimestamp(list.archivedAt))) {
+      return '待办清单数据无效或 Workspace 不存在';
+    }
+    const normalized = normalizeTodoName(list.name);
+    if (!normalized || normalized.normalizedName !== list.normalizedName) {
+      return `待办清单 ${list.id} 的名称或规范名无效`;
+    }
+    const key = `${list.workspaceId}\u0000${list.normalizedName}`;
+    if (listNames.has(key)) return '同一 Workspace 的待办清单规范名重复';
+    listNames.add(key);
+    taskLists.set(list.id, list);
+  }
+
+  for (const tag of data.taskTags) {
+    if (!hasString(tag, 'id', 'workspaceId', 'name', 'normalizedName')
+      || !workspaceIds.has(tag.workspaceId)
+      || !isOrder(tag.order)
+      || !isTimestamp(tag.createdAt)
+      || !isTimestamp(tag.updatedAt)) {
+      return '待办标签数据无效或 Workspace 不存在';
+    }
+    const normalized = normalizeTodoName(tag.name);
+    if (!normalized || normalized.normalizedName !== tag.normalizedName) {
+      return `待办标签 ${tag.id} 的名称或规范名无效`;
+    }
+    const key = `${tag.workspaceId}\u0000${tag.normalizedName}`;
+    if (tagNames.has(key)) return '同一 Workspace 的待办标签规范名重复';
+    tagNames.add(key);
+    taskTags.set(tag.id, tag);
+  }
+
+  for (const task of data.tasks) {
+    if (!hasString(task, 'id', 'workspaceId', 'containerKey', 'title', 'description')
+      || !workspaceIds.has(task.workspaceId)
+      || !isOrder(task.order)
+      || !isTimestamp(task.createdAt)
+      || !isTimestamp(task.updatedAt)
+      || (task.deletedAt !== null && !isTimestamp(task.deletedAt))
+      || (task.dueDate !== null && (typeof task.dueDate !== 'string' || !validateDueDate(task.dueDate)))
+      || !['high', 'medium', 'low', 'none'].includes(task.priority)
+      || !['active', 'completed'].includes(task.status)
+      || (task.status === 'completed' ? !isTimestamp(task.completedAt) : task.completedAt !== null)) {
+      return '待办任务数据无效';
+    }
+    if (task.listId !== null && typeof task.listId !== 'string') return `待办任务 ${task.id} 的清单无效`;
+    const list = task.listId === null ? null : taskLists.get(task.listId);
+    if (task.listId !== null && (!list || list.workspaceId !== task.workspaceId)) {
+      return `待办任务 ${task.id} 引用不存在或跨 Workspace 的清单`;
+    }
+    if (task.containerKey !== taskContainerKey(task.workspaceId, task.listId)) {
+      return `待办任务 ${task.id} 的容器键无效`;
+    }
+    tasks.set(task.id, task);
+  }
+
+  for (const item of data.checklistItems) {
+    if (!hasString(item, 'id', 'taskId', 'text')
+      || !tasks.has(item.taskId)
+      || typeof item.isCompleted !== 'boolean'
+      || !isOrder(item.order)
+      || !isTimestamp(item.createdAt)
+      || !isTimestamp(item.updatedAt)
+      || (item.isCompleted ? !isTimestamp(item.completedAt) : item.completedAt !== null)) {
+      return '检查项数据无效或父任务不存在';
+    }
+  }
+
+  const tagCountByTask = new Map<string, number>();
+  const assignmentKeys = new Set<string>();
+  for (const assignment of data.taskTagAssignments) {
+    if (!hasString(assignment, 'taskId', 'tagId') || !isTimestamp(assignment.createdAt)) {
+      return '任务标签关联数据无效';
+    }
+    const task = tasks.get(assignment.taskId);
+    const tag = taskTags.get(assignment.tagId);
+    if (!task || !tag || task.workspaceId !== tag.workspaceId) {
+      return '任务标签关联存在孤儿或跨 Workspace 引用';
+    }
+    const key = `${assignment.taskId}\u0000${assignment.tagId}`;
+    if (assignmentKeys.has(key)) return '任务标签关联重复';
+    assignmentKeys.add(key);
+    const count = (tagCountByTask.get(assignment.taskId) ?? 0) + 1;
+    if (count > 20) return `待办任务 ${assignment.taskId} 的标签超过 20 个`;
+    tagCountByTask.set(assignment.taskId, count);
+  }
+
+  return null;
 }
 
 /**
@@ -123,10 +258,29 @@ export function validateBackup(parsed: unknown): ValidationResult {
     return { ok: false, error: '备份种类字段无效' };
   }
 
+  if (!isTimestamp(parsed.exportedAt) || typeof parsed.appVersion !== 'string') {
+    return { ok: false, error: '备份元数据缺失或无效' };
+  }
+
   const data = parsed.data;
   if (!isObj(data)) return { ok: false, error: '备份数据缺失' };
   for (const t of DATA_TABLES) {
     if (!Array.isArray(data[t])) return { ok: false, error: `备份数据表 ${t} 缺失或非数组` };
+  }
+
+  const isLegacyWithoutTodo = parsed.version < BACKUP_VERSION;
+  const todoData = {} as Pick<BackupData, typeof TODO_TABLES[number]>;
+  if (isLegacyWithoutTodo) {
+    for (const table of TODO_TABLES) todoData[table] = [] as never;
+  } else {
+    for (const table of TODO_TABLES) {
+      if (!Array.isArray(data[table])) return { ok: false, error: `备份数据表 ${table} 缺失或非数组` };
+      todoData[table] = data[table] as never;
+    }
+  }
+  const containsTodoData = TODO_TABLES.some((table) => todoData[table].length > 0);
+  if (parsed.version === BACKUP_VERSION && kind === 'share' && containsTodoData) {
+    return { ok: false, error: '分享包不得包含待办数据' };
   }
 
   // pinnedTabs：v2+ 必须是数组；v1 旧备份无此字段 → 保持 undefined
@@ -185,8 +339,22 @@ export function validateBackup(parsed: unknown): ValidationResult {
     contexts: data.contexts as Context[],
     pinnedTabs,
     cryptoMetadata: (meta ?? null) as CryptoMetadata | null,
+    ...todoData,
   };
-  return { ok: true, data: backupData, kind };
+  if (!isLegacyWithoutTodo) {
+    const todoError = validateTodoData(backupData);
+    if (todoError) return { ok: false, error: todoError };
+  }
+  return {
+    ok: true,
+    data: backupData,
+    kind,
+    version: parsed.version,
+    exportedAt: parsed.exportedAt,
+    appVersion: parsed.appVersion,
+    containsTodoData,
+    isLegacyWithoutTodo,
+  };
 }
 
 /** 备份文件大小上限：50MB（防止 JSON.parse 卡死/内存溢出） */
@@ -243,6 +411,11 @@ export async function applyImport(data: BackupData): Promise<void> {
   broadcastChange('bookmarks', 'put');
   broadcastChange('contexts', 'put');
   broadcastChange('pinnedTabs', 'put');
+  broadcastChange('taskLists', 'put');
+  broadcastChange('tasks', 'put');
+  broadcastChange('checklistItems', 'put');
+  broadcastChange('taskTags', 'put');
+  broadcastChange('taskTagAssignments', 'put');
   broadcastImport();
 }
 
@@ -285,7 +458,19 @@ export function buildShareData(
     : [];
   const cryptoMetadata = includeContexts ? all.cryptoMetadata : null;
 
-  return { workspaces, categories, bookmarks, contexts, pinnedTabs, cryptoMetadata };
+  return {
+    workspaces,
+    categories,
+    bookmarks,
+    contexts,
+    pinnedTabs,
+    cryptoMetadata,
+    taskLists: [],
+    tasks: [],
+    checklistItems: [],
+    taskTags: [],
+    taskTagAssignments: [],
+  };
 }
 
 /** 分享包导入结果(返回给 UI 显示数量 + salt 冲突提示) */

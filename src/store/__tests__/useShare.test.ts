@@ -12,6 +12,7 @@ const structureData = {
   categories: [{ id: 'cat-1', workspaceId: 'ws-1', name: '工具', icon: '📂', order: 0, createdAt: 1 }],
   bookmarks: [],
   contexts: [], pinnedTabs: [], cryptoMetadata: null,
+  taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
 };
 const sharePkg = { ...structureData };
 
@@ -61,7 +62,7 @@ describe('useShare — 导出状态机', () => {
 
 describe('useShare — 导入状态机', () => {
   it('pickImportFile kind=share → parsing→previewing + importData', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' } as never);
     await useShare.getState().pickImportFile(new File(['{}'], 's.json'));
     const s = useShare.getState();
     expect(s.importStatus).toBe('previewing');
@@ -69,7 +70,7 @@ describe('useShare — 导入状态机', () => {
   });
 
   it('pickImportFile kind=backup → error 分流', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'backup' });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'backup' } as never);
     await useShare.getState().pickImportFile(new File(['{}'], 'b.json'));
     const s = useShare.getState();
     expect(s.importStatus).toBe('error');
@@ -84,7 +85,7 @@ describe('useShare — 导入状态机', () => {
   });
 
   it('runImport → sendMessage(octane:apply-share-import, data, selection) + success', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' } as never);
     await useShare.getState().pickImportFile(new File(['{}'], 's.json'));
     useShare.getState().setImportSelection({ workspaceIds: ['ws-1'], categoryIds: [] });
     sendMessage.mockResolvedValue({ ok: true, result: { workspaces: 1, categories: 1, bookmarks: 0, skippedEncrypted: 0 } });
@@ -100,7 +101,7 @@ describe('useShare — 导入状态机', () => {
   });
 
   it('runImport res.ok=false → error', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' } as never);
     await useShare.getState().pickImportFile(new File(['{}'], 's.json'));
     sendMessage.mockResolvedValue({ ok: false, error: '事务失败' });
     await useShare.getState().runImport();
@@ -109,7 +110,7 @@ describe('useShare — 导入状态机', () => {
   });
 
   it('runImport salt 冲突 → success + skippedEncrypted 计数', async () => {
-    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' });
+    vi.spyOn(BackupService, 'parseBackupFile').mockResolvedValue({ ok: true, data: sharePkg, kind: 'share' } as never);
     await useShare.getState().pickImportFile(new File(['{}'], 's.json'));
     sendMessage.mockResolvedValue({ ok: true, result: { workspaces: 1, categories: 1, bookmarks: 0, skippedEncrypted: 2 } });
     await useShare.getState().runImport();

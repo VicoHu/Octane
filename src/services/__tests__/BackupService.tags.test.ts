@@ -39,6 +39,7 @@ function makeV5File(bookmarks: unknown[], overrides: Partial<BackupFile> = {}): 
       contexts: [],
       pinnedTabs: [],
       cryptoMetadata: null,
+      taskLists: [], tasks: [], checklistItems: [], taskTags: [], taskTagAssignments: [],
     },
     ...overrides,
   };

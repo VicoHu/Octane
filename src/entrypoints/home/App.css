@@ -106,6 +106,19 @@
 .app-rail-spacer { flex: 1; }
 .app-rail-avatar { width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: #3b4744; border: 1px solid rgba(255,255,255,.18); }
 
+.home-page-shell,
+.todo-page-shell {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+}
+
+.home-page-shell[hidden],
+.todo-page-shell[hidden] {
+  display: none;
+}
+
 .app-sidebar {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
@@ -133,8 +146,31 @@
 }
 
 .app-sidebar-mobile-header,
-.app-mobile-menu {
+.app-mobile-menu,
+.mobile-primary-navigation {
   display: none;
+}
+
+.mobile-primary-navigation-button {
+  justify-content: flex-start;
+  position: relative;
+}
+
+.mobile-primary-navigation-button.is-active {
+  background: var(--accent);
+  color: var(--foreground);
+  font-weight: 700;
+}
+
+.mobile-primary-navigation-button.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 .app-mobile-backdrop { display: none; }
@@ -178,6 +214,11 @@
     color: var(--sidebar-text);
     font-size: var(--font-sm);
     font-weight: 700;
+  }
+  .mobile-primary-navigation {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px 0;
   }
   .app-mobile-menu {
     display: inline-flex;

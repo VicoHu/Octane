@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [0.3.0.0] - 2026-08-04
+
+### Added
+
+- **待办事项页面** —— AppRail 待办入口（与主页平级）切换至全新待办工作台，与书签共享工作区边界。三栏布局（左侧导航 / 中部任务列表 / 右侧任务详情），分割线可拖拽调比例，桌面三栏 / 窄桌面双栏 / 移动单面板自适应。
+  - **任务管理**：创建、查看、编辑、完成 / 取消、跨清单 / 跨工作区移动、软删除进废纸篓、恢复、永久删除；四档优先级（高 / 中 / 低 / 无）、单一截止日期、轻量检查项、文本搜索、筛选、排序与受约束的手动拖拽。
+  - **清单与标签**：清单可创建 / 重命名 / 着色 / 排序 / 归档 / 恢复 / 受约束永久删除；任务标签（独立于书签标签）可创建 / 重命名 / 着色 / 排序 / 删除 / 单标签过滤。
+  - **导航视图**：今天、未来 7 天、Inbox（未归入清单的任务）、各清单、各标签、已归档清单、废纸篓；可切换「所有工作区」汇总视图（仅扩大查询范围，Task / 清单 / 标签始终归属单一工作区）。
+  - **草稿保护**：任务详情编辑采用草稿暂存 + 串行提交，切换任务 / 工作区 / 关闭 / 移动返回 / 响应式断点切换前自动保存，防编辑丢失。
+
+### Changed
+
+- **DB schema v6→v7**：新增 5 个待办 object store（tasks / taskLists / checklistItems / taskTags / taskTagAssignments，含复合唯一索引、by-containerKey / by-listId / by-dueDate / by-deletedAt 索引、分配复合主键），升级事务内创建、不迁移既有数据；删除工作区时单事务级联清理全部待办。
+- **备份格式 v5→v6**：备份文件含待办 5 表；v6 严格校验（工作区交叉引用、工作区局部清单 / 标签名唯一、containerKey 一致、检查项归属、标签分配工作区匹配、每任务 ≤20 标签、优先级 / 状态枚举、截止日期真实日历校验）；v1–v5 旧备份解析时回填空待办数组。分享包严格排除待办（导出 5 空数组、含待办的 share 包被拒、合并导入不触碰待办表）。
+- **Home / AppRail 接入**：AppRail 增加待办入口（与主页平级，aria-current / is-active / Tooltip），HomePageShell 保留两套视图子树（非活跃页 hidden + inert），待办页懒挂载；导入 / DB 变更后联动失效待办 store。
+
+### Fixed
+
+- 删除任务后切到废纸篓视图看不到该待办（视图未随删除刷新）。
+- 废纸篓行菜单原走误导的「删除」流，改为明确的「恢复 / 永久删除」。
+- 恢复 / 永久删除失败路径补错与事务回滚（失败不污染状态）。
+
+### Internal
+
+- 产品规格 / 实施规格 / 2 个 ADR（Task 归属单一工作区、书签 Tag 与 Task Tag 保持独立）/ 产品模式研究文档。
+- 全链路 TDD（1489 测试，含 db-migration-v7、4 个 service、TodoQueryService、备份 v6 校验、分享排除、useTodoData / useTodoView、TaskDetailPane autosave 草稿 gate、TodoPage stage7 集成、响应式、workspace 级联覆盖）。
+- README / WHY / PRIVACY / TODOS / CONTEXT / DESIGN 同步待办功能文档覆盖。
+- pre-landing review 修复 6 项：草稿响应式断点切换持久化、PRIORITY 标签 DRY、mutation 自广播双重加载、titleInput 字号对齐 token、移动端选中态 ::before 模式、pendingKeys 切换重置。
+
 ## [0.2.4.0] - 2026-07-31
 
 ### Added

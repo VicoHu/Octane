@@ -7,6 +7,11 @@ import type {
   Context,
   CryptoMetadata,
   PinnedTab,
+  Task,
+  TaskList,
+  ChecklistItem,
+  TaskTag,
+  TaskTagAssignment,
   Workspace,
 } from '@/shared/types';
 
@@ -18,6 +23,11 @@ interface OctaneDB extends IDBPDatabase {
   cryptoMetadata: IDBPObjectStore<OctaneDB, ['cryptoMetadata']>;
   favicons: IDBPObjectStore<OctaneDB, ['favicons']>;
   pinnedTabs: IDBPObjectStore<OctaneDB, ['pinnedTabs']>;
+  taskLists: IDBPObjectStore<OctaneDB, ['taskLists']>;
+  tasks: IDBPObjectStore<OctaneDB, ['tasks']>;
+  checklistItems: IDBPObjectStore<OctaneDB, ['checklistItems']>;
+  taskTags: IDBPObjectStore<OctaneDB, ['taskTags']>;
+  taskTagAssignments: IDBPObjectStore<OctaneDB, ['taskTagAssignments']>;
 }
 
 type StoreName =
@@ -27,13 +37,27 @@ type StoreName =
   | 'contexts'
   | 'cryptoMetadata'
   | 'favicons'
-  | 'pinnedTabs';
+  | 'pinnedTabs'
+  | 'taskLists'
+  | 'tasks'
+  | 'checklistItems'
+  | 'taskTags'
+  | 'taskTagAssignments';
 
 /**
  * 数据变更事件：数据库写入后广播，让其他上下文（side panel）重新读取刷新。
  * 同名 BroadcastChannel 实例互通信义，同实例 postMessage 不回环。
+ * contextId 标记发起广播的上下文，接收方可据此跳过自己发起的变更
+ *（本上下文的 mutation 已由调用方同步刷新，无需再被自身广播触发重复加载）。
  */
-export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete' };
+export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete'; contextId?: string };
+
+/** 本上下文唯一标识（同上下文内 database 与 App 共享，跨上下文/标签页不同）。 */
+export const DB_CONTEXT_ID: string = (() => {
+  const g = globalThis as { __octaneDbContextId?: string };
+  if (!g.__octaneDbContextId) g.__octaneDbContextId = crypto.randomUUID();
+  return g.__octaneDbContextId!;
+})();
 
 function createExtensionChannel(name: string): BroadcastChannel | null {
   const inExtensionContext = typeof window !== 'undefined' || typeof chrome !== 'undefined';
@@ -46,7 +70,7 @@ const dbChannel = createExtensionChannel(DB_NAME);
 
 /** 广播数据变更。无原生 BroadcastChannel 时静默跳过。 */
 function broadcast(store: StoreName, action: 'put' | 'delete'): void {
-  dbChannel?.postMessage({ store, action } satisfies DbChangeEvent);
+  dbChannel?.postMessage({ store, action, contextId: DB_CONTEXT_ID } satisfies DbChangeEvent);
 }
 
 /** 公开包装：供导入等外部流程显式触发 store 变更广播（side panel 刷新）。 */
@@ -163,6 +187,31 @@ export async function runUpgrade(
       }
     }
   }
+
+  // 待办数据表结构（v6→v7）：仅创建空表与索引，不改写既有记录。
+  if (oldVersion < 7) {
+    const taskLists = db.createObjectStore('taskLists', { keyPath: 'id' });
+    taskLists.createIndex('by-workspaceId', 'workspaceId');
+    taskLists.createIndex('by-workspaceId-normalizedName', ['workspaceId', 'normalizedName'], { unique: true });
+
+    const tasks = db.createObjectStore('tasks', { keyPath: 'id' });
+    tasks.createIndex('by-workspaceId', 'workspaceId');
+    tasks.createIndex('by-containerKey', 'containerKey');
+    tasks.createIndex('by-listId', 'listId');
+    tasks.createIndex('by-dueDate', 'dueDate');
+    tasks.createIndex('by-deletedAt', 'deletedAt');
+
+    const checklistItems = db.createObjectStore('checklistItems', { keyPath: 'id' });
+    checklistItems.createIndex('by-taskId', 'taskId');
+
+    const taskTags = db.createObjectStore('taskTags', { keyPath: 'id' });
+    taskTags.createIndex('by-workspaceId', 'workspaceId');
+    taskTags.createIndex('by-workspaceId-normalizedName', ['workspaceId', 'normalizedName'], { unique: true });
+
+    const taskTagAssignments = db.createObjectStore('taskTagAssignments', { keyPath: ['taskId', 'tagId'] });
+    taskTagAssignments.createIndex('by-taskId', 'taskId');
+    taskTagAssignments.createIndex('by-tagId', 'tagId');
+  }
 }
 
 /** 获取 IndexedDB 连接（单例） */
@@ -223,42 +272,51 @@ export async function deleteRecord(storeName: StoreName, key: string): Promise<v
 
 // ========== 级联删除 ==========
 
-/** 级联删除工作区：Workspace → Categories + Bookmarks + Contexts + PinnedTabs */
+/** 级联删除工作区：Workspace 及其书签、待办和常驻标签子记录。 */
 export async function cascadeDeleteWorkspace(workspaceId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(
-    ['workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs'],
+    [
+      'workspaces', 'categories', 'bookmarks', 'contexts', 'pinnedTabs',
+      'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+    ],
     'readwrite',
   );
 
   const categories = await tx.objectStore('categories').index('by-workspaceId').getAll(workspaceId);
-  const categoryIds = new Set(categories.map((c) => c.id));
-
   const bookmarks = await tx.objectStore('bookmarks').index('by-workspaceId').getAll(workspaceId);
-  const bookmarkIds = bookmarks.map((b) => b.id);
+  const tasks = await tx.objectStore('tasks').index('by-workspaceId').getAll(workspaceId) as Task[];
 
-  for (const bookmarkId of bookmarkIds) {
-    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmarkId);
-    for (const ctx of contexts) {
-      await tx.objectStore('contexts').delete(ctx.id);
-    }
+  for (const task of tasks) {
+    const checklistItems = await tx.objectStore('checklistItems').index('by-taskId').getAll(task.id) as ChecklistItem[];
+    for (const item of checklistItems) await tx.objectStore('checklistItems').delete(item.id);
+    const assignments = await tx.objectStore('taskTagAssignments').index('by-taskId').getAll(task.id) as TaskTagAssignment[];
+    for (const assignment of assignments) await tx.objectStore('taskTagAssignments').delete([assignment.taskId, assignment.tagId]);
+    await tx.objectStore('tasks').delete(task.id);
   }
-  for (const bookmarkId of bookmarkIds) {
-    await tx.objectStore('bookmarks').delete(bookmarkId);
+
+  const taskLists = await tx.objectStore('taskLists').index('by-workspaceId').getAll(workspaceId) as TaskList[];
+  for (const taskList of taskLists) await tx.objectStore('taskLists').delete(taskList.id);
+  const taskTags = await tx.objectStore('taskTags').index('by-workspaceId').getAll(workspaceId) as TaskTag[];
+  for (const taskTag of taskTags) await tx.objectStore('taskTags').delete(taskTag.id);
+
+  for (const bookmark of bookmarks) {
+    const contexts = await tx.objectStore('contexts').index('by-bookmarkId').getAll(bookmark.id);
+    for (const context of contexts) await tx.objectStore('contexts').delete(context.id);
+    await tx.objectStore('bookmarks').delete(bookmark.id);
   }
-  for (const categoryId of categoryIds) {
-    await tx.objectStore('categories').delete(categoryId);
-  }
-  // 删除该工作区的常驻标签（per-workspace，与书签解耦但同属工作区）
+  for (const category of categories) await tx.objectStore('categories').delete(category.id);
+
   const pins = await tx.objectStore('pinnedTabs').index('by-workspaceId').getAll(workspaceId);
-  for (const pin of pins) {
-    await tx.objectStore('pinnedTabs').delete(pin.id);
-  }
+  for (const pin of pins) await tx.objectStore('pinnedTabs').delete(pin.id);
   await tx.objectStore('workspaces').delete(workspaceId);
 
   await tx.done;
   broadcast('bookmarks', 'delete');
   broadcast('pinnedTabs', 'delete');
+  broadcast('tasks', 'delete');
+  broadcast('taskLists', 'delete');
+  broadcast('taskTags', 'delete');
 }
 
 /** 级联删除分类：Category → Bookmarks + Contexts */
@@ -301,12 +359,17 @@ export async function deleteBookmarkCascade(bookmarkId: string): Promise<void> {
 
 // ========== 全量导出 / 覆盖导入 ==========
 
-const DATA_STORES = ['workspaces', 'categories', 'bookmarks', 'contexts'] as const;
+const DATA_STORES = [
+  'workspaces', 'categories', 'bookmarks', 'contexts',
+  'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+] as const;
 const ALL_STORES = [...DATA_STORES, 'cryptoMetadata', 'pinnedTabs'] as const;
+const BOOKMARK_IMPORT_STORES = [
+  'workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'pinnedTabs',
+] as const;
 
 /**
- * 导出全部数据（6 表存储态）。
- * contexts 取底层 getAll（含密文，不解密）——禁止用会解密的 ContextService.getContexts。
+ * 导出全部数据。contexts 取底层 getAll（含密文，不解密）。
  */
 export async function exportAllData(): Promise<BackupData> {
   return {
@@ -316,6 +379,11 @@ export async function exportAllData(): Promise<BackupData> {
     contexts: await getAll<Context>('contexts'),
     pinnedTabs: await getAll<PinnedTab>('pinnedTabs'),
     cryptoMetadata: (await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton')) ?? null,
+    taskLists: await getAll<TaskList>('taskLists'),
+    taskTags: await getAll<TaskTag>('taskTags'),
+    tasks: await getAll<Task>('tasks'),
+    checklistItems: await getAll<ChecklistItem>('checklistItems'),
+    taskTagAssignments: await getAll<TaskTagAssignment>('taskTagAssignments'),
   };
 }
 
@@ -333,9 +401,16 @@ export async function replaceAllDataRaw(data: BackupData): Promise<void> {
     await tx.objectStore(s).clear();
   }
   for (const ws of data.workspaces) await tx.objectStore('workspaces').put(ws);
+  for (const taskList of data.taskLists) await tx.objectStore('taskLists').put(taskList);
+  for (const taskTag of data.taskTags) await tx.objectStore('taskTags').put(taskTag);
   for (const c of data.categories) await tx.objectStore('categories').put(c);
   for (const b of data.bookmarks) await tx.objectStore('bookmarks').put(b);
   for (const ctx of data.contexts) await tx.objectStore('contexts').put(ctx);
+  for (const task of data.tasks) await tx.objectStore('tasks').put(task);
+  for (const item of data.checklistItems) await tx.objectStore('checklistItems').put(item);
+  for (const assignment of data.taskTagAssignments) {
+    await tx.objectStore('taskTagAssignments').put(assignment);
+  }
   // 可选字段：仅当显式提供时 clear+put；缺失则不动该 store
   if (data.pinnedTabs) {
     await tx.objectStore('pinnedTabs').clear();
@@ -362,7 +437,7 @@ export async function replaceAllDataRaw(data: BackupData): Promise<void> {
  */
 export async function mergeImportRaw(remapped: BackupData, cryptoMeta?: CryptoMetadata): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction([...ALL_STORES], 'readwrite');
+  const tx = db.transaction([...BOOKMARK_IMPORT_STORES], 'readwrite');
   for (const ws of remapped.workspaces) await tx.objectStore('workspaces').put(ws);
   for (const c of remapped.categories) await tx.objectStore('categories').put(c);
   for (const b of remapped.bookmarks) await tx.objectStore('bookmarks').put(b);

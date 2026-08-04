@@ -190,8 +190,8 @@ describe('DB migration → v5（可信 favicon 缓存）', () => {
     expect(typeof runUpgrade).toBe('function');
   });
 
-  it('DB_VERSION 已升到 6', () => {
-    expect(DB_VERSION).toBe(6);
+  it('DB_VERSION 已升到 7', () => {
+    expect(DB_VERSION).toBe(7);
   });
 
   it('v3 库升级到 v5 后，业务数据保留、旧 favicon 清空，且新增 pinnedTabs store', async () => {
@@ -223,7 +223,7 @@ describe('DB migration → v5（可信 favicon 缓存）', () => {
 
     const db = await getDB();
 
-    expect(DB_VERSION).toBe(6);
+    expect(DB_VERSION).toBe(7);
     expect(await db.get('workspaces', 'ws-v4')).toMatchObject({ id: 'ws-v4' });
     expect(await db.get('bookmarks', 'bm-v4')).toMatchObject({ id: 'bm-v4' });
     expect(await db.get('pinnedTabs', 'pin-v4')).toMatchObject({ id: 'pin-v4' });
@@ -245,9 +245,12 @@ describe('DB migration → v5（可信 favicon 缓存）', () => {
     });
   });
 
-  it('全新安装（v5）：7 个 store 齐备', async () => {
+  it('全新安装（v7）：12 个 store 齐备', async () => {
     const db = await getDB();
-    for (const store of ['workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'favicons', 'pinnedTabs']) {
+    for (const store of [
+      'workspaces', 'categories', 'bookmarks', 'contexts', 'cryptoMetadata', 'favicons', 'pinnedTabs',
+      'taskLists', 'tasks', 'checklistItems', 'taskTags', 'taskTagAssignments',
+    ]) {
       expect(db.objectStoreNames.contains(store)).toBe(true);
     }
   });

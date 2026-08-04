@@ -60,7 +60,19 @@ export function remapShareIds(data: BackupData, genId: () => string = defaultGen
     workspaceId: wsMap.get(p.workspaceId)!,
   }));
 
-  return { workspaces, categories, bookmarks, contexts, pinnedTabs, cryptoMetadata: data.cryptoMetadata };
+  return {
+    workspaces,
+    categories,
+    bookmarks,
+    contexts,
+    pinnedTabs,
+    cryptoMetadata: data.cryptoMetadata,
+    taskLists: [],
+    tasks: [],
+    checklistItems: [],
+    taskTags: [],
+    taskTagAssignments: [],
+  };
 }
 
 /** 接收方已有的同名集合(workspace/category),用于同名后缀判定 */
