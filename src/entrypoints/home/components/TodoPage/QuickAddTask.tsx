@@ -77,7 +77,7 @@ export function QuickAddTask({
         />
       </div>
       {isSystemAggregate && (
-        <div className="min-w-32">
+        <div className="min-w-24">
           <Label className="sr-only">工作区</Label>
           <Select value={workspaceId} onValueChange={(value) => setWorkspaceId(value ?? "")}>
             <SelectTrigger aria-label="工作区">

@@ -309,13 +309,6 @@
   resize: none;
 }
 
-.titleInput:focus-visible,
-.descriptionInput:focus-visible {
-  outline: 2px solid var(--primary-focus);
-  outline-offset: 2px;
-  box-shadow: none;
-}
-
 /* 选项分散到上下两条工具条 */
 .detailTopBar,
 .detailBottomBar {
@@ -440,12 +433,6 @@
 
 .checklistItem input:hover {
   border-bottom-color: var(--border);
-}
-
-.checklistItem input:focus-visible {
-  outline: 2px solid var(--primary-focus);
-  outline-offset: 2px;
-  box-shadow: none;
 }
 
 /* 操作按钮 hover/聚焦才显示；visibility 保持占位，避免布局抖动 */
