@@ -153,13 +153,24 @@
 
 .mobile-primary-navigation-button {
   justify-content: flex-start;
+  position: relative;
 }
 
 .mobile-primary-navigation-button.is-active {
-  border-left: 3px solid var(--primary);
   background: var(--accent);
   color: var(--foreground);
   font-weight: 700;
+}
+
+.mobile-primary-navigation-button.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
 
 .app-mobile-backdrop { display: none; }

@@ -10,7 +10,7 @@ import { TodoPage, type TodoLeaveGuard } from './components/TodoPage';
 import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
-import { IMPORT_CHANNEL_NAME, type DbChangeEvent } from '@/shared/db/database';
+import { IMPORT_CHANNEL_NAME, DB_CONTEXT_ID, type DbChangeEvent } from '@/shared/db/database';
 import { useOpenTabs } from './hooks/useOpenTabs';
 import { useRecoveryNotice } from './hooks/useRecoveryNotice';
 import { switchWorkspace } from './utils/workspaceSwitcher';
@@ -108,9 +108,10 @@ const App: React.FC = () => {
     const channel =
       typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(DB_NAME) : null;
     const onMessage = async (e: MessageEvent<DbChangeEvent>) => {
-      const { store } = e.data ?? {};
+      const { store, contextId } = e.data ?? {};
       if (TASK_STORES.has(store)) {
-        useTodoData.getState().invalidate();
+        // 跳过本上下文发起的广播：runMutation 已同步 refresh，避免重复全量查询。
+        if (contextId !== DB_CONTEXT_ID) useTodoData.getState().invalidate();
       } else if (store === 'pinnedTabs') {
         const wsId = useWorkspace.getState().currentWorkspaceId;
         if (wsId) await usePinnedTabs.getState().loadPinnedTabs(wsId);

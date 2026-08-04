@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { TaskRow as TaskRowData } from "@/services/TodoQueryService";
 import type { Task } from "@/shared/types";
+import { PRIORITY_LABELS } from "@/shared/tasks/taskRules";
 import styles from "./index.module.css";
 
 interface TaskRowProps {
@@ -24,8 +25,6 @@ interface TaskRowProps {
   onRestore?: (task: Task) => void;
   onPermanentDelete?: (task: Task) => void;
 }
-
-const PRIORITY_LABEL = { high: "高优先级", medium: "中优先级", low: "低优先级", none: "无优先级" } as const;
 
 export function TaskRow({
   row,
@@ -77,10 +76,10 @@ export function TaskRow({
               className={`${styles.priority} ${
                 styles[`priority${task.priority[0]!.toUpperCase()}${task.priority.slice(1)}`]
               }`}
-              aria-label={PRIORITY_LABEL[task.priority]}
+              aria-label={PRIORITY_LABELS[task.priority]}
             >
               <Flag />
-              {PRIORITY_LABEL[task.priority]}
+              {PRIORITY_LABELS[task.priority]}
             </span>
           )}
         </div>

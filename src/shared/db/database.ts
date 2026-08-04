@@ -47,8 +47,17 @@ type StoreName =
 /**
  * 数据变更事件：数据库写入后广播，让其他上下文（side panel）重新读取刷新。
  * 同名 BroadcastChannel 实例互通信义，同实例 postMessage 不回环。
+ * contextId 标记发起广播的上下文，接收方可据此跳过自己发起的变更
+ *（本上下文的 mutation 已由调用方同步刷新，无需再被自身广播触发重复加载）。
  */
-export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete' };
+export type DbChangeEvent = { store: StoreName; action: 'put' | 'delete'; contextId?: string };
+
+/** 本上下文唯一标识（同上下文内 database 与 App 共享，跨上下文/标签页不同）。 */
+export const DB_CONTEXT_ID: string = (() => {
+  const g = globalThis as { __octaneDbContextId?: string };
+  if (!g.__octaneDbContextId) g.__octaneDbContextId = crypto.randomUUID();
+  return g.__octaneDbContextId!;
+})();
 
 function createExtensionChannel(name: string): BroadcastChannel | null {
   const inExtensionContext = typeof window !== 'undefined' || typeof chrome !== 'undefined';
@@ -61,7 +70,7 @@ const dbChannel = createExtensionChannel(DB_NAME);
 
 /** 广播数据变更。无原生 BroadcastChannel 时静默跳过。 */
 function broadcast(store: StoreName, action: 'put' | 'delete'): void {
-  dbChannel?.postMessage({ store, action } satisfies DbChangeEvent);
+  dbChannel?.postMessage({ store, action, contextId: DB_CONTEXT_ID } satisfies DbChangeEvent);
 }
 
 /** 公开包装：供导入等外部流程显式触发 store 变更广播（side panel 刷新）。 */

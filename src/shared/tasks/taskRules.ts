@@ -58,6 +58,14 @@ export const PRIORITY_RANK: Readonly<Record<TaskPriority, number>> = {
   none: 3,
 };
 
+/** Priority 中文展示标签（单一真源，避免多处重复定义）。 */
+export const PRIORITY_LABELS: Readonly<Record<TaskPriority, string>> = {
+  high: '高优先级',
+  medium: '中优先级',
+  low: '低优先级',
+  none: '无优先级',
+};
+
 /** 按 Workspace、容器及任务字段生成完全确定的升序排序。 */
 export function compareStableTaskOrder(a: StableTaskOrderKey, b: StableTaskOrderKey): number {
   if (a.workspaceOrder !== b.workspaceOrder) return a.workspaceOrder - b.workspaceOrder;

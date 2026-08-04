@@ -40,7 +40,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Toast } from "@/components/ui/toast";
-import { isTaskDragEnabled } from "@/shared/tasks/taskRules";
+import { isTaskDragEnabled, PRIORITY_LABELS } from "@/shared/tasks/taskRules";
 import { useTodoData } from "@/store/useTodoData";
 import { useTodoView } from "@/store/useTodoView";
 import { useWorkspace } from "@/store/useWorkspace";
@@ -322,15 +322,7 @@ export function TaskListPane({
             <DropdownMenuContent align="end">
               {(["all", "high", "medium", "low", "none"] as const).map((priority) => (
                 <DropdownMenuItem key={priority} onClick={() => setPriorityFilter(priority)}>
-                  {priority === "all"
-                    ? "全部优先级"
-                    : priority === "high"
-                      ? "高优先级"
-                      : priority === "medium"
-                        ? "中优先级"
-                        : priority === "low"
-                          ? "低优先级"
-                          : "无优先级"}
+                  {priority === "all" ? "全部优先级" : PRIORITY_LABELS[priority]}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

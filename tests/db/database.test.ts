@@ -204,7 +204,9 @@ describe('数据变更广播', () => {
     received = [];
     channel = new BroadcastChannel(DB_NAME);
     channel.onmessage = (e: MessageEvent) => {
-      received.push(e.data as { store: string; action: string });
+      // 广播 payload 现含 contextId（标记发起上下文），断言只关心 store/action。
+      const data = e.data as { store: string; action: string };
+      received.push({ store: data.store, action: data.action });
     };
   });
 

@@ -21,6 +21,7 @@ import { Toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { TodoNavigationSnapshot } from "@/services/TodoQueryService";
 import type { ChecklistItem, TaskPriority } from "@/shared/types";
+import { PRIORITY_LABELS } from "@/shared/tasks/taskRules";
 import { useTodoData } from "@/store/useTodoData";
 import { useTodoView } from "@/store/useTodoView";
 import { useWorkspace } from "@/store/useWorkspace";
@@ -41,10 +42,10 @@ interface TaskDetailPaneProps {
 }
 
 const PRIORITIES: { value: TaskPriority; label: string }[] = [
-  { value: "none", label: "无优先级" },
-  { value: "high", label: "高优先级" },
-  { value: "medium", label: "中优先级" },
-  { value: "low", label: "低优先级" },
+  { value: "none", label: PRIORITY_LABELS.none },
+  { value: "high", label: PRIORITY_LABELS.high },
+  { value: "medium", label: PRIORITY_LABELS.medium },
+  { value: "low", label: PRIORITY_LABELS.low },
 ];
 
 type Draft = { title: string; description: string; revision: number };
@@ -210,6 +211,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
   const draftTaskIdRef = useRef<string | null>(null);
   const saveLoopRef = useRef<Promise<boolean> | null>(null);
   const pendingRef = useRef<Set<string>>(new Set());
+  const patchTaskRef = useRef(patchTask);
 
   useEffect(() => {
     if (selectedTaskId) void loadDetail(selectedTaskId).catch(() => undefined);
@@ -229,11 +231,32 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
     setListOverride(undefined);
     setPriorityOverride(null);
     setDueDateOverride(undefined);
+    setPendingKeys(new Set());
+    pendingRef.current = new Set();
   }, []);
 
   useEffect(() => {
     if (detail?.task.id === selectedTaskId) syncDraftForTask(detail.task);
   }, [detail, selectedTaskId, syncDraftForTask]);
+
+  useEffect(() => {
+    patchTaskRef.current = patchTask;
+  }, [patchTask]);
+
+  // 响应式断点切换会卸载并重挂载本组件（移动端内联 vs 桌面面板两棵子树），
+  // 卸载时若有未提交的标题/描述草稿，fire-and-forget 保存，避免编辑丢失。
+  // saveLoop 进行中则由其负责保存；就地操作（标签/清单/优先级/日期）各自有持久化流程。
+  useEffect(() => {
+    return () => {
+      const taskId = draftTaskIdRef.current;
+      if (!taskId || saveLoopRef.current) return;
+      const draft = draftRef.current;
+      const saved = savedRef.current;
+      if (draft.title === saved.title && draft.description === saved.description) return;
+      if (draft.title.trim() === '') return;
+      void patchTaskRef.current(taskId, { title: draft.title, description: draft.description });
+    };
+  }, []);
 
   const updateDraft = (patch: Partial<Pick<Draft, "title" | "description">>) => {
     const current = draftRef.current;
@@ -511,7 +534,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
 
   const taskListName = detail.taskList?.name ?? "收集箱";
   const tagsText = detail.taskTags.length ? detail.taskTags.map((tag) => tag.name).join("、") : "无标签";
-  const priorityLabel = PRIORITIES.find((item) => item.value === task.priority)?.label ?? "无优先级";
+  const priorityLabel = PRIORITIES.find((item) => item.value === task.priority)?.label ?? PRIORITY_LABELS.none;
   // 触发器直接展示已选标签名（覆盖未落库时也能正确显示），空态走占位样式
   const tagNameById = new Map([...availableTags, ...detail.taskTags].map((tag) => [tag.id, tag.name]));
   const selectedTagNames = selectedTagIds
@@ -577,7 +600,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
             >
               <SelectTrigger aria-label="优先级" className={styles.barTrigger}>
                 <SelectValue>
-                  {(value) => PRIORITIES.find((item) => item.value === value)?.label ?? "无优先级"}
+                  {(value) => PRIORITIES.find((item) => item.value === value)?.label ?? PRIORITY_LABELS.none}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
