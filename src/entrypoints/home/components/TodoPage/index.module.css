@@ -176,12 +176,123 @@
   font-weight: 600;
 }
 
-.paneBody {
+.paneBody,
+.detailBody {
   flex: 1;
   overflow: auto;
   padding: 16px;
   color: var(--muted-foreground);
   font-size: 14px;
+}
+
+.detailBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  color: var(--foreground);
+}
+
+.detailField {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.detailGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.inlineField,
+.completeControl,
+.addChecklist,
+.checklistItem,
+.detailActions,
+.draftError,
+.tagOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inlineField {
+  justify-content: space-between;
+}
+
+.completeControl,
+.tagOption {
+  min-height: 32px;
+}
+
+.checklistSection {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.checklistSection h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.addChecklist input,
+.checklistItem input {
+  min-width: 0;
+  flex: 1;
+}
+
+.checklistItem {
+  min-height: 36px;
+}
+
+.readonlyValue {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  color: var(--foreground);
+}
+
+.fieldLabel {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.emptyChecklist {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.systemFields {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.detailActions {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.fieldError,
+.draftError {
+  margin: 0;
+  color: var(--destructive);
+  font-size: 12px;
+}
+
+.draftError {
+  flex-wrap: wrap;
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius);
+  padding: 8px;
 }
 
 .taskListTitle span,
@@ -334,6 +445,11 @@
 }
 
 @media (max-width: 760px) {
+  .mobileDetailAction {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .todoPage {
     width: 100%;
   }

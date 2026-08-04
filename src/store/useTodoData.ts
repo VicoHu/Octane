@@ -3,6 +3,7 @@ import * as TodoQueryService from '@/services/TodoQueryService';
 import * as TaskService from '@/services/TaskService';
 import * as TaskListService from '@/services/TaskListService';
 import * as TaskTagService from '@/services/TaskTagService';
+import * as ChecklistItemService from '@/services/ChecklistItemService';
 import type {
   TaskDetail,
   TaskQuery,
@@ -40,6 +41,7 @@ interface TodoDataState {
   loadNavigation: (scope: WorkspaceScope, today: string) => Promise<void>;
   loadQuery: (query: TaskQuery) => Promise<void>;
   loadDetail: (taskId: string) => Promise<void>;
+  loadMoveOptions: (today: string) => Promise<TodoNavigationSnapshot>;
   invalidate: () => void;
   createTask: (input: CreateTaskInput) => Promise<Task>;
   patchTask: (taskId: string, patch: PatchTaskInput) => Promise<Task>;
@@ -55,6 +57,11 @@ interface TodoDataState {
   deleteTaskPermanently: (taskId: string) => Promise<void>;
   emptyTrash: (scope: WorkspaceScope) => Promise<number>;
   reorderTasks: (workspaceId: string, listId: string | null, orderedIds: string[]) => Promise<void>;
+  createChecklistItem: (taskId: string, text: string) => Promise<void>;
+  updateChecklistItem: (itemId: string, text: string) => Promise<void>;
+  setChecklistItemCompletion: (itemId: string, completed: boolean) => Promise<void>;
+  reorderChecklistItems: (taskId: string, orderedIds: string[]) => Promise<void>;
+  deleteChecklistItem: (itemId: string) => Promise<void>;
   createTaskList: (workspaceId: string, input: TaskListInput) => Promise<void>;
   updateTaskList: (taskListId: string, patch: TaskListPatch) => Promise<void>;
   archiveTaskList: (taskListId: string, options?: { allowIncompleteTasks?: boolean }) => Promise<TaskListArchiveResult>;
@@ -174,6 +181,9 @@ export const useTodoData = create<TodoDataState>((set, get) => {
       }
     },
 
+    // Move 选项始终从 all-scope 读取，不能覆盖当前页面的导航/查询快照。
+    loadMoveOptions: (today) => TodoQueryService.loadNavigation({ kind: 'all' }, today),
+
     invalidate: () => set({ invalidated: true }),
 
     createTask: (input) => runMutation('createTask', undefined, () => TaskService.createTask(input), ['navigation', 'query']),
@@ -218,7 +228,7 @@ export const useTodoData = create<TodoDataState>((set, get) => {
       }
     },
     restoreTaskList: async (taskListId) => {
-      await runMutation('restoreTaskList', taskListId, () => TaskListService.restoreTaskList(taskListId), ['navigation', 'query']);
+      await runMutation('restoreTaskList', taskListId, () => TaskListService.restoreTaskList(taskListId), ['navigation', 'query', 'detail']);
     },
     getTaskListDeleteImpact: (taskListId) => TaskListService.getTaskListDeleteImpact(taskListId),
     deleteTaskListPermanently: (taskListId) =>
@@ -236,6 +246,22 @@ export const useTodoData = create<TodoDataState>((set, get) => {
       runMutation('deleteTaskTag', taskTagId, () => TaskTagService.deleteTaskTag(taskTagId), ['navigation', 'query']),
     reorderTaskTags: (workspaceId, orderedIds) =>
       runMutation('reorderTaskTags', workspaceId, () => TaskTagService.reorderTaskTags(workspaceId, orderedIds), ['navigation', 'query']),
+
+    createChecklistItem: async (taskId, text) => {
+      await runMutation('createChecklistItem', taskId, () => ChecklistItemService.createChecklistItem(taskId, text), ['query', 'detail']);
+    },
+    updateChecklistItem: async (itemId, text) => {
+      await runMutation('updateChecklistItem', itemId, () => ChecklistItemService.updateChecklistItem(itemId, text), ['query', 'detail']);
+    },
+    setChecklistItemCompletion: async (itemId, completed) => {
+      await runMutation('setChecklistItemCompletion', itemId, () => ChecklistItemService.setChecklistItemCompletion(itemId, completed), ['query', 'detail']);
+    },
+    reorderChecklistItems: async (taskId, orderedIds) => {
+      await runMutation('reorderChecklistItems', taskId, () => ChecklistItemService.reorderChecklistItems(taskId, orderedIds), ['detail']);
+    },
+    deleteChecklistItem: async (itemId) => {
+      await runMutation('deleteChecklistItem', itemId, () => ChecklistItemService.deleteChecklistItem(itemId), ['query', 'detail']);
+    },
 
     reorderTasks: async (workspaceId, listId, orderedIds) => {
       const previousQueryResult = get().queryResult;

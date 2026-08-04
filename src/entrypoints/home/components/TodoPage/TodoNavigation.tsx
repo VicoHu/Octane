@@ -14,13 +14,20 @@ import { TaskListDialog } from './TaskListDialog';
 import { TaskTagDialog } from './TaskTagDialog';
 import styles from './index.module.css';
 
-interface TodoNavigationProps { activePage: AppPage; onNavigate: (page: AppPage) => void; open: boolean; onOpenChange: (open: boolean) => void; }
+interface TodoNavigationProps {
+  activePage: AppPage;
+  onNavigate: (page: AppPage) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onViewChange?: (view: ReturnType<typeof useTodoView.getState>['view']) => void | Promise<void>;
+  onScopeModeChange?: (scopeMode: 'current' | 'all') => void | Promise<void>;
+}
 type ListDialogState = { action: 'create' | 'edit' | 'archive' | 'delete'; taskList?: TaskList } | null;
 type TagDialogState = { action: 'create' | 'edit' | 'delete'; taskTag?: TaskTag } | null;
 
 function Count({ value }: { value: number }) { return value > 0 ? <span className={styles.navCount}>{value}</span> : null; }
 
-function NavigationContents({ activePage, onNavigate, showPrimaryNavigation, closeSheet }: Pick<TodoNavigationProps, 'activePage' | 'onNavigate'> & { showPrimaryNavigation: boolean; closeSheet: () => void }) {
+function NavigationContents({ activePage, onNavigate, onViewChange, onScopeModeChange, showPrimaryNavigation, closeSheet }: Pick<TodoNavigationProps, 'activePage' | 'onNavigate' | 'onViewChange' | 'onScopeModeChange'> & { showPrimaryNavigation: boolean; closeSheet: () => void }) {
   const navigation = useTodoData((state) => state.navigation);
   const restoreTaskList = useTodoData((state) => state.restoreTaskList);
   const reorderTaskLists = useTodoData((state) => state.reorderTaskLists);
@@ -33,7 +40,11 @@ function NavigationContents({ activePage, onNavigate, showPrimaryNavigation, clo
   const currentWorkspaceId = useWorkspace((state) => state.currentWorkspaceId);
   const [listDialog, setListDialog] = useState<ListDialogState>(null);
   const [tagDialog, setTagDialog] = useState<TagDialogState>(null);
-  const select = (next: typeof view) => { setView(next); closeSheet(); };
+  const select = (next: typeof view) => {
+    if (onViewChange) { void onViewChange(next); return; }
+    setView(next);
+    closeSheet();
+  };
   const moveList = (list: TaskList, direction: -1 | 1) => {
     const group = navigation?.groups.find((item) => item.workspace.id === list.workspaceId);
     if (!group) return;
@@ -57,7 +68,7 @@ function NavigationContents({ activePage, onNavigate, showPrimaryNavigation, clo
 
   return <div className={styles.navigationContents}>
     {showPrimaryNavigation && <MobilePrimaryNavigation activePage={activePage} onNavigate={onNavigate} />}
-    <ToggleGroup value={[scopeMode]} onValueChange={(value) => { const next = value[0]; if (next === 'current' || next === 'all') setScopeMode(next); }} spacing={0} variant="outline" className={styles.scopeToggle}>
+    <ToggleGroup value={[scopeMode]} onValueChange={(value) => { const next = value[0]; if (next === 'current' || next === 'all') { if (onScopeModeChange) void onScopeModeChange(next); else setScopeMode(next); } }} spacing={0} variant="outline" className={styles.scopeToggle}>
       <ToggleGroupItem value="current">当前工作区</ToggleGroupItem><ToggleGroupItem value="all">所有工作区</ToggleGroupItem>
     </ToggleGroup>
     <nav aria-label="待办视图" className={styles.navSections}>
@@ -77,5 +88,5 @@ function NavigationContents({ activePage, onNavigate, showPrimaryNavigation, clo
   </div>;
 }
 
-export function TodoNavigation({ activePage, onNavigate, open, onOpenChange }: TodoNavigationProps) { return <><aside className={styles.desktopNavigation} aria-label="待办导航"><NavigationContents activePage={activePage} onNavigate={onNavigate} showPrimaryNavigation={false} closeSheet={() => undefined} /></aside><Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="left" className={styles.navigationSheet}><SheetHeader><SheetTitle>待办导航</SheetTitle></SheetHeader><NavigationContents activePage={activePage} onNavigate={onNavigate} showPrimaryNavigation closeSheet={() => onOpenChange(false)} /></SheetContent></Sheet></>; }
+export function TodoNavigation({ activePage, onNavigate, open, onOpenChange, onViewChange, onScopeModeChange }: TodoNavigationProps) { return <><aside className={styles.desktopNavigation} aria-label="待办导航"><NavigationContents activePage={activePage} onNavigate={onNavigate} onViewChange={onViewChange} onScopeModeChange={onScopeModeChange} showPrimaryNavigation={false} closeSheet={() => undefined} /></aside><Sheet open={open} onOpenChange={onOpenChange}><SheetContent side="left" className={styles.navigationSheet}><SheetHeader><SheetTitle>待办导航</SheetTitle></SheetHeader><NavigationContents activePage={activePage} onNavigate={onNavigate} onViewChange={onViewChange} onScopeModeChange={onScopeModeChange} showPrimaryNavigation closeSheet={() => onOpenChange(false)} /></SheetContent></Sheet></>; }
 export function TodoNavigationTrigger({ onClick }: { onClick: () => void }) { return <Button variant="ghost" size="icon-sm" aria-label="打开待办导航" onClick={onClick}><Menu /></Button>; }

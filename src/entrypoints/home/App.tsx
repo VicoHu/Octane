@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspace } from '@/store/useWorkspace';
 import { useBookmarks } from '@/store/useBookmarks';
 import { useCrypto } from '@/store/useCrypto';
@@ -6,7 +6,7 @@ import { useTodoData } from '@/store/useTodoData';
 import { useTodoView } from '@/store/useTodoView';
 import { AppRail, type AppPage } from './components/AppRail';
 import { HomePageShell } from './components/HomePageShell';
-import { TodoPage } from './components/TodoPage';
+import { TodoPage, type TodoLeaveGuard } from './components/TodoPage';
 import { UnlockModal } from '@/components/UnlockModal';
 import { usePinnedTabs } from '@/store/usePinnedTabs';
 import { DB_NAME } from '@/shared/types';
@@ -34,33 +34,51 @@ const App: React.FC = () => {
   const openTabs = useOpenTabs();
   const [activePage, setActivePage] = useState<AppPage>('home');
   const [hasVisitedTasks, setHasVisitedTasks] = useState(false);
+  const todoLeaveGuardRef = useRef<TodoLeaveGuard | null>(null);
   useRecoveryNotice();
 
+  const registerTodoLeaveGuard = useCallback((guard: TodoLeaveGuard | null) => {
+    todoLeaveGuardRef.current = guard;
+  }, []);
   const navigate = (page: AppPage) => {
-    if (page === 'tasks') setHasVisitedTasks(true);
-    setActivePage(page);
+    const transition = () => {
+      if (page === 'tasks') setHasVisitedTasks(true);
+      setActivePage(page);
+    };
+    if (activePage === 'tasks' && page !== 'tasks' && todoLeaveGuardRef.current) {
+      void todoLeaveGuardRef.current(transition);
+      return;
+    }
+    transition();
   };
 
   const handleWorkspaceSelect = async (workspaceId: string) => {
-    await switchWorkspace(workspaceId);
-    if (activePage === 'tasks') {
-      useTodoView.getState().onWorkspaceSelected(
-        workspaceId,
-        useTodoData.getState().detail?.task.workspaceId,
-      );
+    const transition = async () => {
+      await switchWorkspace(workspaceId);
+      if (activePage === 'tasks') {
+        useTodoView.getState().onWorkspaceSelected(
+          workspaceId,
+          useTodoData.getState().detail?.task.workspaceId,
+        );
+      }
+    };
+    if (activePage === 'tasks' && todoLeaveGuardRef.current) {
+      await todoLeaveGuardRef.current(transition);
+      return;
     }
+    await transition();
   };
 
   useEffect(() => {
     checkStatus();
     loadWorkspaces();
-  }, []);
+  }, [checkStatus, loadWorkspaces]);
 
   useEffect(() => {
     if (currentCategoryId) {
       loadBookmarks(currentCategoryId);
     }
-  }, [currentCategoryId]);
+  }, [currentCategoryId, loadBookmarks]);
 
   // 订阅全量导入事件：导入覆盖后（background 广播）整体 reload
   useEffect(() => {
@@ -134,7 +152,7 @@ const App: React.FC = () => {
               aria-hidden={activePage !== 'tasks'}
               className="todo-page-shell"
             >
-              <TodoPage active={activePage === 'tasks'} activePage={activePage} onNavigate={navigate} />
+              <TodoPage active={activePage === 'tasks'} activePage={activePage} onNavigate={navigate} onRegisterLeaveGuard={registerTodoLeaveGuard} />
             </div>
           )}
         </div>

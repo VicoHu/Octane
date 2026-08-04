@@ -17,6 +17,7 @@ const appMocks = vi.hoisted(() => {
     contentSpy: vi.fn(),
     contentMounts: 0,
     todoPageSpy: vi.fn(),
+    todoLeaveGuard: null as null | ((action: () => void | Promise<void>) => Promise<void>),
   };
 });
 
@@ -49,7 +50,11 @@ vi.mock('../components/Content', () => ({
   },
 }));
 vi.mock('../components/TodoPage', () => ({
-  TodoPage: (props: unknown) => { appMocks.todoPageSpy(props); return <div>待办内容</div>; },
+  TodoPage: (props: { onRegisterLeaveGuard?: (guard: ((action: () => void | Promise<void>) => Promise<void>) | null) => void }) => {
+    appMocks.todoPageSpy(props);
+    props.onRegisterLeaveGuard?.(appMocks.todoLeaveGuard);
+    return <div>待办内容</div>;
+  },
 }));
 vi.mock('../utils/workspaceSwitcher', () => ({ switchWorkspace: vi.fn(async () => {}) }));
 vi.mock('@/components/UnlockModal', () => ({ UnlockModal: () => null }));
@@ -127,6 +132,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   appMocks.useOpenTabs.mockReturnValue(appMocks.openTabs);
   appMocks.contentMounts = 0;
+  appMocks.todoLeaveGuard = null;
   TestBC.instances = {};
   (globalThis as unknown as { BroadcastChannel: typeof TestBC }).BroadcastChannel =
     TestBC;
@@ -183,6 +189,28 @@ describe('App 页面切换', () => {
     render(<App />);
     expect(screen.getByText('书签内容')).toBeVisible();
     expect(screen.queryByText('待办内容')).not.toBeInTheDocument();
+  });
+
+  it('待办草稿 gate 拒绝时 AppRail 离开与 Workspace 切换都不执行动作', async () => {
+    const user = userEvent.setup();
+    appMocks.todoLeaveGuard = vi.fn(async () => {});
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: '测试待办入口' }));
+    await user.click(screen.getByRole('button', { name: '测试主页入口' }));
+    expect(screen.getByText('待办内容')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: '测试切换工作区' }));
+    expect(switchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('待办草稿 gate 执行动作时 AppRail 离开与 Workspace 切换正常完成', async () => {
+    const user = userEvent.setup();
+    appMocks.todoLeaveGuard = async (action) => { await action(); };
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: '测试待办入口' }));
+    await user.click(screen.getByRole('button', { name: '测试切换工作区' }));
+    expect(switchWorkspace).toHaveBeenCalledWith('w2');
+    await user.click(screen.getByRole('button', { name: '测试主页入口' }));
+    expect(screen.getByText('书签内容')).toBeVisible();
   });
 
   it('待办页选择工作区 → 成功切换后通知 TodoView', async () => {

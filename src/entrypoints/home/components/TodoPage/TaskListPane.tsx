@@ -34,7 +34,7 @@ function SortableTaskRow({ row, enabled, ...props }: { row: TaskRowData; enabled
   return <div ref={sortable.setNodeRef} style={{ transform: CSS.Transform.toString(sortable.transform), transition: sortable.transition }} {...(enabled ? { ...sortable.attributes, ...sortable.listeners } : {})}><TaskRow row={row} {...props} /></div>;
 }
 
-export function TaskListPane({ onOpenNavigation }: { onOpenNavigation: () => void }) {
+export function TaskListPane({ onOpenNavigation, onTaskSelect, onBeforeTaskDelete }: { onOpenNavigation: () => void; onTaskSelect?: (taskId: string) => void | Promise<void>; onBeforeTaskDelete?: (taskId: string) => Promise<boolean> }) {
   const queryResult = useTodoData((state) => state.queryResult);
   const navigation = useTodoData((state) => state.navigation);
   const setTaskCompletion = useTodoData((state) => state.setTaskCompletion);
@@ -69,7 +69,11 @@ export function TaskListPane({ onOpenNavigation }: { onOpenNavigation: () => voi
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const containerWorkspaceId = view.kind === 'list' ? navigation?.groups.flatMap((group) => group.taskLists).find((list) => list.id === view.listId)?.workspaceId : undefined;
   const tagWorkspaceId = view.kind === 'tag' ? navigation?.groups.flatMap((group) => group.taskTags).find((tag) => tag.id === view.tagId)?.workspaceId : undefined;
-  const select = (taskId: string) => { selectTask(taskId); setMobileDetailOpen(true); };
+  const select = (taskId: string) => {
+    if (onTaskSelect) { void onTaskSelect(taskId); return; }
+    selectTask(taskId);
+    setMobileDetailOpen(true);
+  };
   const applyCompletion = (task: Task, checked: boolean) => {
     if (checked && statusFilter === 'active') setHiddenIds((ids) => new Set(ids).add(task.id));
     Toast.success({ content: checked ? '待办已完成' : '待办已恢复', duration: 5000, action: { label: '撤销', onClick: () => { void setTaskCompletion(task.id, !checked).then(() => setHiddenIds((ids) => { const next = new Set(ids); next.delete(task.id); return next; })); } } });
@@ -86,6 +90,7 @@ export function TaskListPane({ onOpenNavigation }: { onOpenNavigation: () => voi
     if (result.status === 'updated') { setPendingCompletion(null); applyCompletion(task, true); }
   };
   const remove = async (task: Task) => {
+    if (selectedTaskId === task.id && onBeforeTaskDelete && !await onBeforeTaskDelete(task.id)) return;
     const visible = rows; const index = visible.findIndex((row) => row.id === task.id);
     await softDeleteTask(task.id); setHiddenIds((ids) => new Set(ids).add(task.id));
     if (selectedTaskId === task.id) {

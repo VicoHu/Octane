@@ -34,11 +34,19 @@ const taskTag = vi.hoisted(() => ({
   deleteTaskTag: vi.fn(),
   reorderTaskTags: vi.fn(),
 }));
+const checklist = vi.hoisted(() => ({
+  createChecklistItem: vi.fn(),
+  updateChecklistItem: vi.fn(),
+  setChecklistItemCompletion: vi.fn(),
+  reorderChecklistItems: vi.fn(),
+  deleteChecklistItem: vi.fn(),
+}));
 
 vi.mock('@/services/TodoQueryService', () => query);
 vi.mock('@/services/TaskService', () => task);
 vi.mock('@/services/TaskListService', () => taskList);
 vi.mock('@/services/TaskTagService', () => taskTag);
+vi.mock('@/services/ChecklistItemService', () => checklist);
 
 import { useTodoData } from '@/store/useTodoData';
 
@@ -110,6 +118,21 @@ describe('useTodoData — 请求序列 guard', () => {
     expect(result.current.navigation).toEqual(navigationOf('new-navigation'));
     expect(result.current.queryResult?.active[0]?.id).toBe('new-query');
     expect(result.current.detail?.task.id).toBe('new-detail');
+  });
+});
+
+describe('useTodoData — Move options', () => {
+  it('loadMoveOptions 从 all scope 读取且不覆盖 current-scope navigation', async () => {
+    const current = navigationOf('current');
+    const options = { groups: [{ workspace: { id: 'w1' } }, { workspace: { id: 'w2' } }] } as never;
+    query.loadNavigation.mockResolvedValue(options);
+    useTodoData.setState({ navigation: current });
+    const { result } = renderHook(() => useTodoData());
+
+    await act(async () => expect(await result.current.loadMoveOptions('2026-08-20')).toBe(options));
+
+    expect(query.loadNavigation).toHaveBeenCalledWith({ kind: 'all' }, '2026-08-20');
+    expect(result.current.navigation).toBe(current);
   });
 });
 
