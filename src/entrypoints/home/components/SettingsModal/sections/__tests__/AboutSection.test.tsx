@@ -1,5 +1,5 @@
+import { act, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { installChromeStorageLocal } from '@/test/storageMock';
 import { AboutSection } from '../AboutSection';
@@ -11,9 +11,10 @@ function setupChrome(opts: { id?: string; version?: string; pending?: { version:
   const tabsCreate = vi.fn();
   const requestUpdateCheck = vi.fn().mockResolvedValue({ status: 'update_available' });
   const reload = vi.fn();
-  installChromeStorageLocal({
+  const { store } = installChromeStorageLocal({
     initial: opts.pending ? { pendingUpdate: opts.pending } : {},
   });
+  const listeners = new Set<(changes: unknown, area: string) => void>();
   const chromeObj = (globalThis as { chrome?: Record<string, unknown> }).chrome!;
   chromeObj.runtime = {
     id: opts.id ?? 'unknownid',
@@ -23,10 +24,14 @@ function setupChrome(opts: { id?: string; version?: string; pending?: { version:
   };
   chromeObj.tabs = { create: tabsCreate };
   (chromeObj.storage as Record<string, unknown>).onChanged = {
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
+    addListener: vi.fn((listener: (changes: unknown, area: string) => void) => listeners.add(listener)),
+    removeListener: vi.fn((listener: (changes: unknown, area: string) => void) => listeners.delete(listener)),
   };
-  return { tabsCreate, requestUpdateCheck, reload };
+  const triggerPendingUpdate = (version: string) => {
+    store.pendingUpdate = { version };
+    for (const listener of listeners) listener({ pendingUpdate: { newValue: { version } } }, 'local');
+  };
+  return { tabsCreate, requestUpdateCheck, reload, triggerPendingUpdate };
 }
 
 describe('AboutSection', () => {
@@ -46,11 +51,12 @@ describe('AboutSection', () => {
     expect(screen.getByText(/已是最新版本/)).toBeInTheDocument();
   });
 
-  it('manual 渠道显示「手动安装」+ 前往 GitHub Releases', () => {
+  it('manual 渠道显示「手动安装」+ 前往 GitHub Releases，不显示检测更新按钮', () => {
     setupChrome({ id: 'unknownid' });
     render(<AboutSection />);
     expect(screen.getByText('手动安装')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /前往 GitHub Releases/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '检测更新' })).not.toBeInTheDocument();
   });
 
   it('manual 渠道点「前往 GitHub Releases」→ tabs.create(Releases URL)', async () => {
@@ -59,6 +65,22 @@ describe('AboutSection', () => {
     render(<AboutSection />);
     await user.click(screen.getByRole('button', { name: /前往 GitHub Releases/ }));
     expect(tabsCreate).toHaveBeenCalledWith({ url: UPDATE_URL.manual });
+  });
+
+  it('CWS 渠道点击检测更新后显示 loading，并刷新为立即更新状态', async () => {
+    const user = userEvent.setup();
+    const { requestUpdateCheck, triggerPendingUpdate } = setupChrome({ id: CWS_EXTENSION_ID });
+    render(<AboutSection />);
+
+    await user.click(screen.getByRole('button', { name: '检测更新' }));
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(requestUpdateCheck).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      triggerPendingUpdate('0.1.14.0');
+      await Promise.resolve();
+    });
+    expect(await screen.findByRole('button', { name: '立即更新' }, { timeout: 6_000 })).toBeInTheDocument();
   });
 
   it('CWS 渠道有 pending → 显示立即更新按钮 + 扩展管理页兜底链接', async () => {

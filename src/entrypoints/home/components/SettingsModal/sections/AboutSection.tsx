@@ -8,6 +8,7 @@ import {
   type Channel,
 } from '@/shared/distribution';
 import { usePendingUpdate } from '@/entrypoints/home/hooks/usePendingUpdate';
+import { useUpdateCheck } from '@/entrypoints/home/hooks/useUpdateCheck';
 
 // 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 ShortcutsSection.tsx）。
 declare const chrome: unknown;
@@ -35,6 +36,7 @@ export function AboutSection() {
   const version = c.runtime.getManifest().version;
   const channel: Channel = detectChannel(c.runtime.id);
   const { version: pendingVersion } = usePendingUpdate();
+  const { checking, checkForUpdate } = useUpdateCheck(channel, pendingVersion);
   const [updating, setUpdating] = useState(false);
 
   const open = (url: string) => c.tabs.create({ url });
@@ -66,6 +68,19 @@ export function AboutSection() {
         <Row label="技术问题反馈" value="GitHub Issues" onClick={() => open(ISSUES_URL)} />
         <Row label="社区讨论/反馈" value="Discuss论坛" onClick={() => open(DISCUSS_URL)} />
       </div>
+
+      {channel !== 'manual' && (
+        <Button size="sm" variant="outline" onClick={() => void checkForUpdate()} disabled={checking}>
+          {checking ? (
+            <>
+              <Spinner />
+              检测中
+            </>
+          ) : (
+            '检测更新'
+          )}
+        </Button>
+      )}
 
       <UpdateStatus
         channel={channel}
