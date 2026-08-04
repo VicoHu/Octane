@@ -1,5 +1,6 @@
 .todoPage {
   display: flex;
+  width: 100%;
   height: 100%;
   min-width: 0;
   overflow: hidden;
@@ -123,6 +124,18 @@
 
 .resizeHandle {
   flex: 0 0 1px;
+  background: var(--border);
+  transition: background-color 150ms ease;
+}
+
+.resizeHandle:hover,
+.resizeHandle:active {
+  background: var(--primary);
+}
+
+.resizeHandle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 .listPane,
@@ -445,9 +458,50 @@
 }
 
 @media (max-width: 760px) {
+  :global(body:has([data-todo-mobile='true']) :is(
+    button,
+    input,
+    textarea,
+    select,
+    a[href],
+    [role='button'],
+    [role='checkbox'],
+    [role='combobox'],
+    [role='menuitem'],
+    [role='option'],
+    [role='radio'],
+    [role='tab']
+  )) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .mobileDetailAction {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .navigationSheet .scopeToggle > button,
+  .navigationSheet .navItem,
+  .navigationSheet .navSectionHeader,
+  .navigationSheet .navSectionHeader button,
+  .navigationSheet .navEntity > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .navigationSheet .navEntity {
+    gap: 8px;
+  }
+
+  .taskRowCompletion {
+    display: flex;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    margin: -4px 0 -4px -4px;
   }
 
   .todoPage {

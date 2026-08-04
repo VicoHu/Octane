@@ -87,8 +87,8 @@ describe('useTodoData — 请求序列 guard', () => {
     query.getTaskDetail.mockReturnValueOnce(oldDetail.promise).mockReturnValueOnce(newDetail.promise);
     const { result } = renderHook(() => useTodoData());
 
-    let oldLoads!: Promise<void>[];
-    let newLoads!: Promise<void>[];
+    let oldLoads!: Promise<unknown>[];
+    let newLoads!: Promise<unknown>[];
     await act(async () => {
       oldLoads = [
         result.current.loadNavigation({ kind: 'workspace', workspaceId: 'old' }, '2026-08-20'),
@@ -137,12 +137,40 @@ describe('useTodoData — Move options', () => {
 });
 
 describe('useTodoData — 失效与写后刷新', () => {
-  it('invalidate 标记数据失效', () => {
+  it('连续失效递增 epoch，旧轮读取不会覆盖新轮快照', async () => {
+    const first = deferred<never>();
+    const second = deferred<never>();
+    const third = deferred<never>();
+    query.loadNavigation.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise).mockReturnValueOnce(third.promise);
     const { result } = renderHook(() => useTodoData());
+    const scope = { kind: 'workspace', workspaceId: 'workspace-1' } as const;
 
-    act(() => result.current.invalidate());
+    let firstLoad!: Promise<unknown>;
+    let secondLoad!: Promise<unknown>;
+    let thirdLoad!: Promise<unknown>;
+    act(() => {
+      firstLoad = result.current.loadNavigation(scope, '2026-08-20');
+      result.current.invalidate();
+      secondLoad = result.current.loadNavigation(scope, '2026-08-20');
+      result.current.invalidate();
+      thirdLoad = result.current.loadNavigation(scope, '2026-08-20');
+    });
 
-    expect(result.current.invalidated).toBe(true);
+    await act(async () => {
+      first.resolve(navigationOf('stale'));
+      await expect(firstLoad).resolves.toBeUndefined();
+    });
+    await act(async () => {
+      second.resolve(navigationOf('stale-again'));
+      await expect(secondLoad).resolves.toBeUndefined();
+    });
+    await act(async () => {
+      third.resolve(navigationOf('current'));
+      await expect(thirdLoad).resolves.toEqual(navigationOf('current'));
+    });
+
+    expect((result.current as { invalidationEpoch?: number }).invalidationEpoch).toBe(2);
+    expect(result.current.navigation).toEqual(navigationOf('current'));
   });
 
   it('创建任务成功后只刷新导航和当前查询', async () => {

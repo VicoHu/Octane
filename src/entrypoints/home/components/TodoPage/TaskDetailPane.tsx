@@ -132,7 +132,7 @@ export const TaskDetailPane = forwardRef<TaskDetailPaneHandle, TaskDetailPanePro
   const pendingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (selectedTaskId) void loadDetail(selectedTaskId);
+    if (selectedTaskId) void loadDetail(selectedTaskId).catch(() => undefined);
   }, [loadDetail, selectedTaskId]);
 
   const syncDraftForTask = useCallback((nextTask: { id: string; title: string; description: string }) => {

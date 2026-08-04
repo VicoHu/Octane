@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Toast } from "@/components/ui/toast";
 import { Typography } from "@/components/ui/typography";
@@ -320,43 +320,50 @@ export function CloudBackupSection() {
         上次备份：{lastBackup ? new Date(lastBackup).toLocaleString() : "尚未备份"}
       </Typography.Text>
 
-      <div className={styles.actions}>
-        <Button variant="default" disabled={disabled} onClick={handleUpload}>
-          {busy && <Spinner />}
-          上传备份
-        </Button>
-        <Button variant="destructive" disabled={disabled} onClick={handleRestoreClick}>
-          从云恢复
-        </Button>
-        <Button variant="outline" disabled={disabled} onClick={handleOpenHistory}>
-          历史版本
-        </Button>
-      </div>
-
       <Dialog
         open={restoreData !== null}
         onOpenChange={(o) => !o && !busy && setRestoreData(null)}
         disablePointerDismissal
       >
+        <div className={styles.actions}>
+          <Button variant="default" disabled={disabled} onClick={handleUpload}>
+            {busy && <Spinner />}
+            上传备份
+          </Button>
+          <DialogTrigger
+            render={<Button variant="destructive" disabled={disabled} onClick={handleRestoreClick}>从云恢复</Button>}
+          />
+          <Button variant="outline" disabled={disabled} onClick={handleOpenHistory}>
+            历史版本
+          </Button>
+        </div>
         <DialogContent showCloseButton={!busy}>
           <DialogHeader>
             <DialogTitle>确认覆盖全部数据</DialogTitle>
           </DialogHeader>
           <div className={styles.confirmBody}>
             <Typography.Text>
-              此操作将清除当前全部工作区、书签与待办，并替换为云端备份内容，不可撤销。
+              现有书签与待办都会被整个快照替换，其他 Workspace 也会回退到该备份状态，不可撤销。
               {restoreData?.data.cryptoMetadata ? " 云端备份含加密数据，恢复后请用导出端主密码解锁。" : ""}
-              {restoreData?.isLegacyWithoutTodo ? " 该备份不含待办数据，恢复后将清空当前全部待办。" : ""}
             </Typography.Text>
+            <ul className={styles.backupMetadata}>
+              <li>备份时间：{restoreData && new Date(restoreData.exportedAt).toLocaleString()}</li>
+              <li>格式版本：v{restoreData?.version}</li>
+              <li>包含待办：{restoreData?.containsTodoData ? "是" : "否"}</li>
+            </ul>
+            {restoreData?.isLegacyWithoutTodo && (
+              <Typography.Text type="danger">旧备份不含待办，确认恢复会清空本机全部待办。</Typography.Text>
+            )}
             <label className="flex items-center gap-2">
               <Checkbox checked={confirmed} onCheckedChange={(c) => setConfirmed(c)} />
               我了解此操作不可撤销
             </label>
           </div>
           <DialogFooter>
+            <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => setRestoreData(null)}>取消</Button>
             <Button
               variant="destructive"
-              className="w-full"
+              className="min-h-11 w-full"
               disabled={!confirmed || busy}
               onClick={handleConfirmRestore}
             >

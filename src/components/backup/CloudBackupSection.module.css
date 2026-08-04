@@ -31,3 +31,11 @@
   flex-direction: column;
   gap: 12px;
 }
+.backupMetadata {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}

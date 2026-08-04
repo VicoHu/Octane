@@ -36,11 +36,11 @@ interface TodoDataState {
   queryLoading: boolean;
   detailLoading: boolean;
   mutation: Mutation;
-  invalidated: boolean;
+  invalidationEpoch: number;
 
-  loadNavigation: (scope: WorkspaceScope, today: string) => Promise<void>;
-  loadQuery: (query: TaskQuery) => Promise<void>;
-  loadDetail: (taskId: string) => Promise<void>;
+  loadNavigation: (scope: WorkspaceScope, today: string) => Promise<TodoNavigationSnapshot | undefined>;
+  loadQuery: (query: TaskQuery) => Promise<TaskQueryResult | undefined>;
+  loadDetail: (taskId: string) => Promise<TaskDetail | null | undefined>;
   loadMoveOptions: (today: string) => Promise<TodoNavigationSnapshot>;
   invalidate: () => void;
   createTask: (input: CreateTaskInput) => Promise<Task>;
@@ -85,7 +85,7 @@ const INITIAL_STATE = {
   queryLoading: false,
   detailLoading: false,
   mutation: null,
-  invalidated: false,
+  invalidationEpoch: 0,
 };
 
 let navigationSequence = 0;
@@ -138,45 +138,54 @@ export const useTodoData = create<TodoDataState>((set, get) => {
 
     loadNavigation: async (scope, today) => {
       const sequence = ++navigationSequence;
+      const epoch = get().invalidationEpoch;
       lastNavigation = { scope, today };
       set({ navigationLoading: true });
       try {
         const navigation = await TodoQueryService.loadNavigation(scope, today);
-        if (sequence === navigationSequence) {
-          set({ navigation, navigationLoading: false, invalidated: false });
-        }
+        if (sequence !== navigationSequence || epoch !== get().invalidationEpoch) return undefined;
+        set({ navigation, navigationLoading: false });
+        return navigation;
       } catch (error) {
-        if (sequence === navigationSequence) set({ navigationLoading: false });
+        if (sequence === navigationSequence && epoch === get().invalidationEpoch) {
+          set({ navigationLoading: false });
+        }
         throw error;
       }
     },
 
     loadQuery: async (query) => {
       const sequence = ++querySequence;
+      const epoch = get().invalidationEpoch;
       lastQuery = query;
       set({ queryLoading: true });
       try {
         const queryResult = await TodoQueryService.queryTasks(query);
-        if (sequence === querySequence) {
-          set({ queryResult, queryLoading: false, invalidated: false });
-        }
+        if (sequence !== querySequence || epoch !== get().invalidationEpoch) return undefined;
+        set({ queryResult, queryLoading: false });
+        return queryResult;
       } catch (error) {
-        if (sequence === querySequence) set({ queryLoading: false });
+        if (sequence === querySequence && epoch === get().invalidationEpoch) {
+          set({ queryLoading: false });
+        }
         throw error;
       }
     },
 
     loadDetail: async (taskId) => {
       const sequence = ++detailSequence;
+      const epoch = get().invalidationEpoch;
       lastDetailTaskId = taskId;
       set({ detailLoading: true });
       try {
         const detail = await TodoQueryService.getTaskDetail(taskId);
-        if (sequence === detailSequence) {
-          set({ detail, detailLoading: false, invalidated: false });
-        }
+        if (sequence !== detailSequence || epoch !== get().invalidationEpoch) return undefined;
+        set({ detail, detailLoading: false });
+        return detail;
       } catch (error) {
-        if (sequence === detailSequence) set({ detailLoading: false });
+        if (sequence === detailSequence && epoch === get().invalidationEpoch) {
+          set({ detailLoading: false });
+        }
         throw error;
       }
     },
@@ -184,7 +193,7 @@ export const useTodoData = create<TodoDataState>((set, get) => {
     // Move 选项始终从 all-scope 读取，不能覆盖当前页面的导航/查询快照。
     loadMoveOptions: (today) => TodoQueryService.loadNavigation({ kind: 'all' }, today),
 
-    invalidate: () => set({ invalidated: true }),
+    invalidate: () => set((state) => ({ invalidationEpoch: state.invalidationEpoch + 1 })),
 
     createTask: (input) => runMutation('createTask', undefined, () => TaskService.createTask(input), ['navigation', 'query']),
     patchTask: (taskId, patch) => runMutation('patchTask', taskId, () => TaskService.patchTask(taskId, patch), ['query', 'detail']),

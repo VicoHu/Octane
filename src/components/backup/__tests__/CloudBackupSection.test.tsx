@@ -3,21 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Toast } from "@/components/ui/toast";
 
-// Semi UI 间接拉入 lottie-web，jsdom 无 canvas 实现会崩，统一 mock。
-vi.mock("lottie-web", () => ({
-  default: {
-    loadAnimation: () => ({
-      destroy() {},
-      play() {},
-      pause() {},
-      addEventListener() {},
-      removeEventListener() {},
-    }),
-    destroy() {},
-    registerAnimation() {},
-  },
-}));
-
 // 仅 mock Toast（项目测试规范：真实渲染 ui 组件，只 mock Toast 副作用边界）
 vi.mock("@/components/ui/toast", () => ({
   Toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), close: vi.fn() },
@@ -210,6 +195,54 @@ describe("CloudBackupSection", () => {
     expect(confirmBtn.disabled).toBe(true);
     await userEvent.click(screen.getByText("我了解此操作不可撤销"));
     await waitFor(() => expect(confirmBtn.disabled).toBe(false));
+  });
+
+  it("v6 云端恢复预览显示元数据和全库覆盖范围", async () => {
+    const user = userEvent.setup();
+    store.restoreFromCloud.mockResolvedValue({
+      ...okBackup,
+      exportedAt: 1722470400000,
+      containsTodoData: true,
+      isLegacyWithoutTodo: false,
+    });
+    render(<CloudBackupSection />);
+
+    await user.click(screen.getByRole("button", { name: "从云恢复" }));
+
+    expect(await screen.findByText(`备份时间：${new Date(1722470400000).toLocaleString()}`)).toBeInTheDocument();
+    expect(screen.getByText("格式版本：v6")).toBeInTheDocument();
+    expect(screen.getByText("包含待办：是")).toBeInTheDocument();
+    expect(screen.getByText(/现有书签与待办都会被整个快照替换/)).toBeInTheDocument();
+    expect(screen.getByText(/其他 Workspace 也会回退/)).toBeInTheDocument();
+  });
+
+  it("v5 云端恢复预览明确警告确认后清空本机全部待办", async () => {
+    const user = userEvent.setup();
+    store.restoreFromCloud.mockResolvedValue({
+      ...okBackup,
+      version: 5,
+      containsTodoData: false,
+      isLegacyWithoutTodo: true,
+    });
+    render(<CloudBackupSection />);
+
+    await user.click(screen.getByRole("button", { name: "从云恢复" }));
+
+    expect(await screen.findByText(/旧备份不含待办，确认恢复会清空本机全部待办/)).toBeInTheDocument();
+  });
+
+  it("取消云端恢复确认不调用 applyCloudRestore，焦点回到触发器", async () => {
+    const user = userEvent.setup();
+    store.restoreFromCloud.mockResolvedValue(okBackup);
+    render(<CloudBackupSection />);
+    const restoreButton = screen.getByRole("button", { name: "从云恢复" });
+
+    await user.click(restoreButton);
+    await user.click(await screen.findByRole("button", { name: "取消" }));
+
+    expect(store.applyCloudRestore).not.toHaveBeenCalled();
+    expect(screen.queryByText("确认覆盖全部数据")).not.toBeInTheDocument();
+    await waitFor(() => expect(restoreButton).toHaveFocus());
   });
 
   it("确认覆盖 → applyCloudRestore", async () => {
