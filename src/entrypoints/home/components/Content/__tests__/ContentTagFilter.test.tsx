@@ -103,6 +103,62 @@ beforeEach(() => {
 });
 
 describe('Content Tag 筛选器（#52）', () => {
+  describe('视图切换计数 badge（#90）', () => {
+    it('显示过滤后标签页的已存数与当前书签结果的激活数', () => {
+      bookmarksState.bookmarks = [
+        makeBookmark('b1', '文档', ['React'], { url: 'https://example.com/docs' }),
+        makeBookmark('b2', '未打开', ['Vue'], { url: 'https://example.com/closed' }),
+      ];
+      bookmarksState.allBookmarks = [
+        ...(bookmarksState.bookmarks as Bookmark[]),
+        makeBookmark('b3', '跨分类书签', [], { categoryId: 'c2', url: 'https://other.example.com' }),
+      ];
+      const openTabs = [
+        { url: 'https://example.com/docs/intro', tabId: 1, lastAccessed: 0, title: '文档' },
+        { url: 'https://other.example.com/guide', tabId: 2, lastAccessed: 0, title: '指南' },
+        { url: 'https://unmatched.example.com', tabId: 3, lastAccessed: 0, title: '未保存' },
+      ];
+
+      render(<Content openTabs={openTabs as never} />);
+
+      expect(screen.getByRole('tab', { name: '标签页 3 / 已存2' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: '书签 2 / 激活1' })).toBeInTheDocument();
+    });
+
+    it('已存与激活为零时仍显示，并且搜索结果的激活数只统计当前结果集', () => {
+      searchState.query = 'React';
+      bookmarksState.bookmarks = [
+        makeBookmark('b1', 'React 文档', ['React'], { url: 'https://example.com/react' }),
+        makeBookmark('b2', 'Vue 文档', ['Vue'], { url: 'https://example.com/vue' }),
+      ];
+      const openTabs = [
+        { url: 'https://example.com/vue/guide', tabId: 1, lastAccessed: 0, title: 'Vue' },
+      ];
+
+      render(<Content openTabs={openTabs as never} />);
+
+      expect(screen.getByRole('tab', { name: '标签页 1 / 已存0' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: '书签 1 / 激活0' })).toBeInTheDocument();
+    });
+
+    it('Tag 筛选后书签激活数只统计筛选结果', async () => {
+      const user = userEvent.setup();
+      bookmarksState.bookmarks = [
+        makeBookmark('b1', 'React 文档', ['React'], { url: 'https://example.com/react' }),
+        makeBookmark('b2', 'Vue 文档', ['Vue'], { url: 'https://example.com/vue' }),
+      ];
+      const openTabs = [
+        { url: 'https://example.com/vue/guide', tabId: 1, lastAccessed: 0, title: 'Vue' },
+      ];
+
+      render(<Content openTabs={openTabs as never} />);
+      await user.click(screen.getByRole('button', { name: /筛选.*[Tt]ag|[Tt]ag.*筛选/ }));
+      await user.click(await screen.findByRole('checkbox', { name: /React/ }));
+
+      expect(screen.getByRole('tab', { name: '书签 1 / 激活0' })).toBeInTheDocument();
+    });
+  });
+
   describe('筛选按钮与打开 Popover', () => {
     it('书签视图摘要行展示带 Tag 图标的筛选按钮', () => {
       render(<Content openTabs={[]} />);

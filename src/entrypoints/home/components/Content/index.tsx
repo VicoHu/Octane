@@ -267,6 +267,15 @@ export const Content: React.FC<ContentProps> = ({ openTabs, active = true }) => 
     return result;
   }, [bookmarks, query, selectedFilterTags]);
 
+  const savedTabCount = useMemo(
+    () => openTabs.filter((tab) => allBookmarks.some((bookmark) => bookmarkMatchesOpenTab(bookmark.url, tab.url))).length,
+    [allBookmarks, openTabs],
+  );
+  const activeBookmarkCount = useMemo(
+    () => filteredBookmarks.filter((bookmark) => openTabs.some((tab) => bookmarkMatchesOpenTab(bookmark.url, tab.url))).length,
+    [filteredBookmarks, openTabs],
+  );
+
   // === T4 拖拽排序(Content grid 层)===
   // activationConstraint distance:8 兜底(grip listener),防 click 误触为拖拽
   // 搜索或任一 Tag 筛选存在时禁用拖拽（#53）；全部清除后恢复
@@ -565,8 +574,8 @@ export const Content: React.FC<ContentProps> = ({ openTabs, active = true }) => 
       {/* 视图切换:卡片式 Tabs(书签 / 标签页)。默认书签,向后兼容 */}
       <Tabs className={styles.tabsRoot} value={activeView} onValueChange={(v) => setActiveView(v as View)}>
         <TabsList className={styles.tabsList}>
-          <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签 {filteredBookmarks.length}</TabsTrigger>
-          <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页 {openTabs.length}</TabsTrigger>
+          <TabsTrigger value="bookmarks" className={styles.tabsTrigger}>书签 {filteredBookmarks.length} / 激活{activeBookmarkCount}</TabsTrigger>
+          <TabsTrigger value="tabs" className={styles.tabsTrigger}>标签页 {openTabs.length} / 已存{savedTabCount}</TabsTrigger>
         </TabsList>
         <TabsContent value="bookmarks" className={styles.scrollPanel}>
           <div className={styles.summaryRow}>
