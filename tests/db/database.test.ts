@@ -132,6 +132,35 @@ describe('级联删除', () => {
     expect(await getAll('pinnedTabs')).toHaveLength(0);
   });
 
+  it('删除工作区 → 级联删除待办（任务/清单/标签/检查项/关联），不影响其他工作区', async () => {
+    await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
+    await putRecord('workspaces', makeWorkspace('ws-2', '个人'));
+
+    // ws-1 待办数据
+    await putRecord('taskLists', { id: 'list-1', workspaceId: 'ws-1', name: '工作清单', normalizedName: '工作清单', color: 'blue', order: 0, archivedAt: null, createdAt: 0, updatedAt: 0 });
+    await putRecord('tasks', { id: 'task-1', workspaceId: 'ws-1', listId: 'list-1', containerKey: 'list:list-1', title: '任务1', description: '', priority: 'none', dueDate: null, status: 'active', order: 0, completedAt: null, deletedAt: null, createdAt: 0, updatedAt: 0 });
+    await putRecord('checklistItems', { id: 'ci-1', taskId: 'task-1', text: '步骤1', isCompleted: false, completedAt: null, order: 0, createdAt: 0, updatedAt: 0 });
+    await putRecord('taskTags', { id: 'tag-1', workspaceId: 'ws-1', name: '紧急', normalizedName: '紧急', color: 'red', order: 0, createdAt: 0, updatedAt: 0 });
+    await putRecord('taskTagAssignments', { taskId: 'task-1', tagId: 'tag-1', createdAt: 0 });
+    // ws-2 待办数据（应保留）
+    await putRecord('tasks', { id: 'task-2', workspaceId: 'ws-2', listId: null, containerKey: 'inbox', title: '个人任务', description: '', priority: 'none', dueDate: null, status: 'active', order: 0, completedAt: null, deletedAt: null, createdAt: 0, updatedAt: 0 });
+    await putRecord('taskTags', { id: 'tag-2', workspaceId: 'ws-2', name: '生活', normalizedName: '生活', color: 'green', order: 0, createdAt: 0, updatedAt: 0 });
+
+    await cascadeDeleteWorkspace('ws-1');
+
+    // ws-1 待办数据清空
+    expect(await getByKey('taskLists', 'list-1')).toBeUndefined();
+    expect(await getByKey('tasks', 'task-1')).toBeUndefined();
+    expect(await getByKey('checklistItems', 'ci-1')).toBeUndefined();
+    expect(await getByKey('taskTags', 'tag-1')).toBeUndefined();
+    const assignments = (await getAll('taskTagAssignments')) as { taskId: string }[];
+    expect(assignments.filter((a) => a.taskId === 'task-1')).toHaveLength(0);
+    // ws-2 待办数据与工作区保留
+    expect(await getByKey('tasks', 'task-2')).toBeDefined();
+    expect(await getByKey('taskTags', 'tag-2')).toBeDefined();
+    expect(await getByKey('workspaces', 'ws-2')).toBeDefined();
+  });
+
   it('删除分类 → 级联删除该书签+上下文，不影响其他分类', async () => {
     await putRecord('workspaces', makeWorkspace('ws-1', '工作'));
     await putRecord('categories', makeCategory('cat-1', 'ws-1', '工具'));
