@@ -19,6 +19,7 @@ Octane 是一个浏览器扩展（支持 Chrome / Firefox / Edge），以固定�
 - **端到端加密** — AES-GCM-256 加密上下文字段，主密码通过 PBKDF2（600K 迭代）派生密钥
 - **会话级解锁** — 主密码输入一次，密钥缓存到 `chrome.storage.session`，浏览器关闭自动清除
 - **多工作区** — 支持多工作区隔离（如：工作、个人、项目 A）
+- **待办事项** — AppRail 待办入口（与主页平级）切换至三栏待办页：左侧导航（今天 / 未来 7 天 / Inbox / 清单 / 标签 / 已归档 / 废纸篓）+ 中部任务列表 + 右侧任务详情，中间分割线可拖拽调比例（桌面三栏 / 窄桌面双栏 / 移动单面板自适应）。Task / 清单 / 任务标签始终归属一个工作区，可切「所有工作区」汇总视图（仅扩大查询范围、不改归属）；支持优先级（高 / 中 / 低 / 无）、截止日期、检查项、文本搜索、筛选、排序与受约束的手动拖拽；软删除进废纸篓可恢复 / 永久删除；任务数据随全量备份与云备份同步，但不进分享包（任务为本地优先，首版不加密）
 - **工作区标签隔离** — 切换工作区时自动隔离浏览器标签，4 档可选：不隔离（默认）/ 自动关闭与恢复（close）/ 折叠·省内存（hide-discard）/ 折叠·保状态（hide）。离开工作区按所选模式收纳标签（关闭或折叠为标签组 + 可选释放内存），返回时恢复（close 重开 / hide 解散组释放标签）；窗口绑定 + 会话追踪，默认关闭可在设置中心开启；首次开启弹存量告知确认，切换中显示进度（工作区项 Spinner + 进度条）
 - **标签会话冷恢复** — 开启隔离（close / hide-discard / hide）后，当前工作区的标签页持续保存到本地。即使不切换工作区直接关闭浏览器，下次冷启动也会在 Chrome 原生会话稳定后非破坏式恢复：当前工作区恢复为散开标签页，关闭前仍驻留的其他工作区恢复为折叠标签组；复用 Chrome 已恢复的标签页、不删用户自建标签组、保留快照外标签页。个别恢复失败自动重试一次，仍失败时在 Home 给出数量通知与手动重试入口。标签会话仅存本机 `chrome.storage.local`，不进备份 / 云同步 / 分享包
 - **分类组织** — 书签按分类组织，支持增删改
@@ -57,6 +58,8 @@ Octane 是一个浏览器扩展（支持 Chrome / Firefox / Edge），以固定�
 ├──────────────────────────────────────────────┤
 │              Service Layer                   │
 │  WorkspaceSvc | CategorySvc | BookmarkSvc    │
+│  TaskSvc | TaskListSvc | TaskTagSvc |        │
+│  ChecklistItemSvc | TodoQuerySvc             │
 │  ContextSvc ─────→ CryptoService            │
 ├──────────────────────────────────────────────┤
 │           Shared Infrastructure              │
@@ -80,7 +83,8 @@ octane/
 │   │   │                       # ContextEditor / TabList / PinnedArea / PinnedManageDialog /
 │   │   │                       # ManagePanel /
 │   │   │                       # AppRail（工作区栏）/ ContextPanelShell（响应式抽屉）/
-│   │   │                       # SettingsModal / WorkspaceCreateButton 等
+│   │   │                       # SettingsModal / WorkspaceCreateButton /
+│   │   │                       # TodoPage（待办三栏页）/ HomePageShell / MobilePrimaryNavigation 等
 │   │   ├── popup/              # 工具栏 Popup（Hub 首页 + 保存书签/设置子页面）
 │   │   ├── sidepanel/          # Side Panel（hostname 联动书签 + 上下文预览）
 │   │   └── background.ts       # MV3 service worker（跨上下文消息路由）
@@ -98,6 +102,7 @@ octane/
 │   └── shared/
 │       ├── db/                 # IndexedDB 封装（连接管理 + 级联删除 + 配额监控）
 │       ├── tabs/               # Tab 操作（URL 匹配、聚焦、pinned home tab 唤起、标签会话冷恢复 sessionContinuity）
+│       ├── tasks/              # 任务领域纯函数（taskRules 规则 / taskQuery 查询投影 / todoColors 调色板）
 │       ├── types/              # TypeScript 类型定义
 │       └── utils/              # 工具函数（Markdown 渲染）
 ├── wxt.config.ts               # WXT 配置（manifest、React + Tailwind vite 插件）

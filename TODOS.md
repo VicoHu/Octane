@@ -83,3 +83,16 @@ v1.1 = 切换行为 2 档 → 4 档（加 hide 两档）。设计核心决策：
 - **SwitchProgress 缺 setting 字段**（ship pre-landing review finding 5）：`SwitchProgress` 类型无 `setting`，但 store switching state + `progressLabel` 依赖它做动词适配。跨边界契约靠结构子集而非类型；可加 `setting?: TabIsolationSetting` 使契约显式。
 
 > **不在 v1.1**：lazy restore（v1.x）/ 跨设备 tab 会话备份（不做，设备本地临时）。详见 v1.1 设计文档 + v1 设计文档 NOT in scope。
+
+## 待办事项（Issue #72）— 首版排除项（后续评估）
+
+> 来源：`docs/superpowers/specs/2026-08-03-todo-page-design.md` §3.2「首版不包含」。首版随本分支 ship。以下为有后续价值、暂未做的项；spec 明确的产品决策（Bookmark↔Task 不直接关联、书签 Tag 与 Task Tag 保持独立，见 `docs/adr/0002-separate-bookmark-and-task-tags.md`）不在「后续可能做」之列。
+
+- **Task 加密 / 端到端加密**：首版任务明文存 IndexedDB（仅 contexts 字段级加密），随全量 / 云备份以明文 JSON 同步。敏感待办（凭据、私密计划）纳入前需评估任务字段加密与备份密文处理。
+- **待办分享包导入导出**：首版任务排除在分享包外（`src/services/shareImport.ts` 不含任务表），仅随全量备份 / 云备份同步。跨用户分享需设计归属与 ID 重映射。
+- **提醒 / 重复规则 / 计划时间**：首版仅单一 Due Date（无时间、无提醒）。提醒需 MV3 `alarms` 权限评估；重复规则需调度模型。
+- **Subtask / 多层任务树 / 嵌套清单 / 依赖关系**：首版仅轻量 Checklist Item（不独立调度 / 组织 / 标签）。多层结构需重设计查询投影（`src/shared/tasks/taskQuery.ts`）。
+- **多设备实时同步 / 离线队列 / 冲突合并 / 协作**：首版本地优先 + 手动全量 / 云备份，无实时同步。
+- **复合过滤（多 Tag AND/OR）/ 自定义表达式 / 保存的智能清单**：首版仅单 Task Tag 过滤。
+- **URL 路由 / 深链接 / 前进后退历史 / AppRail 全局搜索**：首版待办走 AppRail 视图切换，无 URL 路由。
+- **Trash 自动过期 / Completed 自动清理 / Canceled 状态**：首版 Trash / Completed 永久保留至手动恢复或永久删除，无自动清理。
