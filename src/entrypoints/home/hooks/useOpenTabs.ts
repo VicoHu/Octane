@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { Workspace } from '@/shared/types';
+import { getTabIsolationSetting } from '@/shared/tabIsolationSetting';
+import { IDENTITY_SUFFIX } from '@/shared/tabs/tabGroupIdentity';
 
 /**
  * chrome 最小子集类型（项目无 @types/chrome，参考 focusOrCreateHomeTab.ts 的断言模式）。
@@ -19,6 +22,13 @@ interface ChromeTabLike {
   pinned?: boolean;
   /** 浏览器 tab 位置（tab 栏从左到右的索引，0 起），用于稳定排序 + 0.2.x 会话保存 */
   index?: number;
+  /** 所属标签组；-1 或缺省表示游离标签页。 */
+  groupId?: number;
+}
+
+interface ChromeTabGroupLike {
+  id: number;
+  title?: string;
 }
 
 interface TabsEventEmitter {
@@ -27,11 +37,20 @@ interface TabsEventEmitter {
 }
 
 interface ChromeLike {
+  windows?: {
+    getCurrent(): Promise<{ id?: number }>;
+  };
   tabs: {
-    query(info: { currentWindow: boolean }): Promise<ChromeTabLike[]>;
+    query(info: { currentWindow?: boolean; windowId?: number }): Promise<ChromeTabLike[]>;
     onCreated: TabsEventEmitter;
     onUpdated: TabsEventEmitter;
     onRemoved: TabsEventEmitter;
+  };
+  tabGroups?: {
+    query(info: { windowId: number }): Promise<ChromeTabGroupLike[]>;
+    onCreated?: TabsEventEmitter;
+    onUpdated?: TabsEventEmitter;
+    onMoved?: TabsEventEmitter;
   };
 }
 
@@ -63,6 +82,40 @@ function isInternalPage(url: string): boolean {
   );
 }
 
+/** 标签页数据源需要的工作区上下文。 */
+export interface UseOpenTabsOptions {
+  currentWorkspaceId: string | null;
+  workspaces: Workspace[];
+}
+
+const EMPTY_WORKSPACES: Workspace[] = [];
+
+function filterTabsByWorkspace(
+  tabs: ChromeTabLike[],
+  groups: ChromeTabGroupLike[],
+  currentWorkspaceId: string | null,
+  workspaces: Workspace[],
+): ChromeTabLike[] {
+  if (!currentWorkspaceId) return tabs;
+
+  const currentSuffix = IDENTITY_SUFFIX(currentWorkspaceId);
+  const identitySuffixes = new Set(workspaces.map((workspace) => IDENTITY_SUFFIX(workspace.id)));
+  const hiddenGroupIds = new Set(
+    groups
+      .filter((group) => {
+        const title = group.title;
+        if (!title) return false;
+        for (const suffix of identitySuffixes) {
+          if (title.endsWith(suffix)) return suffix !== currentSuffix;
+        }
+        return false;
+      })
+      .map((group) => group.id),
+  );
+
+  return tabs.filter((tab) => !hiddenGroupIds.has(tab.groupId ?? -1));
+}
+
 /**
  * 监听当前窗口已打开的 tab，返回「按浏览器位置(index)升序」的 OpenTab 列表
  * (与浏览器 tab 栏顺序一致)。
@@ -78,8 +131,10 @@ function isInternalPage(url: string): boolean {
  * 需"最近活跃"语义处(如书签点击跳转)用 matchUrl.ts 的 pickMostRecentMatchingTab 显式取。
  * 匹配规则(段边界前缀)见 matchUrl.ts 的 bookmarkMatchesOpenTab。
  */
-export function useOpenTabs(): OpenTab[] {
+export function useOpenTabs(options?: UseOpenTabsOptions): OpenTab[] {
   const [openTabs, setOpenTabs] = useState<OpenTab[]>([]);
+  const currentWorkspaceId = options?.currentWorkspaceId ?? null;
+  const workspaces = options?.workspaces ?? EMPTY_WORKSPACES;
 
   useEffect(() => {
     const c = chrome as unknown as ChromeLike | undefined;
@@ -89,10 +144,23 @@ export function useOpenTabs(): OpenTab[] {
 
     const refresh = async () => {
       try {
-        const tabs = await c.tabs.query({ currentWindow: true });
+        const setting = await getTabIsolationSetting();
+        const currentWindow = c.windows ? await c.windows.getCurrent() : null;
+        const windowId = currentWindow?.id;
+        const tabs = await c.tabs.query(windowId == null ? { currentWindow: true } : { windowId });
+        if (!active) return;
+        const visibleTabs =
+          setting === 'off' || windowId == null || !c.tabGroups?.query
+            ? tabs
+            : filterTabsByWorkspace(
+                tabs,
+                await c.tabGroups.query({ windowId }),
+                currentWorkspaceId,
+                workspaces,
+              );
         if (!active) return;
         const list: OpenTab[] = [];
-        for (const t of tabs) {
+        for (const t of visibleTabs) {
           if (t.id == null || !t.url) continue;
           // 过滤浏览器内部页 / 扩展页（含自身 home）：噪声且无法业务匹配
           if (isInternalPage(t.url)) continue;
@@ -121,14 +189,20 @@ export function useOpenTabs(): OpenTab[] {
     c.tabs.onCreated.addListener(refresh);
     c.tabs.onUpdated.addListener(refresh);
     c.tabs.onRemoved.addListener(refresh);
+    c.tabGroups?.onCreated?.addListener(refresh);
+    c.tabGroups?.onUpdated?.addListener(refresh);
+    c.tabGroups?.onMoved?.addListener(refresh);
 
     return () => {
       active = false;
       c.tabs.onCreated.removeListener(refresh);
       c.tabs.onUpdated.removeListener(refresh);
       c.tabs.onRemoved.removeListener(refresh);
+      c.tabGroups?.onCreated?.removeListener(refresh);
+      c.tabGroups?.onUpdated?.removeListener(refresh);
+      c.tabGroups?.onMoved?.removeListener(refresh);
     };
-  }, []);
+  }, [currentWorkspaceId, workspaces]);
 
   return openTabs;
 }

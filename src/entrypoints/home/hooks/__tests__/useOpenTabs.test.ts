@@ -2,21 +2,38 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useOpenTabs } from '../useOpenTabs';
 
-type TabLike = { id?: number; url?: string; lastAccessed?: number; title?: string; favIconUrl?: string; pinned?: boolean; index?: number };
+type TabLike = { id?: number; url?: string; lastAccessed?: number; title?: string; favIconUrl?: string; pinned?: boolean; index?: number; groupId?: number };
+type TabGroupLike = { id: number; windowId: number; title?: string };
+
+const workspaces = [
+  { id: 'aaaaaaaa-0000-0000-0000-000000000000', name: '工作', icon: 'briefcase', createdAt: 1, order: 0 },
+  { id: 'bbbbbbbb-0000-0000-0000-000000000000', name: '学习', icon: 'book', createdAt: 2, order: 1 },
+];
 
 /**
  * mock chrome.tabs：query 可控，onCreated/onUpdated/onRemoved 可手动触发。
  * 参考 useCurrentTabContext.test.ts 的回调收集套路。
  */
-function mockTabs(initial: TabLike[]) {
+function mockTabs(
+  initial: TabLike[],
+  options: { groups?: TabGroupLike[]; setting?: string; windowId?: number } = {},
+) {
   let current = initial;
+  let groups = options.groups ?? [];
   const listeners: Record<'onCreated' | 'onUpdated' | 'onRemoved', Array<() => void>> = {
     onCreated: [],
     onUpdated: [],
     onRemoved: [],
   };
+  const groupListeners: Record<'onCreated' | 'onUpdated' | 'onMoved', Array<() => void>> = {
+    onCreated: [],
+    onUpdated: [],
+    onMoved: [],
+  };
   const queryMock = vi.fn(async () => current);
   (globalThis as unknown as { chrome: unknown }).chrome = {
+    windows: { getCurrent: vi.fn(async () => ({ id: options.windowId ?? 1 })) },
+    storage: { local: { get: vi.fn(async () => ({ tabIsolationSetting: options.setting ?? 'off' })) } },
     tabs: {
       query: queryMock,
       onCreated: {
@@ -29,6 +46,21 @@ function mockTabs(initial: TabLike[]) {
       },
       onRemoved: {
         addListener: vi.fn((cb: () => void) => listeners.onRemoved.push(cb)),
+        removeListener: vi.fn(),
+      },
+    },
+    tabGroups: {
+      query: vi.fn(async () => groups),
+      onCreated: {
+        addListener: vi.fn((cb: () => void) => groupListeners.onCreated.push(cb)),
+        removeListener: vi.fn(),
+      },
+      onUpdated: {
+        addListener: vi.fn((cb: () => void) => groupListeners.onUpdated.push(cb)),
+        removeListener: vi.fn(),
+      },
+      onMoved: {
+        addListener: vi.fn((cb: () => void) => groupListeners.onMoved.push(cb)),
         removeListener: vi.fn(),
       },
     },
@@ -47,6 +79,18 @@ function mockTabs(initial: TabLike[]) {
     },
     triggerRemoved() {
       listeners.onRemoved.forEach((cb) => cb());
+    },
+    setGroups(next: TabGroupLike[]) {
+      groups = next;
+    },
+    triggerGroupCreated() {
+      groupListeners.onCreated.forEach((cb) => cb());
+    },
+    triggerGroupUpdated() {
+      groupListeners.onUpdated.forEach((cb) => cb());
+    },
+    triggerGroupMoved() {
+      groupListeners.onMoved.forEach((cb) => cb());
     },
   };
 }
@@ -128,8 +172,7 @@ describe('useOpenTabs — R3 扩展（内部页过滤 + 新字段）', () => {
   type TabLike = { id?: number; url?: string; lastAccessed?: number; title?: string; favIconUrl?: string; pinned?: boolean; index?: number };
 
   function mockTabs(initial: TabLike[]) {
-    let current = initial;
-    const queryMock = vi.fn(async () => current);
+    const queryMock = vi.fn(async () => initial);
     (globalThis as unknown as { chrome: unknown }).chrome = {
       tabs: {
         query: queryMock,
@@ -184,5 +227,66 @@ describe('useOpenTabs — R3 扩展（内部页过滤 + 新字段）', () => {
     const other = result.current.find((t) => t.tabId === 2)!;
     expect(other.title).toBeUndefined();
     expect(other.index).toBeUndefined();
+  });
+});
+
+describe('useOpenTabs — 工作区上下文过滤', () => {
+  const tabs = [
+    { id: 1, url: 'https://current.example.com', groupId: 10 },
+    { id: 2, url: 'https://other.example.com', groupId: 20 },
+    { id: 3, url: 'https://loose.example.com', groupId: -1 },
+    { id: 4, url: 'https://manual-group.example.com', groupId: 30 },
+  ];
+  const groups = [
+    { id: 10, windowId: 1, title: '工作 ·aaaaaaaa' },
+    { id: 20, windowId: 1, title: '学习 ·bbbbbbbb' },
+    { id: 30, windowId: 1, title: '用户自建组' },
+  ];
+
+  it('off 档 → 保留当前窗口全部标签页', async () => {
+    mockTabs(tabs, { groups, setting: 'off' });
+    const { result } = renderHook(() => useOpenTabs({ currentWorkspaceId: workspaces[0]!.id, workspaces }));
+
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 2, 3, 4]));
+  });
+
+  it.each(['close', 'hide-discard', 'hide'] as const)(
+    '%s 档 → 保留当前工作区、游离和用户自建组标签页',
+    async (setting) => {
+      mockTabs(tabs, { groups, setting });
+      const { result } = renderHook(() => useOpenTabs({ currentWorkspaceId: workspaces[0]!.id, workspaces }));
+
+      await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 3, 4]));
+    },
+  );
+
+  it('标签组 onCreated/onUpdated/onMoved → 按最新标识组刷新结果', async () => {
+    const ctl = mockTabs(tabs, { groups, setting: 'hide' });
+    const { result } = renderHook(() => useOpenTabs({ currentWorkspaceId: workspaces[0]!.id, workspaces }));
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 3, 4]));
+
+    ctl.setGroups(groups.map((group) => group.id === 20 ? { ...group, title: '工作副本 ·aaaaaaaa' } : group));
+    ctl.triggerGroupCreated();
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 2, 3, 4]));
+
+    ctl.setGroups(groups);
+    ctl.triggerGroupUpdated();
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 3, 4]));
+
+    ctl.setGroups(groups.map((group) => group.id === 20 ? { ...group, title: '工作副本 ·aaaaaaaa' } : group));
+    ctl.triggerGroupMoved();
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 2, 3, 4]));
+  });
+
+  it('当前工作区切换 → 刷新过滤后的标签页', async () => {
+    mockTabs(tabs, { groups, setting: 'hide' });
+    const { result, rerender } = renderHook(
+      ({ currentWorkspaceId }) => useOpenTabs({ currentWorkspaceId, workspaces }),
+      { initialProps: { currentWorkspaceId: workspaces[0]!.id } },
+    );
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([1, 3, 4]));
+
+    rerender({ currentWorkspaceId: workspaces[1]!.id });
+    await waitFor(() => expect(result.current.map((tab) => tab.tabId)).toEqual([2, 3, 4]));
   });
 });
