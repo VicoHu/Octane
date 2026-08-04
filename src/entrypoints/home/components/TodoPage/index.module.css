@@ -405,11 +405,22 @@
   font-size: 12px;
 }
 
-.priorityHigh { color: var(--priority-high); }
-.priorityMedium { color: var(--priority-medium); }
-.priorityLow { color: var(--priority-low); }
-.overdue { color: var(--destructive); font-weight: 600; }
-.workspaceMeta { color: var(--foreground); }
+.priorityHigh {
+  color: var(--priority-high);
+}
+.priorityMedium {
+  color: var(--priority-medium);
+}
+.priorityLow {
+  color: var(--priority-low);
+}
+.overdue {
+  color: var(--destructive);
+  font-weight: 600;
+}
+.workspaceMeta {
+  color: var(--foreground);
+}
 
 .completedGroup {
   border-top: 1px solid var(--border);
@@ -430,7 +441,7 @@
   text-align: left;
 }
 
-.completedHeading[aria-expanded='true'] svg {
+.completedHeading[aria-expanded="true"] svg {
   transform: rotate(180deg);
 }
 
@@ -458,20 +469,23 @@
 }
 
 @media (max-width: 760px) {
-  :global(body:has([data-todo-mobile='true']) :is(
-    button,
-    input,
-    textarea,
-    select,
-    a[href],
-    [role='button'],
-    [role='checkbox'],
-    [role='combobox'],
-    [role='menuitem'],
-    [role='option'],
-    [role='radio'],
-    [role='tab']
-  )) {
+  :global(
+    body:has([data-todo-mobile="true"])
+      :is(
+        button,
+        input,
+        textarea,
+        select,
+        a[href],
+        [role="button"],
+        [role="checkbox"],
+        [role="combobox"],
+        [role="menuitem"],
+        [role="option"],
+        [role="radio"],
+        [role="tab"]
+      )
+  ) {
     min-width: 44px;
     min-height: 44px;
   }
