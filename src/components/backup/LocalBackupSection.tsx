@@ -109,12 +109,12 @@ export function LocalBackupSection() {
             </label>
           </div>
           <DialogFooter>
-            <Button variant="outline" className="min-h-11" disabled={status === "running"} onClick={cancelImport}>
+            <Button variant="outline" className="min-h-11 w-20" disabled={status === "running"} onClick={cancelImport}>
               取消
             </Button>
             <Button
               variant="destructive"
-              className="min-h-11 w-full"
+              className="min-h-11 w-80"
               disabled={!confirmed || status === "running"}
               onClick={handleConfirm}
             >
