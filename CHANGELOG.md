@@ -4,18 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
-## [Unreleased]
+## [0.3.0.0] - 2026-08-04
 
 ### Added
 
 - **标签页按工作区过滤** —— 隔离行为非「不隔离」（close / hide-discard / hide）时，主页「标签页」视图及所有消费「已打开标签页」数据的功能（书签卡片「已打开」绿点、书签点击跳转、常驻标签区跳转匹配）只看**当前工作区上下文**的标签页；「不隔离」档保持现状。过滤下沉到标签页数据源 hook 单点，消费方零改动；工作区标识组复用 `tabGroupIdentity` 的 wsHash 后缀精确判定（不依赖正则启发式），游离标签页与用户手建组一律保留。补标签组事件（`tabGroups` onCreated/onUpdated/onMoved）与工作区切换刷新，折叠组变化即时生效。
 - **标签页 / 书签计数 badge** —— 内容区视图切换 button 补对照计数：`标签页 {n} / 已存{m}`（n 为过滤后标签页数，m 为其中已存为书签数）、`书签 {n} / 激活{m}`（n 为当前搜索 + Tag 筛选下书签数，m 为其中匹配到当前工作区标签页数）。两个计数复用同一 `bookmarkMatchesOpenTab` 口径（仅遍历方向不同），与「已收藏」去重 / 绿点同源；m=0 始终显示，避免宽度抖动。
 - **主动检测更新入口** —— 两处入口复用同一共享检测逻辑：① 主页 sidebar 版本号改为可点击（loading → 固定 5 秒 → 单次 toast「发现新版本 vX」/「已是最新版本」）；② 设置「关于」新增独立「检测更新」按钮（loading → 刷新 UpdateStatus，不弹 toast）。共享逻辑只信 background `onUpdateAvailable` 广播 → `usePendingUpdate`，丢弃不可靠的 `requestUpdateCheck` 状态；manual（手动安装）渠道 sidebar 走引导 toast、关于页不显示按钮，保持「前往 GitHub Releases」引导。
-
-## [0.3.0.0] - 2026-08-04
-
-### Added
-
 - **待办事项页面** —— AppRail 待办入口（与主页平级）切换至全新待办工作台，与书签共享工作区边界。三栏布局（左侧导航 / 中部任务列表 / 右侧任务详情），分割线可拖拽调比例，桌面三栏 / 窄桌面双栏 / 移动单面板自适应。
   - **任务管理**：创建、查看、编辑、完成 / 取消、跨清单 / 跨工作区移动、软删除进废纸篓、恢复、永久删除；四档优先级（高 / 中 / 低 / 无）、单一截止日期、轻量检查项、文本搜索、筛选、排序与受约束的手动拖拽。
   - **清单与标签**：清单可创建 / 重命名 / 着色 / 排序 / 归档 / 恢复 / 受约束永久删除；任务标签（独立于书签标签）可创建 / 重命名 / 着色 / 排序 / 删除 / 单标签过滤。
