@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **标签页按工作区过滤** —— 隔离行为非「不隔离」（close / hide-discard / hide）时，主页「标签页」视图及所有消费「已打开标签页」数据的功能（书签卡片「已打开」绿点、书签点击跳转、常驻标签区跳转匹配）只看**当前工作区上下文**的标签页；「不隔离」档保持现状。过滤下沉到标签页数据源 hook 单点，消费方零改动；工作区标识组复用 `tabGroupIdentity` 的 wsHash 后缀精确判定（不依赖正则启发式），游离标签页与用户手建组一律保留。补标签组事件（`tabGroups` onCreated/onUpdated/onMoved）与工作区切换刷新，折叠组变化即时生效。
+- **标签页 / 书签计数 badge** —— 内容区视图切换 button 补对照计数：`标签页 {n} / 已存{m}`（n 为过滤后标签页数，m 为其中已存为书签数）、`书签 {n} / 激活{m}`（n 为当前搜索 + Tag 筛选下书签数，m 为其中匹配到当前工作区标签页数）。两个计数复用同一 `bookmarkMatchesOpenTab` 口径（仅遍历方向不同），与「已收藏」去重 / 绿点同源；m=0 始终显示，避免宽度抖动。
+- **主动检测更新入口** —— 两处入口复用同一共享检测逻辑：① 主页 sidebar 版本号改为可点击（loading → 固定 5 秒 → 单次 toast「发现新版本 vX」/「已是最新版本」）；② 设置「关于」新增独立「检测更新」按钮（loading → 刷新 UpdateStatus，不弹 toast）。共享逻辑只信 background `onUpdateAvailable` 广播 → `usePendingUpdate`，丢弃不可靠的 `requestUpdateCheck` 状态；manual（手动安装）渠道 sidebar 走引导 toast、关于页不显示按钮，保持「前往 GitHub Releases」引导。
+
 ## [0.3.0.0] - 2026-08-04
 
 ### Added
@@ -94,25 +102,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 ## [0.2.2.0] - 2026-07-24
 
 ### Added
+
 - **标签页打开位置**：新标签页统一在当前窗口最右侧打开；Cmd/Ctrl + 左键点击书签、标签或固定标签在后台打开新标签页。
 - **工作区删除**：管理面板可删除工作区（二次确认；级联清理分类/书签/上下文/固定标签与会话，单事务原子、无残留）。
 - **工作区拖拽排序**：管理面板工作区列表支持拖拽排序，拖拽约束在垂直轴。
 
 ### Changed
+
 - 「打开的标签页」视图过滤 `chrome://` 等内部页（与浏览器 tab 栏可见一致）。
 - README 定位同步为「固定首页标签（home tab）」（非 NewTab override，Ctrl+T 保留浏览器默认新标签页）。
 
 ### Fixed
+
 - 管理弹窗拖拽工作区时 overlay 横向瞬移：shadcn Dialog 居中 transform 捕获了 `position:fixed` 基准，DragOverlay 改 portal 到 `document.body` 修复。
 - 打开标签页失败（`chrome.tabs.create` reject）原先无反馈，现提示「打开失败」（与删除工作区一致）。
 - hide 模式（折叠·保状态）切回工作区时其他工作区折叠标签组排到了当前标签之后：`chrome.tabs.ungroup` 解散组后 tab 停在历史位置（常紧贴固定标签），现把当前工作区普通标签移到所有折叠组之后（固定标签 → 折叠组 → 当前标签）。
 
 ### Internal
+
 - agent issue 工作流配置（gh CLI + triage labels + 单上下文仓库 domain 指引）。
 
 ## [0.2.1.0] - 2026-07-23
 
 ### Added
+
 - **hide 模式（折叠隔离）**：切换行为 2 档 → 4 档，加「折叠·省内存」（hide-discard）/「折叠·保状态」（hide）。离开工作区时 tab 不关、折叠为标签组（+ 可选 discard 释放内存），切回时解散组、tab 释放到标签栏顶层。
 - **tabGroup 稳定标识**：组 title 拼 workspaceId 哈希（`工作区名 ·xxxxxxxx`），跨重启稳定、重名唯一；标识回找 + 兜底 restore 两路径容错。
 - **undo 反向切换**：切换后可反向切回源工作区（组临时，切回即解散，无 generation 校验）。
@@ -120,10 +133,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 - 新增 `tabGroups` 权限（折叠/解散/discard/group）。
 
 ### Changed
+
 - **hide 切回语义**：切回工作区 = 解散组、tab 释放到顶层（组仅作切走态临时收纳），非展开。
 - 切换结果 Toast：仅通知，去掉「切回」按钮。
 
 ### Fixed
+
 - 组名缺工作区名（dispose 建组 title 硬编码空串 → fromName 由 store 派生传入）。
 - undo 切换卡死（undo 不复用正向 onProgress，防 switching state 泄漏致按钮 disabled）。
 
@@ -650,15 +665,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 ### Added
 
 **项目初始化**
+
 - 初始化项目骨架（Vite + React 19 + TypeScript 6 + Chrome Extension MV3）
 - 添加 Prettier、.gitignore、MCP 配置
 
 **基础设施层（P1）**
+
 - 添加数据模型类型定义（Workspace, Category, Bookmark, Note, CryptoMetadata）
 - 实现 IndexedDB 封装层：连接管理（单例模式）、5 张表、索引、级联删除（Workspace→Category→Bookmark→Note）、配额监控
 - 实现 CryptoService：PBKDF2 密钥派生（600K 迭代）、AES-GCM-256 加密/解密、chrome.storage.session 会话密钥管理、主密码设置/解锁/修改
 
 **Service 层**
+
 - WorkspaceService：工作区 CRUD + 级联删除
 - CategoryService：分类 CRUD + 级联删除
 - BookmarkService：书签 CRUD + Google Favicon API
@@ -666,12 +684,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 - Markdown 渲染工具：marked + DOMPurify 安全过滤
 
 **Store 层（Zustand）**
+
 - useWorkspace：工作区/分类状态管理
 - useBookmarks：书签列表、CRUD、Favicon 自动补充
 - useCrypto：加密状态（是否设置密码、是否解锁）
 - useSearch：搜索查询状态
 
 **UI 层（Semi Design）**
+
 - Sidebar：工作区选择器 + 分类列表 + 创建/删除操作
 - Content：搜索栏 + 三列卡片网格 + 添加书签弹窗 + 空状态
 - BookmarkCard：Favicon + 名称 + URL + 描述 + 加密锁图标
@@ -680,12 +700,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0
 - EmptyState：统一空状态组件
 
 **测试**
+
 - IndexedDB CRUD + 级联删除测试（fake-indexeddb）
 - CryptoService 加密/解密往返测试
 - Service 层集成测试
 - Markdown 渲染工具测试
 
 **其他**
+
 - 添加扩展图标资源（16/48/128px + SVG）
 - vite.config.ts 配置 `base: './'` 相对路径
 - 添加开发文档（P1 基础设施计划、P2 UI 组件计划）
