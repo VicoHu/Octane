@@ -59,6 +59,31 @@ describe('共享更新检测逻辑', () => {
     expect(result.current.checking).toBe(false);
   });
 
+  it('慢/挂起的 requestUpdateCheck 不拖延固定延迟（5 秒统治计时器）', async () => {
+    vi.useFakeTimers();
+    // requestUpdateCheck 永不 resolve（模拟不可靠 / 挂起的 API）。
+    const requestUpdateCheck = vi.fn().mockReturnValue(new Promise(() => {}));
+    (globalThis as { chrome?: Record<string, unknown> }).chrome = {
+      runtime: { requestUpdateCheck },
+    };
+    const { result } = renderHook(() => useUpdateCheck('cws', null));
+
+    let checking!: Promise<ReturnType<typeof resolveUpdateCheckResult>>;
+    act(() => {
+      checking = result.current.checkForUpdate();
+    });
+    expect(result.current.checking).toBe(true);
+    expect(requestUpdateCheck).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_DELAY_MS);
+    });
+
+    // API 仍挂起，但固定 5 秒已到，结果不依赖 API 返回。
+    await expect(checking).resolves.toEqual({ type: 'up-to-date' });
+    expect(result.current.checking).toBe(false);
+  });
+
   it('manual 渠道不调用商店检查 API', async () => {
     const { requestUpdateCheck } = setupChrome();
     const { result } = renderHook(() => useUpdateCheck('manual', null));

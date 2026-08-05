@@ -27,7 +27,10 @@ export function resolveUpdateCheckResult(
   return { type: 'up-to-date' };
 }
 
-/** 两个主动检测入口共用：触发商店检查后固定等待 background 同步待装版本。 */
+/** 两个主动检测入口共用：触发商店检查后固定等待 background 同步待装版本。
+ *
+ * 计时独立于不可靠的 requestUpdateCheck：并发启动两者，固定 5 秒后即读结果；
+ * API 慢 / 挂起不拖延、也不被丢弃（仍在后台尽力触发 background 的 onUpdateAvailable）。 */
 export function useUpdateCheck(channel: Channel, pendingVersion: string | null) {
   const [checking, setChecking] = useState(false);
   const pendingVersionRef = useRef(pendingVersion);
@@ -41,11 +44,13 @@ export function useUpdateCheck(channel: Channel, pendingVersion: string | null) 
 
     setChecking(true);
     try {
-      try {
-        await (chrome as unknown as ChromeLike).runtime.requestUpdateCheck();
-      } catch {
+      // 尽力触发商店检查：结果一律丢弃（不可靠），只信任 background 的 onUpdateAvailable 广播。
+      // 不 await：固定 5 秒统治计时器独立运行，API 慢 / 挂起不拖延结果。
+      void Promise.resolve(
+        (chrome as unknown as ChromeLike).runtime.requestUpdateCheck(),
+      ).catch(() => {
         // 忽略：只信任 background 的 onUpdateAvailable 结果。
-      }
+      });
       await new Promise<void>((resolve) => setTimeout(resolve, UPDATE_CHECK_DELAY_MS));
       return resolveUpdateCheckResult(channel, pendingVersionRef.current);
     } finally {
