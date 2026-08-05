@@ -160,8 +160,8 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
   it('默认书签视图:Tabs 含「书签」与「标签页(N)」两项', () => {
     render(<Content openTabs={[]} />);
     expect(screen.getAllByRole('tab')).toHaveLength(2);
-    // jsdom 无 chrome → useOpenTabs 返回 [] → 标签页计数 0
-    expect(screen.getByRole('tab', { name: '标签页 0' })).toBeInTheDocument();
+    // jsdom 无 chrome → useOpenTabs 返回 [] → 标签页计数与已存计数均为 0
+    expect(screen.getByRole('tab', { name: '标签页 0 / 已存0' })).toBeInTheDocument();
     // 默认书签视图:不应出现 tabs 视图的空状态文案(keepDOM=false 仅渲染活动面板)
     expect(screen.queryByText('当前窗口没有其他标签页')).not.toBeInTheDocument();
   });
@@ -169,7 +169,7 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
   it('切到标签页视图:点击 标签页 tab → 渲染 TabList 空状态 + 保存至提示', async () => {
     const user = userEvent.setup();
     render(<Content openTabs={[]} />);
-    await user.click(screen.getByRole('tab', { name: '标签页 0' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 0 / 已存0' }));
 
     expect(screen.getByText('当前窗口没有其他标签页')).toBeInTheDocument();
     expect(screen.getByText(/保存至/)).toBeInTheDocument();
@@ -178,10 +178,10 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
   it('切回书签视图:不再渲染 TabList', async () => {
     const user = userEvent.setup();
     render(<Content openTabs={[]} />);
-    await user.click(screen.getByRole('tab', { name: '标签页 0' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 0 / 已存0' }));
     expect(screen.getByText('当前窗口没有其他标签页')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: '书签 0' }));
+    await user.click(screen.getByRole('tab', { name: '书签 0 / 激活0' }));
     expect(screen.queryByText('当前窗口没有其他标签页')).not.toBeInTheDocument();
   });
 
@@ -193,7 +193,7 @@ describe('Content 视图切换状态机(Tabs type=card)', () => {
     const openTabs: OpenTab[] = [{ url: 'https://github.com', tabId: 7, lastAccessed: 0, title: 'GitHub' }];
 
     render(<Content openTabs={openTabs} />);
-    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 1 / 已存0' }));
     const openButton = screen.getByRole('button', { name: '打开标签页 GitHub' });
     await user.keyboard('[MetaLeft>]');
     await user.click(openButton);
@@ -257,7 +257,7 @@ describe('Content 添加书签 Tag 录入（#48）', () => {
     render(<Content openTabs={openTabs} />);
 
     // 切到标签页视图
-    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 1 / 已存0' }));
     // 点「存为书签」（TabList 渲染的保存按钮）
     await user.click(screen.getByRole('button', { name: /保存.*书签|存为书签/ }));
 
@@ -282,7 +282,7 @@ describe('Content 存为常驻标签', () => {
       url: 'https://github.com', tabId: 1, lastAccessed: 0, title: 'GitHub',
     }];
     render(<Content openTabs={openTabs} />);
-    await user.click(screen.getByRole('tab', { name: '标签页 1' }));
+    await user.click(screen.getByRole('tab', { name: '标签页 1 / 已存0' }));
     await user.click(screen.getByRole('button', { name: '存为常驻标签' }));
 
     expect(screen.getByPlaceholderText(/url|链接/i)).toHaveValue('https://github.com');

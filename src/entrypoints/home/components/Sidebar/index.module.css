@@ -33,6 +33,10 @@
 }
 
 .version {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font: inherit;
   font-size: var(--font-xs);
   font-weight: 600;
   color: var(--text-muted);
@@ -41,6 +45,11 @@
   border-radius: var(--radius-md);
   padding: 0 var(--space-xs);
   background-color: var(--primary-light);
+  cursor: pointer;
+}
+
+.version:disabled {
+  cursor: wait;
 }
 
 /* badge 醒目色：品牌绿（--sidebar-accent token 待 DESIGN.md 定义，暂用固定值） */

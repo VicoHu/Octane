@@ -29,9 +29,11 @@ const TASK_STORES = new Set<DbChangeEvent['store']>([
 const App: React.FC = () => {
   const loadWorkspaces = useWorkspace((s) => s.loadWorkspaces);
   const currentCategoryId = useWorkspace((s) => s.currentCategoryId);
+  const currentWorkspaceId = useWorkspace((s) => s.currentWorkspaceId);
+  const workspaces = useWorkspace((s) => s.workspaces);
   const loadBookmarks = useBookmarks((s) => s.loadBookmarks);
   const checkStatus = useCrypto((s) => s.checkStatus);
-  const openTabs = useOpenTabs();
+  const openTabs = useOpenTabs({ currentWorkspaceId, workspaces });
   const [activePage, setActivePage] = useState<AppPage>('home');
   const [hasVisitedTasks, setHasVisitedTasks] = useState(false);
   const todoLeaveGuardRef = useRef<TodoLeaveGuard | null>(null);

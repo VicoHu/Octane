@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
+import { Spinner } from '@/components/ui/spinner';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Plus, Trash2, Settings } from 'lucide-react';
 import {
@@ -29,6 +30,8 @@ import { IconPicker } from '@/components/IconPicker';
 import { ManagePanel } from '../ManagePanel';
 import { SettingsModal } from '../SettingsModal';
 import { usePendingUpdate } from '../../hooks/usePendingUpdate';
+import { useUpdateCheck } from '../../hooks/useUpdateCheck';
+import { detectChannel, UPDATE_URL } from '@/shared/distribution';
 import { PinnedArea } from '../PinnedArea';
 import { WorkspaceCreateButton } from '../WorkspaceCreateButton';
 import type { OpenTab } from '../../hooks/useOpenTabs';
@@ -40,7 +43,8 @@ import styles from './index.module.css';
 // 项目无 @types/chrome：声明全局 chrome，最小子集断言（参考 ShortcutsSection.tsx）。
 declare const chrome: unknown;
 interface ChromeLike {
-  runtime: { getManifest(): { version: string } };
+  runtime: { id: string; getManifest(): { version: string } };
+  tabs: { create(opts: { url: string }): unknown };
 }
 
 interface SidebarProps {
@@ -68,8 +72,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
   const [showSettings, setShowSettings] = useState(false);
 
   const { version: pendingVersion } = usePendingUpdate();
-  const appVersion = (chrome as unknown as ChromeLike).runtime.getManifest().version;
-  // sidebar 版本标记点击 → 打开设置「关于」Tab
+  const chromeApi = chrome as unknown as ChromeLike;
+  const appVersion = chromeApi.runtime.getManifest().version;
+  const channel = detectChannel(chromeApi.runtime.id);
+  const { checking: checkingUpdate, checkForUpdate } = useUpdateCheck(channel, pendingVersion);
+  // sidebar 待装版本标记点击 → 打开设置「关于」Tab
   const [settingsInitialTab, setSettingsInitialTab] = useState<'about' | undefined>(undefined);
 
   // === T6 分类拖拽排序 ===
@@ -114,6 +121,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
     }
   };
 
+  const handleVersionCheck = async () => {
+    const result = await checkForUpdate();
+    if (result.type === 'manual') {
+      Toast.info({
+        content: '手动安装版请前往 GitHub Releases 查看新版本。',
+        action: {
+          label: '前往 Releases',
+          onClick: () => chromeApi.tabs.create({ url: UPDATE_URL.manual }),
+        },
+      });
+      return;
+    }
+    Toast.info(
+      result.type === 'update-available' ? `发现新版本 v${result.version}` : '已是最新版本',
+    );
+  };
+
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return;
     try {
@@ -155,7 +179,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ openTabs }) => {
       <div className={styles.header}>
         <img className={styles.logo} src="/icons/icon-128.png" alt="Octane" />
         <div className={styles.title}>Octane</div>
-        <span className={styles.version}>v{appVersion}</span>
+        <button
+          type="button"
+          className={styles.version}
+          aria-label={`检测更新，当前版本 v${appVersion}`}
+          title="检测更新"
+          disabled={checkingUpdate}
+          onClick={() => void handleVersionCheck()}
+        >
+          v{appVersion}
+          {checkingUpdate && <Spinner aria-label="正在检测更新" />}
+        </button>
         {pendingVersion && (
           <button
             type="button"
