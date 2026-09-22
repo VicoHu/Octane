@@ -87,3 +87,25 @@ _Avoid_: Daily Task List, My Day
 **Next 7 Days view**:
 An active aggregate view of incomplete Tasks due from today through the following six calendar days, excluding overdue Tasks.
 _Avoid_: Recent 7 Days, Last 7 Days
+
+### Encryption & Locking
+
+**Master Password**:
+The user-chosen secret from which the data encryption key is derived; it is the only encryption root and its strength floor is never relaxed.
+_Avoid_: Passphrase, PIN, 秘钥, 口令
+
+**Quick Unlock PIN**:
+An optional short code that unlocks an already-established session but never serves as the encryption root.
+_Avoid_: Password, second password, 副密码
+
+**Lock**:
+The state in which the derived key is absent from the session and encrypted Contexts are unreadable while the data itself remains intact.
+_Avoid_: Log out, erase, 注销
+
+**Auto-Lock**:
+Locking triggered by a configurable period of page invisibility, uniform across the home and sidepanel surfaces.
+_Avoid_: TTL, 宽限期, 最长解锁时长, hardCap
+
+**PIN Envelope**:
+The derived key wrapped under a key derived from the Quick Unlock PIN; it is the only thing the PIN can open, and the Master Password can always re-establish it.
+_Avoid_: key copy, 密钥副本, 明文密钥

@@ -13,6 +13,7 @@ import { DB_NAME } from '@/shared/types';
 import { IMPORT_CHANNEL_NAME, DB_CONTEXT_ID, type DbChangeEvent } from '@/shared/db/database';
 import { useOpenTabs } from './hooks/useOpenTabs';
 import { useRecoveryNotice } from './hooks/useRecoveryNotice';
+import { useUnlockLifecycle } from '@/hooks/useUnlockLifecycle';
 import { switchWorkspace } from './utils/workspaceSwitcher';
 import '@/styles/global.css';
 import './App.css';
@@ -131,6 +132,26 @@ const App: React.FC = () => {
       channel?.close();
     };
   }, [loadWorkspaces, loadBookmarks]);
+
+  // home 已纳入 UnlockSession surface 体系（#96）：闲置自动锁定 / 连带锁定清标记后，
+  // 监听 session 区变化刷新解锁态，让 UnlockModal 与加密 UI 即时响应（参照 useEncryptedContexts 模式）。
+  // checkStatus 幂等，session 区任意变化都重查一次的开销可忽略。
+  useUnlockLifecycle('home');
+  useEffect(() => {
+    const g = globalThis as Record<string, unknown>;
+    const chromeApi = g['chrome'] as
+      | { storage?: { onChanged?: { addListener: (fn: (changes: unknown, area: string) => void) => void; removeListener: (fn: (changes: unknown, area: string) => void) => void } } }
+      | undefined;
+    const onChanged = chromeApi?.storage?.onChanged;
+    if (!onChanged) return;
+    const listener = (_changes: unknown, area: string) => {
+      if (area === 'session') void useCrypto.getState().checkStatus();
+    };
+    onChanged.addListener(listener);
+    return () => {
+      onChanged.removeListener(listener);
+    };
+  }, []);
 
   return (
     <>

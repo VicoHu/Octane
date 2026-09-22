@@ -1,8 +1,8 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resetDB, getDB, putRecord } from '@/shared/db/database';
-import { setupPassword, setTestKey, unlock as cryptoUnlock } from '@/services/CryptoService';
-import { isUnlocked, unlock, markHidden, markVisible, getUnlockPrerequisite, readTtlConfig, writeTtlConfig } from '@/services/UnlockSession';
+import { setupPassword, setTestKey, unlock as cryptoUnlock, setupPin, lock } from '@/services/CryptoService';
+import { isUnlocked, unlock, markHidden, markVisible, getUnlockPrerequisite, unlockWithPin, readAutoLockConfig, writeAutoLockConfig } from '@/services/UnlockSession';
 import type { SurfaceUnlockState } from '@/services/UnlockSession';
 
 /**
@@ -138,16 +138,15 @@ describe('unlock("sidepanel", password) — 完整 PBKDF2 + verifier（T2）', (
   });
 });
 
-describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
-  const GRACE = 5 * 60 * 1000; // 5min
-  const HARD_CAP = 30 * 60 * 1000; // 30min
+describe('闲置自动锁定（T3-T6 迁移至统一 idle 模型，#96）', () => {
+  const IDLE = 5 * 60 * 1000; // 5min
   let sessionStore: Record<string, unknown>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     const installed = installChromeStorage(
       {},
-      { 'octane-ttl-config': { grace: GRACE, hardCap: HARD_CAP } },
+      { 'octane-autolock-config': { idleMs: IDLE } },
     );
     sessionStore = installed.sessionStore;
   });
@@ -155,45 +154,36 @@ describe('TTL: grace 失焦锁 + hardCap 硬上限（T3-T6）', () => {
     delete (globalThis as Record<string, unknown>).chrome;
   });
 
-  /** 直接写 sidepanel 已解锁状态（绕过真实 PBKDF2，专注 TTL 判定） */
+  /** 直接写 sidepanel 已解锁状态（绕过真实 PBKDF2，专注 idle 判定） */
   function setUnlockedState(state: { unlockedAt: number; hiddenAt: number | null }) {
     sessionStore['octane-unlock-sidepanel'] = { unlocked: true, unlockedAt: state.unlockedAt };
     sessionStore['octane-unlock-visibility-sidepanel'] = { hiddenAt: state.hiddenAt };
     sessionStore['octane-derived-key'] = 'shared-key'; // 模拟 home 已派生共享 key
   }
 
-  it('T3 失焦超 grace → isUnlocked false 且清标记（再次查仍 false）', async () => {
+  it('T3 失焦超 idle → isUnlocked false 且清标记（再次查仍 false）', async () => {
     const now = Date.now();
-    setUnlockedState({ unlockedAt: now, hiddenAt: now - (GRACE + 1000) }); // 失焦超 grace
+    setUnlockedState({ unlockedAt: now, hiddenAt: now - (IDLE + 1000) }); // 失焦超 idle
     expect(await isUnlocked('sidepanel')).toBe(false);
     // 超时锁定应清标记：key 被移除，再次查不会自动复活
     expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
     expect(await isUnlocked('sidepanel')).toBe(false);
   });
 
-  it('T4 失焦 < grace → 仍 unlocked（短暂切窗不打扰）', async () => {
+  it('T4 失焦 < idle → 仍 unlocked（短暂切窗不打扰）', async () => {
     const now = Date.now();
     setUnlockedState({
       unlockedAt: now,
-      hiddenAt: now - (GRACE - 60_000), // 失焦 4min < grace 5min
+      hiddenAt: now - (IDLE - 60_000), // 失焦 4min < idle 5min
     });
     expect(await isUnlocked('sidepanel')).toBe(true);
   });
 
-  it('T5 硬上限超时（一直可见无失焦）→ isUnlocked false（不依赖 grace）', async () => {
+  it('T6 idle 判定只看失焦时长（旧 hardCap 已废除，见统一自动锁定 describe）', async () => {
     const now = Date.now();
     setUnlockedState({
-      unlockedAt: now - (HARD_CAP + 1000), // 解锁 30min+ 前
-      hiddenAt: null, // 一直可见，grace 永不触发
-    });
-    expect(await isUnlocked('sidepanel')).toBe(false);
-  });
-
-  it('T6 grace 先于 hardCap 触发（失焦 25min, grace=5, hardCap=30）→ locked 不依赖 hardCap', async () => {
-    const now = Date.now();
-    setUnlockedState({
-      unlockedAt: now - 25 * 60 * 1000, // 解锁 25min 前（hardCap=30 没到）
-      hiddenAt: now - 25 * 60 * 1000, // 失焦 25min（grace=5 早超）
+      unlockedAt: now - 25 * 60 * 1000, // 解锁 25min 前（旧 hardCap 30min 语境）
+      hiddenAt: now - 25 * 60 * 1000, // 失焦 25min（idle 5min 早超）
     });
     expect(await isUnlocked('sidepanel')).toBe(false);
   });
@@ -206,7 +196,7 @@ describe('home lock 连带 + key 复活不自动解锁 + 重启清空（T7-T9）
     vi.clearAllMocks();
     const installed = installChromeStorage(
       {},
-      { 'octane-ttl-config': { grace: 5 * 60 * 1000, hardCap: 30 * 60 * 1000 } },
+      { 'octane-autolock-config': { idleMs: 5 * 60 * 1000 } },
     );
     sessionStore = installed.sessionStore;
   });
@@ -303,25 +293,24 @@ describe('TTL 配置读取生效（T13）', () => {
     sessionStore['octane-derived-key'] = 'k';
   }
 
-  it('T13 改 octane-ttl-config grace → 下次 isUnlocked 用新 grace 判定', async () => {
-    localStore['octane-ttl-config'] = { grace: 5 * 60 * 1000, hardCap: 30 * 60 * 1000 };
+  it('T13 改 octane-autolock-config idleMs → 下次 isUnlocked 用新值判定', async () => {
+    localStore['octane-autolock-config'] = { idleMs: 5 * 60 * 1000 };
     setUnlocked(Date.now() - 120000); // 失焦 2min
-    expect(await isUnlocked('sidepanel')).toBe(true); // 2min < grace 5min
+    expect(await isUnlocked('sidepanel')).toBe(true); // 2min < 5min
 
-    localStore['octane-ttl-config'] = { grace: 60_000, hardCap: 30 * 60 * 1000 }; // grace 改 1min
-    expect(await isUnlocked('sidepanel')).toBe(false); // 2min > 新 grace 1min
+    localStore['octane-autolock-config'] = { idleMs: 60_000 }; // 改 1min
+    expect(await isUnlocked('sidepanel')).toBe(false); // 2min > 新值 1min
   });
 });
 
 describe('markHidden / markVisible 语义（T14）', () => {
-  const GRACE = 5 * 60 * 1000;
-  const HARD_CAP = 30 * 60 * 1000;
+  const IDLE = 5 * 60 * 1000;
   let sessionStore: Record<string, unknown>;
   beforeEach(() => {
     vi.clearAllMocks();
     const installed = installChromeStorage(
       {},
-      { 'octane-ttl-config': { grace: GRACE, hardCap: HARD_CAP } },
+      { 'octane-autolock-config': { idleMs: IDLE } },
     );
     sessionStore = installed.sessionStore;
   });
@@ -356,8 +345,8 @@ describe('markHidden / markVisible 语义（T14）', () => {
     expect(read().hiddenAt).toBeNull();
   });
 
-  it('T14c 失焦超 grace 已锁（标记被清）后 markVisible 不复活', async () => {
-    setUnlocked(Date.now() - (GRACE + 1000));
+  it('T14c 失焦超 idle 已锁（标记被清）后 markVisible 不复活', async () => {
+    setUnlocked(Date.now() - (IDLE + 1000));
     expect(await isUnlocked('sidepanel')).toBe(false);
     await markVisible('sidepanel');
     expect(await isUnlocked('sidepanel')).toBe(false);
@@ -404,8 +393,81 @@ describe('解锁前置条件 getUnlockPrerequisite（T12）', () => {
   });
 });
 
-describe('TTL 配置读写 writeTtlConfig', () => {
+describe('统一自动锁定 + home surface 接入（#96）', () => {
+  let sessionStore: Record<string, unknown>;
   let localStore: Record<string, unknown>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const installed = installChromeStorage({}, {});
+    sessionStore = installed.sessionStore;
+    localStore = installed.localStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  /** 模拟 surface 已解锁（标记 + 共享 key） */
+  function setUnlocked(surface: 'home' | 'sidepanel', hiddenAt: number | null) {
+    sessionStore[`octane-unlock-${surface}`] = { unlocked: true, unlockedAt: Date.now() };
+    sessionStore[`octane-unlock-visibility-${surface}`] = { hiddenAt };
+    sessionStore['octane-derived-key'] = 'k';
+  }
+
+  it('home 标记 + 共享 key 在 → isUnlocked("home") true（不再 throw）', async () => {
+    setUnlocked('home', null);
+    expect(await isUnlocked('home')).toBe(true);
+  });
+
+  it('home 与 sidepanel 解锁标记互相独立', async () => {
+    setUnlocked('home', null);
+    expect(await isUnlocked('home')).toBe(true);
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('默认（无任何配置）→ 失焦永不自动锁定（复刻现状默认）', async () => {
+    setUnlocked('sidepanel', Date.now() - 3 * 60 * 60 * 1000); // 失焦 3 小时
+    expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+
+  it('idleMs=60s：失焦 2min → locked 且清标记', async () => {
+    localStore['octane-autolock-config'] = { idleMs: 60_000 };
+    setUnlocked('sidepanel', Date.now() - 120_000);
+    expect(await isUnlocked('sidepanel')).toBe(false);
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+  });
+
+  it('idleMs=null（显式永不）→ 失焦再久也不锁', async () => {
+    localStore['octane-autolock-config'] = { idleMs: null };
+    setUnlocked('sidepanel', Date.now() - 3 * 60 * 60 * 1000);
+    expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+
+  it('idleMs=0（立即）→ 只要失焦过即锁', async () => {
+    localStore['octane-autolock-config'] = { idleMs: 0 };
+    setUnlocked('sidepanel', Date.now() - 1);
+    expect(await isUnlocked('sidepanel')).toBe(false);
+  });
+
+  it('hardCap 废除：解锁超 30min 但一直可见 → 仍 unlocked', async () => {
+    setUnlocked('sidepanel', null);
+    sessionStore['octane-unlock-sidepanel'] = {
+      unlocked: true,
+      unlockedAt: Date.now() - 31 * 60 * 1000, // 远超旧 hardCap 30min
+    };
+    expect(await isUnlocked('sidepanel')).toBe(true);
+  });
+
+  it('idle 判定对 home 同样生效', async () => {
+    localStore['octane-autolock-config'] = { idleMs: 60_000 };
+    setUnlocked('home', Date.now() - 120_000);
+    expect(await isUnlocked('home')).toBe(false);
+  });
+});
+
+describe('存量 TTL 迁移（#96：grace 归最近档位，hardCap 废弃）', () => {
+  let localStore: Record<string, unknown>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     const installed = installChromeStorage({}, {});
@@ -415,16 +477,91 @@ describe('TTL 配置读写 writeTtlConfig', () => {
     delete (globalThis as Record<string, unknown>).chrome;
   });
 
-  it('writeTtlConfig 写 octane-ttl-config，readTtlConfig 读回', async () => {
-    await writeTtlConfig({ grace: 60_000, hardCap: 1_800_000 });
-    expect(localStore['octane-ttl-config']).toEqual({ grace: 60_000, hardCap: 1_800_000 });
-    const cfg = await readTtlConfig();
-    expect(cfg).toEqual({ grace: 60_000, hardCap: 1_800_000 });
+  it('旧 grace=5min → 迁移为 idleMs=300_000，旧 key 删除', async () => {
+    localStore['octane-ttl-config'] = { grace: 300_000, hardCap: 1_800_000 };
+    const cfg = await readAutoLockConfig();
+    expect(cfg.idleMs).toBe(300_000);
+    expect(localStore['octane-autolock-config']).toEqual({ idleMs: 300_000 });
+    expect(localStore['octane-ttl-config']).toBeUndefined();
   });
 
-  it('writeTtlConfig 部分更新（保留未传字段）', async () => {
-    localStore['octane-ttl-config'] = { grace: 60_000, hardCap: 1_800_000 };
-    await writeTtlConfig({ grace: 120_000 });
-    expect(localStore['octane-ttl-config']).toEqual({ grace: 120_000, hardCap: 1_800_000 });
+  it('旧 grace=7min（非档位）→ 归最近档 5min', async () => {
+    localStore['octane-ttl-config'] = { grace: 420_000, hardCap: 1_800_000 };
+    const cfg = await readAutoLockConfig();
+    expect(cfg.idleMs).toBe(300_000);
+  });
+
+  it('旧 grace=42min → 归最近档 60min', async () => {
+    localStore['octane-ttl-config'] = { grace: 42 * 60 * 1000, hardCap: 1_800_000 };
+    const cfg = await readAutoLockConfig();
+    expect(cfg.idleMs).toBe(3_600_000);
+  });
+
+  it('无旧 key → idleMs=null（新默认：永不）', async () => {
+    const cfg = await readAutoLockConfig();
+    expect(cfg.idleMs).toBeNull();
+  });
+
+  it('已有新配置 → 优先新配置，不再看旧 key', async () => {
+    localStore['octane-autolock-config'] = { idleMs: 60_000 };
+    localStore['octane-ttl-config'] = { grace: 300_000, hardCap: 1_800_000 };
+    const cfg = await readAutoLockConfig();
+    expect(cfg.idleMs).toBe(60_000);
+    expect(localStore['octane-ttl-config']).toBeDefined(); // 未触发迁移路径，不动用户数据
+  });
+
+  it('writeAutoLockConfig 写入后 readAutoLockConfig 读回', async () => {
+    await writeAutoLockConfig(60_000);
+    expect(localStore['octane-autolock-config']).toEqual({ idleMs: 60_000 });
+    expect((await readAutoLockConfig()).idleMs).toBe(60_000);
+    await writeAutoLockConfig(null);
+    expect((await readAutoLockConfig()).idleMs).toBeNull();
+  });
+});
+
+describe('unlockWithPin surface 解锁（#96）', () => {
+  let sessionStore: Record<string, unknown>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    resetDB();
+    setTestKey(null);
+    await getDB();
+    const db = await getDB();
+    const tx = db.transaction(['cryptoMetadata'], 'readwrite');
+    await tx.objectStore('cryptoMetadata').clear();
+    await tx.done;
+    const installed = installChromeStorage();
+    sessionStore = installed.sessionStore;
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).chrome;
+  });
+
+  it('正确 PIN → 返回 true + 写 surface 标记 + isUnlocked true', async () => {
+    await setupPassword('master-password-123');
+    await setupPin('1234', 'digits-4', false);
+    await lock();
+    const ok = await unlockWithPin('sidepanel', '1234');
+    expect(ok).toBe(true);
+    expect(await isUnlocked('sidepanel')).toBe(true);
+    expect(sessionStore['octane-unlock-sidepanel']).toMatchObject({ unlocked: true });
+  });
+
+  it('错误 PIN → 返回 false + 不写 surface 标记', async () => {
+    await setupPassword('master-password-123');
+    await setupPin('1234', 'digits-4', false);
+    const ok = await unlockWithPin('sidepanel', '0000');
+    expect(ok).toBe(false);
+    expect(await isUnlocked('sidepanel')).toBe(false);
+    expect(sessionStore['octane-unlock-sidepanel']).toBeUndefined();
+  });
+
+  it('home surface 同样支持 PIN 解锁', async () => {
+    await setupPassword('master-password-123');
+    await setupPin('1234', 'digits-4', false);
+    await lock();
+    expect(await unlockWithPin('home', '1234')).toBe(true);
+    expect(await isUnlocked('home')).toBe(true);
   });
 });

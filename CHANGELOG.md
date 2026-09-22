@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **快速解锁 PIN（#96）** —— 可选的第二层解锁因子，解决「主密码太长、日常解锁繁琐」：设置中心「主密码」页新增「快速解锁 PIN」分区，支持 4 位数字 / 6 位数字 / 自定义（≥4 位任意字符）三档。主密码保持 ≥12 字符强度要求、仍是唯一加密根，PIN 只用于解锁；启用 / 修改 / 关闭 PIN 均需主密码确认（防离席劫持）。PIN 经 PBKDF2-SHA256（600,000 迭代、独立随机盐）派生 KEK 包装派生密钥成「信封」——主密钥永不明文持久化（对标 Bitwarden AFU/BFU 模式）。
+  - **重启保持（默认关）**：「重启浏览器后仍可用 PIN 解锁」独立开关，开启后信封持久化到 `chrome.storage.local`，日常彻底告别重启重输主密码；开启时与设置页均明示离线暴力破解风险（4 位 PIN 仅 1 万种组合）。
+  - **熔断**：连续输错 5 次 PIN 自动停用 PIN、擦除信封并回退主密码；失败计数持久化（刷新 / 重启不重置），成功解锁即清零。
+  - **解锁弹窗 PIN 优先**：home 与 sidepanel 解锁弹窗在 PIN 可用时默认显示 PIN 输入 + 「使用主密码」一键回退；首次设置、PIN 熔断后直接主密码。sidepanel 防偷看语义保留（解信封即验证）。
+  - **修改主密码联动**：改密弹窗在 PIN 启用时要求填写当前 PIN，信封随新密钥自动重建（改密不必重设 PIN）。
+
+### Changed
+
+- **统一自动锁定（#96）** —— 原仅 sidepanel 可配的「失焦宽限（grace）+ 最长解锁时长（hardCap）」双参数模型，合并为单一「自动锁定」设置（立即 / 1 / 5 / 15 / 60 分钟 / 永不），语义 = 页面不可见持续 X 后锁定，**home 与 sidepanel 共用**；home 由此首次获得自动锁定能力（原为解锁后直到关浏览器才锁）。默认「永不 + 重启锁定」精确复刻原 home 行为。
+- **存量迁移**：旧 sidepanel TTL 配置读取时自动迁移——grace 归入最近档位（如 7 分钟 → 5 分钟），从未配置过的用户得到新默认「永不」（方向为放宽）；hardCap 废弃。
+- **PRIVACY.md**：第 3 节如实披露 PIN 信封与重启保持选项的本地存储行为及风险。
+
+### Removed
+
+- 「最长解锁时长（hardCap）」设置及其配置项（防「正在使用却突然被锁」的打断；其防护场景与闲置锁定重叠，决策记录见 `docs/adr/0003-pin-envelope-unlock.md`）。
+
 ## [0.3.0.0] - 2026-08-04
 
 ### Added

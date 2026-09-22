@@ -25,6 +25,7 @@ describe('ChangePasswordModal', () => {
     vi.clearAllMocks();
     Object.assign(cryptoState, {
       loading: false,
+      pinEnabled: false,
       changePassword: vi.fn(async () => {}),
     });
   });
@@ -83,10 +84,38 @@ describe('ChangePasswordModal', () => {
     await user.click(screen.getByRole('button', { name: '确认修改' }));
 
     await waitFor(() => {
-      expect(cryptoState.changePassword).toHaveBeenCalledWith('oldpassword1', 'newpassword123');
+      // 第三参 pinForEnvelope：PIN 未启用时为 undefined
+      expect(cryptoState.changePassword).toHaveBeenCalledWith('oldpassword1', 'newpassword123', undefined);
     });
     expect(toastMock.success).toHaveBeenCalledWith('主密码已修改，加密笔记已同步');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('PIN 已启用但未填当前 PIN -> 拦截提交并提示', async () => {
+    cryptoState.pinEnabled = true;
+    const user = userEvent.setup();
+    render(<ChangePasswordModal visible={true} onClose={vi.fn()} />);
+
+    await fillValid(user);
+    await user.click(screen.getByRole('button', { name: '确认修改' }));
+
+    expect(screen.getByText('请填写当前 PIN（修改主密码后 PIN 将自动保持有效）')).toBeInTheDocument();
+    expect(cryptoState.changePassword).not.toHaveBeenCalled();
+  });
+
+  it('PIN 已启用且填写当前 PIN -> 随调用传递 + Toast 提示 PIN 已同步', async () => {
+    cryptoState.pinEnabled = true;
+    const user = userEvent.setup();
+    render(<ChangePasswordModal visible={true} onClose={vi.fn()} />);
+
+    await fillValid(user);
+    await user.type(screen.getByPlaceholderText(/当前快速解锁 PIN/), '1234');
+    await user.click(screen.getByRole('button', { name: '确认修改' }));
+
+    await waitFor(() => {
+      expect(cryptoState.changePassword).toHaveBeenCalledWith('oldpassword1', 'newpassword123', '1234');
+    });
+    expect(toastMock.success).toHaveBeenCalledWith('主密码已修改，加密笔记与 PIN 已同步');
   });
 
   it('changePassword 抛错 -> 显示错误信息', async () => {

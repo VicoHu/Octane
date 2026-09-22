@@ -40,27 +40,39 @@ export const UnlockModal: React.FC = () => {
   const loading = useCrypto((s) => s.loading);
   const unlockModalOpen = useCrypto((s) => s.unlockModalOpen);
   const needsReset = useCrypto((s) => s.needsReset);
+  const pinEnabled = useCrypto((s) => s.pinEnabled);
+  const pinEnvelopeAvailable = useCrypto((s) => s.pinEnvelopeAvailable);
   const setupMasterPassword = useCrypto((s) => s.setupMasterPassword);
   const unlockWithPassword = useCrypto((s) => s.unlockWithPassword);
+  const unlockWithPin = useCrypto((s) => s.unlockWithPin);
   const resetPassword = useCrypto((s) => s.resetPassword);
+  const refreshPinStatus = useCrypto((s) => s.refreshPinStatus);
   const closeUnlockModal = useCrypto((s) => s.closeUnlockModal);
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+  // PIN 可用时默认走 PIN（日常零多余点击），「使用主密码」一键回退
+  const [usePinInput, setUsePinInput] = useState(true);
 
   const mode: Mode = needsReset ? 'reset' : !passwordSet ? 'setup' : 'unlock';
+  const pinAvailable = mode === 'unlock' && pinEnabled && pinEnvelopeAvailable;
+  const showPin = pinAvailable && usePinInput;
   // 可见：手动打开 / 重锁自动弹 / 旧版数据需重设（强制处理，不可关闭）
   const visible = needsReset || unlockModalOpen || (passwordSet && !unlocked);
   const canDismiss = !needsReset && unlockModalOpen;
   const copy = COPY[mode];
 
   // 切换模式或关闭时清空输入与错误
+  // 注：PIN 熔断（pinAvailable 翻 false）无需干预——showPin 由 pinAvailable 短路，自动落回主密码
   useEffect(() => {
     if (!visible) {
       setPassword('');
       setConfirmPassword('');
+      setPin('');
       setError('');
+      setUsePinInput(true);
     }
   }, [visible, mode]);
 
@@ -72,6 +84,21 @@ export const UnlockModal: React.FC = () => {
     submittingRef.current = true;
     try {
       setError('');
+
+      if (showPin) {
+        try {
+          await unlockWithPin(pin);
+          Toast.success('已解锁');
+        } catch {
+          setError('PIN 错误，连续错误 5 次将停用 PIN');
+          // 熔断后信封消失（持久信封模式不触发 session onChanged）——主动重探，
+          // 让 pinEnvelopeAvailable 翻 false，showPin 自动落回主密码
+          void refreshPinStatus();
+        } finally {
+          setPin('');
+        }
+        return;
+      }
 
       // setup / reset 需要二次确认 + 长度校验
       if (mode === 'setup' || mode === 'reset') {
@@ -121,8 +148,10 @@ export const UnlockModal: React.FC = () => {
           <div className={`${styles.badge} ${mode === 'reset' ? styles.badgeDanger : ''}`}>
             {mode === 'reset' ? <TriangleAlert size={20} /> : <Lock size={20} />}
           </div>
-          <DialogTitle>{copy.title}</DialogTitle>
-          <DialogDescription id="unlock-subtitle">{copy.subtitle}</DialogDescription>
+          <DialogTitle>{showPin ? '快速解锁' : copy.title}</DialogTitle>
+          <DialogDescription id="unlock-subtitle">
+            {showPin ? '输入 PIN 快速解锁，也可改用主密码。' : copy.subtitle}
+          </DialogDescription>
         </DialogHeader>
 
         {mode === 'reset' && (
@@ -132,35 +161,75 @@ export const UnlockModal: React.FC = () => {
           </Alert>
         )}
 
-        <div className={styles.field}>
-          <Input
-            type="password"
-            placeholder="输入主密码"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleSubmit();
-            }}
-            autoFocus
-          />
-        </div>
-
-        {(mode === 'setup' || mode === 'reset') && (
+        {showPin ? (
           <div className={styles.field}>
             <Input
               type="password"
-              placeholder="确认主密码"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              inputMode="numeric"
+              placeholder="输入 PIN"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSubmit();
               }}
+              autoFocus
             />
+            <button
+              type="button"
+              className={styles.switchLink}
+              onClick={() => {
+                setUsePinInput(false);
+                setError('');
+              }}
+            >
+              使用主密码解锁
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            <div className={styles.field}>
+              <Input
+                type="password"
+                placeholder="输入主密码"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSubmit();
+                }}
+                autoFocus
+              />
+              {pinAvailable && (
+                <button
+                  type="button"
+                  className={styles.switchLink}
+                  onClick={() => {
+                    setUsePinInput(true);
+                    setError('');
+                  }}
+                >
+                  使用 PIN 快速解锁
+                </button>
+              )}
+            </div>
 
-        {(mode === 'setup' || mode === 'reset') && (
-          <div className={styles.hint}>至少 12 个字符，建议混合字母、数字与符号</div>
+            {(mode === 'setup' || mode === 'reset') && (
+              <div className={styles.field}>
+                <Input
+                  type="password"
+                  placeholder="确认主密码"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSubmit();
+                  }}
+                />
+              </div>
+            )}
+
+            {(mode === 'setup' || mode === 'reset') && (
+              <div className={styles.hint}>至少 12 个字符，建议混合字母、数字与符号</div>
+            )}
+          </>
         )}
 
         {error && (
@@ -177,7 +246,7 @@ export const UnlockModal: React.FC = () => {
           onClick={handleSubmit}
           className={`${styles.submit} w-full`}
         >
-          {copy.cta}
+          {showPin ? '解锁' : copy.cta}
         </Button>
       </DialogContent>
     </Dialog>

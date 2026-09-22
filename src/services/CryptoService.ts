@@ -1,5 +1,5 @@
 import { getByKey, putRecord, deleteRecord } from '@/shared/db/database';
-import type { CryptoMetadata } from '@/shared/types';
+import type { CryptoMetadata, PinConfig, PinFormat } from '@/shared/types';
 
 const ALGORITHM = 'AES-GCM';
 const KEY_LENGTH = 256;
@@ -9,6 +9,15 @@ const DEFAULT_ITERATIONS = 600_000;
 const SESSION_KEY_STORAGE_KEY = 'octane-derived-key';
 /** verifier 固定明文：setup 时加密、unlock 时解密以校验密码正确性。_V1 预留算法升级空间。 */
 const VERIFIER_PLAINTEXT = 'OCTANE_VERIFIER_V1';
+
+// ---------- 快速解锁 PIN（信封机制，#96）----------
+
+/** PIN 信封：session（默认，重启即清）与 local（持久）共用同一 key，写入一侧时清另一侧 */
+const PIN_ENVELOPE_KEY = 'octane-pin-envelope';
+/** 连续失败计数（存 local，刷新/重启不重置；成功解锁清零） */
+const PIN_FAIL_COUNT_KEY = 'octane-pin-fail-count';
+/** 连续输错 5 次 → 熔断：擦除信封与 PIN 配置，回退主密码 */
+const PIN_MAX_FAILED_ATTEMPTS = 5;
 
 // ========== 工具函数 ==========
 
@@ -106,21 +115,22 @@ export async function decryptWithKey(
 
 // ========== 会话密钥管理 ==========
 
-interface ChromeStorageSession {
-  get: (keys: string[]) => Promise<Record<string, string>>;
-  set: (data: Record<string, string>) => Promise<void>;
+interface ChromeStorageArea {
+  get: (keys: string[]) => Promise<Record<string, unknown>>;
+  set: (data: Record<string, unknown>) => Promise<void>;
   remove: (keys: string[]) => Promise<void>;
 }
 
-function getChromeSession(): ChromeStorageSession | null {
+/** 安全访问 chrome.storage.<area>（非扩展环境返回 null） */
+function getChromeArea(area: 'session' | 'local'): ChromeStorageArea | null {
   const g = globalThis as Record<string, unknown>;
   const chrome = g['chrome'];
   if (chrome && typeof chrome === 'object') {
     const storage = (chrome as Record<string, unknown>)['storage'];
     if (storage && typeof storage === 'object') {
-      const session = (storage as Record<string, unknown>)['session'];
-      if (session && typeof session === 'object') {
-        return session as ChromeStorageSession;
+      const a = (storage as Record<string, unknown>)[area];
+      if (a && typeof a === 'object') {
+        return a as ChromeStorageArea;
       }
     }
   }
@@ -129,18 +139,18 @@ function getChromeSession(): ChromeStorageSession | null {
 
 async function storeKeyInSession(key: CryptoKey): Promise<void> {
   const rawKey = await crypto.subtle.exportKey('raw', key);
-  const session = getChromeSession();
+  const session = getChromeArea('session');
   if (session) {
     await session.set({ [SESSION_KEY_STORAGE_KEY]: toBase64(rawKey) });
   }
 }
 
 async function getKeyFromSession(): Promise<CryptoKey | null> {
-  const session = getChromeSession();
+  const session = getChromeArea('session');
   if (!session) return null;
 
   const result = await session.get([SESSION_KEY_STORAGE_KEY]);
-  const base64Key = result[SESSION_KEY_STORAGE_KEY];
+  const base64Key = result[SESSION_KEY_STORAGE_KEY] as string | undefined;
   if (!base64Key) return null;
 
   return crypto.subtle.importKey(
@@ -153,7 +163,7 @@ async function getKeyFromSession(): Promise<CryptoKey | null> {
 }
 
 async function clearKeyFromSession(): Promise<void> {
-  const session = getChromeSession();
+  const session = getChromeArea('session');
   if (session) {
     await session.remove([SESSION_KEY_STORAGE_KEY]);
   }
@@ -282,11 +292,16 @@ export async function decrypt(encryptedData: string, iv: string): Promise<string
  *
  * 原子顺序：先校验旧密码 → 派生新 key（不写 meta）→ 执行 reencrypt → 最后写 meta。
  * reencrypt 抛错则不写 meta，旧密码仍可用，保证可重试回滚。
+ *
+ * PIN 联动（#96）：主流程成功后，若已启用 PIN——
+ * - opts.pin 提供当前 PIN → 用新派生密钥重建信封，PIN 保持有效；
+ * - 未提供 → PIN 自动停用（重建信封必须持有 PIN 原文，无法凭空保留）。
  */
 export async function changePassword(
   oldPassword: string,
   newPassword: string,
   reencrypt: (oldKey: CryptoKey, newKey: CryptoKey) => Promise<void>,
+  opts?: { pin?: string },
 ): Promise<void> {
   const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
   if (!meta) {
@@ -316,6 +331,27 @@ export async function changePassword(
   const newSalt = randomBytes(SALT_LENGTH);
   const newKey = await deriveKey(newPassword, newSalt, meta.iterations);
 
+  // 2.5 若启用 PIN 且提供了 PIN：先解旧信封验证 PIN 正确性。
+  // 手滑输错的 PIN 会静默产出解不开的信封（用户下次解锁即触发熔断）——必须在改写任何
+  // 持久状态之前拦下；旧信封不可用（如重启后的非持久模式）则无从验证，改密后 PIN 停用。
+  const pinConfig = meta.pin;
+  let verifiedPinKek: CryptoKey | null = null;
+  let pinShouldDisable = false;
+  if (pinConfig && opts?.pin) {
+    const oldEnvelope = await readEnvelope(pinConfig.persistEnvelope);
+    if (!oldEnvelope) {
+      pinShouldDisable = true;
+    } else {
+      const kek = await deriveKey(opts.pin, fromBase64(pinConfig.salt), pinConfig.iterations);
+      try {
+        await decryptWithKey(kek, oldEnvelope.encryptedData, oldEnvelope.iv);
+      } catch {
+        throw new Error('PIN 错误');
+      }
+      verifiedPinKek = kek;
+    }
+  }
+
   // 3. 调用方重加密（用 oldKey 解密、newKey 加密、写回 IndexedDB）。回调抛错则直接传播，不写 meta。
   await reencrypt(oldKey, newKey);
 
@@ -327,6 +363,218 @@ export async function changePassword(
     verifier,
   });
   await storeKeyInSession(newKey);
+
+  // 5. PIN 信封联动：验证过的 PIN 用新密钥重建；未提供或无从验证 → 停用（见函数头注释）
+  if (pinConfig) {
+    if (verifiedPinKek) {
+      await writeEnvelope(newKey, verifiedPinKek, pinConfig.persistEnvelope);
+      await writeFailCount(0);
+    } else if (!opts?.pin || pinShouldDisable) {
+      await disablePin();
+    }
+  }
+}
+
+// ========== 快速解锁 PIN（信封机制，#96）==========
+
+/** PIN 形态校验：digits-4/digits-6 要求纯数字定长，custom 至少 4 字符 */
+function validatePinFormat(pin: string, format: PinFormat): void {
+  if (format === 'digits-4' && !/^\d{4}$/.test(pin)) {
+    throw new Error('PIN 必须为 4 位数字');
+  }
+  if (format === 'digits-6' && !/^\d{6}$/.test(pin)) {
+    throw new Error('PIN 必须为 6 位数字');
+  }
+  if (pin.length < 4) {
+    throw new Error('PIN 至少 4 个字符');
+  }
+}
+
+/** 读当前 PIN 配置（meta.pin） */
+async function readPinConfig(): Promise<PinConfig | null> {
+  const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+  return meta?.pin ?? null;
+}
+
+/** 读信封（按 persistEnvelope 决定从 local 还是 session 读） */
+async function readEnvelope(
+  persist: boolean,
+): Promise<{ encryptedData: string; iv: string } | null> {
+  const area = getChromeArea(persist ? 'local' : 'session');
+  if (!area) return null;
+  const r = await area.get([PIN_ENVELOPE_KEY]);
+  const envelope = r[PIN_ENVELOPE_KEY];
+  if (!envelope || typeof envelope !== 'object') return null;
+  return envelope as { encryptedData: string; iv: string };
+}
+
+/**
+ * 把派生密钥包装成信封并写入目标存储区，同时清掉另一侧（模式切换不留残留）。
+ * 信封 = 用 PIN 派生 KEK 加密的派生密钥 raw（base64）；主密钥本身永不明文持久化。
+ */
+async function writeEnvelope(
+  key: CryptoKey,
+  pinKek: CryptoKey,
+  persist: boolean,
+): Promise<void> {
+  const rawKey = await crypto.subtle.exportKey('raw', key);
+  const envelope = await encryptWithKey(pinKek, toBase64(rawKey));
+  await moveEnvelope(persist, envelope);
+}
+
+/** 信封写入目标侧并清除另一侧（写入侧与清除侧互斥，不留模式切换残留） */
+async function moveEnvelope(
+  persist: boolean,
+  envelope: { encryptedData: string; iv: string },
+): Promise<void> {
+  const target = getChromeArea(persist ? 'local' : 'session');
+  const other = getChromeArea(persist ? 'session' : 'local');
+  await target?.set({ [PIN_ENVELOPE_KEY]: envelope });
+  await other?.remove([PIN_ENVELOPE_KEY]);
+}
+
+async function clearEnvelope(): Promise<void> {
+  await getChromeArea('session')?.remove([PIN_ENVELOPE_KEY]);
+  await getChromeArea('local')?.remove([PIN_ENVELOPE_KEY]);
+}
+
+/** 失败计数存 local：刷新/浏览器重启都不重置，只有成功解锁或熔断才清零 */
+async function readFailCount(): Promise<number> {
+  const local = getChromeArea('local');
+  if (!local) return 0;
+  const r = await local.get([PIN_FAIL_COUNT_KEY]);
+  const n = r[PIN_FAIL_COUNT_KEY];
+  return typeof n === 'number' ? n : 0;
+}
+
+async function writeFailCount(count: number): Promise<void> {
+  await getChromeArea('local')?.set({ [PIN_FAIL_COUNT_KEY]: count });
+}
+
+/**
+ * 启用快速解锁 PIN（前置：已设主密码且当前已解锁——包装需要会话中的派生密钥）。
+ * 设置/修改/关闭 PIN 的主密码确认门槛由 UI 层负责，本层只校验解锁态。
+ */
+export async function setupPin(
+  pin: string,
+  format: PinFormat,
+  persistEnvelope: boolean,
+): Promise<void> {
+  validatePinFormat(pin, format);
+  const key = await getEffectiveKey();
+  if (!key) {
+    throw new Error('密钥不可用，请先解锁后再设置 PIN');
+  }
+  const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+  if (!meta?.verifier) {
+    throw new Error('未设置主密码，请先设置主密码');
+  }
+
+  const salt = randomBytes(SALT_LENGTH);
+  const pinKek = await deriveKey(pin, salt, DEFAULT_ITERATIONS);
+  await writeEnvelope(key, pinKek, persistEnvelope);
+  await putRecord('cryptoMetadata', {
+    ...meta,
+    pin: {
+      salt: toBase64(salt),
+      iterations: DEFAULT_ITERATIONS,
+      persistEnvelope,
+      format,
+      createdAt: Date.now(),
+    },
+  });
+  await writeFailCount(0);
+}
+
+/** 是否已启用 PIN */
+export async function isPinEnabled(): Promise<boolean> {
+  return (await readPinConfig()) !== null;
+}
+
+/** 当前 PIN 配置（未启用返回 null；设置区展示形态与持久化状态用） */
+export async function getPinConfig(): Promise<PinConfig | null> {
+  return readPinConfig();
+}
+
+/** 当前模式下信封是否可用（决定解锁弹窗显示 PIN 输入还是主密码） */
+export async function hasPinEnvelope(): Promise<boolean> {
+  const cfg = await readPinConfig();
+  if (!cfg) return false;
+  return (await readEnvelope(cfg.persistEnvelope)) !== null;
+}
+
+/**
+ * 用 PIN 解锁：解信封还原派生密钥并写入 session。
+ * 连续输错 5 次 → 熔断（擦除信封与 PIN 配置，回退主密码）；成功解锁清零计数。
+ *
+ * @returns true=解锁成功；false=PIN 错误或信封不可用
+ */
+export async function unlockWithPin(pin: string): Promise<boolean> {
+  const cfg = await readPinConfig();
+  if (!cfg) return false;
+  const envelope = await readEnvelope(cfg.persistEnvelope);
+  if (!envelope) return false;
+
+  const pinKek = await deriveKey(pin, fromBase64(cfg.salt), cfg.iterations);
+  let rawKeyBase64: string;
+  try {
+    rawKeyBase64 = await decryptWithKey(pinKek, envelope.encryptedData, envelope.iv);
+  } catch {
+    // AES-GCM 解密失败 = PIN 错误
+    const fails = (await readFailCount()) + 1;
+    if (fails >= PIN_MAX_FAILED_ATTEMPTS) {
+      await disablePin();
+    } else {
+      await writeFailCount(fails);
+    }
+    return false;
+  }
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    fromBase64(rawKeyBase64),
+    { name: ALGORITHM, length: KEY_LENGTH },
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  await storeKeyInSession(key);
+  await writeFailCount(0);
+  return true;
+}
+
+/** 关闭 PIN：擦除信封、PIN 配置与失败计数 */
+export async function disablePin(): Promise<void> {
+  const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+  if (meta?.pin) {
+    const { pin: _removed, ...rest } = meta;
+    await putRecord('cryptoMetadata', rest);
+  }
+  await clearEnvelope();
+  await writeFailCount(0);
+}
+
+/**
+ * 切换「重启后仍可用 PIN 解锁」（信封持久化位置）。
+ * 信封内容与存储位置无关，直接把现有信封搬到目标侧即可，无需 PIN 原文；
+ * 切到持久侧前必须确认信封确实存在（否则持久化一个空开关毫无意义）。
+ */
+export async function setPinPersistence(persist: boolean): Promise<void> {
+  const cfg = await readPinConfig();
+  if (!cfg) {
+    throw new Error('未启用 PIN');
+  }
+  if (cfg.persistEnvelope === persist) return;
+
+  const envelope = await readEnvelope(cfg.persistEnvelope);
+  if (!envelope) {
+    throw new Error('PIN 信封不可用，请先解锁后再修改');
+  }
+  await moveEnvelope(persist, envelope);
+
+  const meta = await getByKey<CryptoMetadata>('cryptoMetadata', 'singleton');
+  if (meta) {
+    await putRecord('cryptoMetadata', { ...meta, pin: { ...cfg, persistEnvelope: persist } });
+  }
 }
 
 // ========== 测试专用 ==========
