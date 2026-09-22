@@ -11,6 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from '@/components/ui/input-otp';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Toast } from '@/components/ui/toast';
@@ -210,30 +215,65 @@ export const PinSetupModal: React.FC<Props> = ({ visible, intent, onClose }) => 
               <label htmlFor="pin-setup-value" className={styles.fieldLabel}>
                 PIN
               </label>
-              <Input
-                id="pin-setup-value"
-                type="password"
-                inputMode={format === 'custom' ? undefined : 'numeric'}
-                placeholder={pinPlaceholder}
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-              />
+              {format === 'custom' ? (
+                <Input
+                  id="pin-setup-value"
+                  type="password"
+                  placeholder={pinPlaceholder}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                />
+              ) : (
+                <InputOTP
+                  id="pin-setup-value"
+                  maxLength={format === 'digits-4' ? 4 : 6}
+                  inputMode="numeric"
+                  value={pin}
+                  onChange={setPin}
+                  aria-invalid={error ? true : undefined}
+                >
+                  <InputOTPGroup>
+                    {Array.from({ length: format === 'digits-4' ? 4 : 6 }).map((_, i) => (
+                      <InputOTPSlot key={i} index={i} className="size-10" />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              )}
             </div>
             <div>
               <label htmlFor="pin-setup-confirm" className={styles.fieldLabel}>
                 确认 PIN
               </label>
-              <Input
-                id="pin-setup-confirm"
-                type="password"
-                inputMode={format === 'custom' ? undefined : 'numeric'}
-                placeholder="再次输入 PIN"
-                value={confirmPin}
-                onChange={(e) => setConfirmPin(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleEnable();
-                }}
-              />
+              {format === 'custom' ? (
+                <Input
+                  id="pin-setup-confirm"
+                  type="password"
+                  placeholder="再次输入 PIN"
+                  value={confirmPin}
+                  onChange={(e) => setConfirmPin(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleEnable();
+                  }}
+                />
+              ) : (
+                <InputOTP
+                  id="pin-setup-confirm"
+                  maxLength={format === 'digits-4' ? 4 : 6}
+                  inputMode="numeric"
+                  value={confirmPin}
+                  onChange={setConfirmPin}
+                  aria-invalid={error ? true : undefined}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleEnable();
+                  }}
+                >
+                  <InputOTPGroup>
+                    {Array.from({ length: format === 'digits-4' ? 4 : 6 }).map((_, i) => (
+                      <InputOTPSlot key={i} index={i} className="size-10" />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              )}
             </div>
             <label className="flex cursor-pointer items-start gap-2 text-sm">
               <Checkbox
