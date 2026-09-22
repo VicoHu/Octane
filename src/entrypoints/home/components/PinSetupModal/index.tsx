@@ -100,6 +100,9 @@ export const PinSetupModal: React.FC<Props> = ({ visible, intent, onClose }) => 
       await refreshPinStatus();
       Toast.success(persistEnvelope ? 'PIN 已启用，重启浏览器后仍可用 PIN 解锁' : 'PIN 已启用');
       onClose();
+    } catch (e) {
+      // unlock（未设主密码等）/ disablePin / refreshPinStatus 拒绝时兜底展示，避免 unhandled rejection
+      setError((e as Error).message || '操作失败，请重试');
     } finally {
       setSubmitting(false);
       submittingRef.current = false;

@@ -57,6 +57,18 @@ describe('PinSetupModal — PIN 管理弹窗（#96）', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('unlock 抛异常 -> 显示错误信息，不关闭（外层 catch 兜底）', async () => {
+    cryptoApi.unlock.mockRejectedValue(new Error('未设置主密码'));
+    const user = userEvent.setup();
+    render(<PinSetupModal visible={true} intent="enable" onClose={onClose} />);
+
+    await user.type(screen.getByPlaceholderText('主密码（验证身份）'), 'any');
+    await user.click(screen.getByRole('button', { name: '启用 PIN' }));
+
+    expect(await screen.findByText('未设置主密码')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('两次 PIN 不一致 -> 拦截并提示', async () => {
     cryptoApi.unlock.mockResolvedValue(true);
     const user = userEvent.setup();

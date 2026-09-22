@@ -37,9 +37,23 @@ export function PinSection() {
     void getPinConfig().then(setPinConfig);
   }, [pinEnabled]);
 
-  // 弱组合警示需要联动自动锁定档位（短 PIN + 永不锁定 + 重启保持 = 防护最弱）
+  // 弱组合警示需要联动自动锁定档位（短 PIN + 永不锁定 + 重启保持 = 防护最弱）。
+  // 监听 local 区变化：同设置页改「自动锁定」档位后警示即时更新，无需重开设置中心。
   useEffect(() => {
     void readAutoLockConfig().then((cfg) => setIdleMs(cfg.idleMs));
+    const g = globalThis as Record<string, unknown>;
+    const chromeApi = g['chrome'] as
+      | { storage?: { onChanged?: { addListener: (fn: (changes: unknown, area: string) => void) => void; removeListener: (fn: (changes: unknown, area: string) => void) => void } } }
+      | undefined;
+    const onChanged = chromeApi?.storage?.onChanged;
+    if (!onChanged) return;
+    const listener = (_changes: unknown, area: string) => {
+      if (area === 'local') void readAutoLockConfig().then((cfg) => setIdleMs(cfg.idleMs));
+    };
+    onChanged.addListener(listener);
+    return () => {
+      onChanged.removeListener(listener);
+    };
   }, [pinConfig]);
 
   const handlePersistChange = async (next: boolean) => {
