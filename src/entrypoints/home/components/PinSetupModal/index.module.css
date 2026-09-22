@@ -1,0 +1,36 @@
+/* 两步向导步骤指示：轻量文本条（仅两步，不做重型 stepper） */
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.steps li + li::before {
+  content: '›';
+  margin-right: var(--space-sm);
+  color: var(--border);
+}
+
+.stepActive {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* 表单字段标签（a11y：label htmlFor 关联，替代纯 placeholder） */
+.fieldLabel {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+/* 就近错误反馈（ui-ux-pro-max error-feedback 准则） */
+.fieldError {
+  color: var(--danger);
+  font-size: var(--font-sm);
+}

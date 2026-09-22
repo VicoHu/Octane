@@ -1,18 +1,21 @@
 /**
- * UnlockSession — 分 surface 的解锁状态管理（方案 B 统一抽象）。
+ * UnlockSession — 分 surface 的解锁状态管理。
  *
- * 取代 useEncryptedContexts 对全局 CryptoService.isUnlocked() 的依赖，
- * 实现 home / sidepanel 两个 surface 的「解锁标记」物理隔离：
- * home 解锁不再联动 sidepanel 自动解锁（切断联动的核心改动）。
+ * home / sidepanel 两个 surface 的「解锁标记」物理隔离：home 解锁不联动 sidepanel
+ * 自动解锁。解锁标记隔离，但解密派生密钥 octane-derived-key 仍共享——任一 surface
+ * 主动锁定清 key 时另一 surface 解密能力一并失效。
  *
- * 注意：解锁标记隔离，但解密派生密钥 octane-derived-key 仍共享——
- * home 主动 lockSession() 清 key 时 sidepanel 解密能力一并失效（后续 T 实现）。
- *
- * T1 阶段：仅实现 isUnlocked('sidepanel') 读取独立标记 octane-unlock-sidepanel。
- * unlock / lock / grace / hardCap / onChanged 感知由后续 T 逐步加入。
+ * 统一自动锁定（#96）：单一「页面不可见持续 X 后锁定」设置（idleMs，null=永不），
+ * home 与 sidepanel 共用；原 sidepanel 专属的 grace/hardCap 双参数模型废弃——
+ * grace 懒迁移归最近档位，hardCap 直接移除。过期判定每次调用即时校验，不依赖外部触发。
  */
 
-import { unlock as cryptoUnlock, isPasswordSet, hasVerifier } from '@/services/CryptoService';
+import {
+  unlock as cryptoUnlock,
+  unlockWithPin as cryptoUnlockWithPin,
+  isPasswordSet,
+  hasVerifier,
+} from '@/services/CryptoService';
 
 /** 需要独立解锁 gate 的 UI 入口点 */
 export type Surface = 'home' | 'sidepanel';
@@ -20,27 +23,33 @@ export type Surface = 'home' | 'sidepanel';
 /** 解锁前置条件（点解锁图标前检查，决定弹密码框 or Toast 引导） */
 export type UnlockPrerequisite = 'ok' | 'no-password' | 'needs-reset';
 
-/** sidepanel surface 的解锁标记（存 chrome.storage.session，会话级） */
-const SIDE_PANEL_STATE_KEY = 'octane-unlock-sidepanel';
+/** 各 surface 的解锁标记（存 chrome.storage.session，会话级） */
+const SURFACE_STATE_KEY: Record<Surface, string> = {
+  home: 'octane-unlock-home',
+  sidepanel: 'octane-unlock-sidepanel',
+};
 
 /**
- * sidepanel 失焦计时（独立 key，会话级）。
- * 拆离 SIDE_PANEL_STATE_KEY 的目的：markHidden/markVisible 只改本 key，
+ * 各 surface 的失焦计时（独立 key，会话级）。
+ * 拆离解锁标记的目的：markHidden/markVisible 只改本 key，
  * 不触发 useEncryptedContexts 的 onChanged（它只监听解锁标记 + 共享 key），
  * 避免失焦/聚焦时整页 effect 重跑导致的 loading 闪烁。
  */
-const SIDE_PANEL_VISIBILITY_KEY = 'octane-unlock-visibility-sidepanel';
+const SURFACE_VISIBILITY_KEY: Record<Surface, string> = {
+  home: 'octane-unlock-visibility-home',
+  sidepanel: 'octane-unlock-visibility-sidepanel',
+};
 
-/** 共享派生密钥（home/sidepanel 共用，CryptoService 写入；home lockSession 清除） */
+/** 共享派生密钥（home/sidepanel 共用，CryptoService 写入；锁定时清除） */
 const DERIVED_KEY = 'octane-derived-key';
 
-/** TTL 用户配置（存 chrome.storage.local，跨会话保留） */
-const TTL_CONFIG_KEY = 'octane-ttl-config';
+/** 统一自动锁定配置（存 chrome.storage.local，跨会话保留） */
+const AUTOLOCK_CONFIG_KEY = 'octane-autolock-config';
+/** 旧版 sidepanel TTL 配置（#96 前的 grace/hardCap，读取时懒迁移后删除） */
+const LEGACY_TTL_CONFIG_KEY = 'octane-ttl-config';
 
-/** 默认 grace：sidepanel 失焦超 5min 锁（短暂切窗不打扰） */
-const DEFAULT_GRACE = 5 * 60 * 1000;
-/** 默认 hardCap：解锁后最长 30min 必锁（防一直盯着永不锁） */
-const DEFAULT_HARD_CAP = 30 * 60 * 1000;
+/** 自动锁定档位（ms）：立即 / 1 / 5 / 15 / 60 分钟；永不(null)不在档位表内 */
+export const AUTOLOCK_PRESETS_MS = [0, 60_000, 300_000, 900_000, 3_600_000] as const;
 
 export interface SurfaceUnlockState {
   unlocked: boolean;
@@ -51,11 +60,9 @@ interface SurfaceVisibility {
   hiddenAt: number | null;
 }
 
-export interface TtlConfig {
-  /** 失焦超时锁（ms），默认 5min */
-  grace: number;
-  /** 硬上限锁（ms），默认 30min */
-  hardCap: number;
+export interface AutoLockConfig {
+  /** 页面不可见持续该时长后锁定；null = 永不自动锁定 */
+  idleMs: number | null;
 }
 
 interface ChromeStorage {
@@ -80,175 +87,183 @@ function getChromeStorage(area: 'session' | 'local'): ChromeStorage | null {
   return null;
 }
 
-/** 读取 TTL 配置（缺失用默认值） */
-export async function readTtlConfig(): Promise<TtlConfig> {
-  const local = getChromeStorage('local');
-  if (!local) return { grace: DEFAULT_GRACE, hardCap: DEFAULT_HARD_CAP };
-  const r = await local.get([TTL_CONFIG_KEY]);
-  const cfg = r[TTL_CONFIG_KEY] as Partial<TtlConfig> | undefined;
-  return {
-    grace: typeof cfg?.grace === 'number' ? cfg.grace : DEFAULT_GRACE,
-    hardCap: typeof cfg?.hardCap === 'number' ? cfg.hardCap : DEFAULT_HARD_CAP,
-  };
+/** 归到最近的自动锁定档位（迁移用：尊重原意图，行为偏差最小） */
+function snapToNearestPreset(ms: number): number {
+  let best: number = AUTOLOCK_PRESETS_MS[0];
+  for (const p of AUTOLOCK_PRESETS_MS) {
+    if (Math.abs(p - ms) < Math.abs(best - ms)) best = p;
+  }
+  return best;
 }
 
-/** 写入 TTL 配置（部分更新，未传字段保留原值；存 chrome.storage.local 跨会话保留） */
-export async function writeTtlConfig(patch: Partial<TtlConfig>): Promise<void> {
+/**
+ * 读取统一自动锁定配置。
+ *
+ * 懒迁移：首次发现旧 octane-ttl-config（sidepanel grace/hardCap）时，把 grace 归最近
+ * 档位写入新 key 并删除旧 key（hardCap 废弃不迁移）；从未配置过的用户得到新默认
+ * idleMs=null（永不）——与 home 原行为一致，方向上是放宽（用户诉求），CHANGELOG 明示。
+ */
+export async function readAutoLockConfig(): Promise<AutoLockConfig> {
+  const local = getChromeStorage('local');
+  if (!local) return { idleMs: null };
+  const r = await local.get([AUTOLOCK_CONFIG_KEY, LEGACY_TTL_CONFIG_KEY]);
+
+  const current = r[AUTOLOCK_CONFIG_KEY];
+  if (current && typeof current === 'object' && 'idleMs' in current) {
+    const idleMs = (current as AutoLockConfig).idleMs;
+    return { idleMs: typeof idleMs === 'number' ? idleMs : null };
+  }
+
+  const legacy = r[LEGACY_TTL_CONFIG_KEY];
+  if (legacy && typeof legacy === 'object' && typeof (legacy as { grace?: unknown }).grace === 'number') {
+    const idleMs = snapToNearestPreset((legacy as { grace: number }).grace);
+    await local.set({ [AUTOLOCK_CONFIG_KEY]: { idleMs } });
+    await local.remove([LEGACY_TTL_CONFIG_KEY]);
+    return { idleMs };
+  }
+
+  return { idleMs: null };
+}
+
+/** 写入统一自动锁定配置（idleMs 传 null = 永不自动锁定） */
+export async function writeAutoLockConfig(idleMs: number | null): Promise<void> {
   const local = getChromeStorage('local');
   if (!local) return;
-  const current = await readTtlConfig();
-  await local.set({
-    [TTL_CONFIG_KEY]: {
-      grace: patch.grace ?? current.grace,
-      hardCap: patch.hardCap ?? current.hardCap,
-    },
-  });
+  await local.set({ [AUTOLOCK_CONFIG_KEY]: { idleMs } });
 }
 
-/** 写入 sidepanel surface 的解锁标记 */
-async function writeSidePanelState(state: SurfaceUnlockState): Promise<void> {
+/** 写入 surface 的解锁标记 */
+async function writeSurfaceState(surface: Surface, state: SurfaceUnlockState): Promise<void> {
   const session = getChromeStorage('session');
   if (session) {
-    await session.set({ [SIDE_PANEL_STATE_KEY]: state });
+    await session.set({ [SURFACE_STATE_KEY[surface]]: state });
   }
 }
 
-/** 清除 sidepanel 解锁标记（锁定） */
-async function clearSidePanelState(): Promise<void> {
+/** 清除 surface 解锁标记（锁定） */
+async function clearSurfaceState(surface: Surface): Promise<void> {
   const session = getChromeStorage('session');
   if (session) {
-    await session.remove([SIDE_PANEL_STATE_KEY]);
+    await session.remove([SURFACE_STATE_KEY[surface]]);
   }
 }
 
-/** 读取 sidepanel 失焦计时 */
-async function readVisibility(): Promise<SurfaceVisibility> {
+/** 读取 surface 失焦计时 */
+async function readVisibility(surface: Surface): Promise<SurfaceVisibility> {
   const session = getChromeStorage('session');
   if (!session) return { hiddenAt: null };
-  const r = await session.get([SIDE_PANEL_VISIBILITY_KEY]);
-  return (r[SIDE_PANEL_VISIBILITY_KEY] as SurfaceVisibility | undefined) ?? { hiddenAt: null };
+  const r = await session.get([SURFACE_VISIBILITY_KEY[surface]]);
+  return (r[SURFACE_VISIBILITY_KEY[surface]] as SurfaceVisibility | undefined) ?? { hiddenAt: null };
 }
 
-/** 写入 sidepanel 失焦计时 */
-async function writeVisibility(vis: SurfaceVisibility): Promise<void> {
+/** 写入 surface 失焦计时 */
+async function writeVisibility(surface: Surface, vis: SurfaceVisibility): Promise<void> {
   const session = getChromeStorage('session');
   if (session) {
-    await session.set({ [SIDE_PANEL_VISIBILITY_KEY]: vis });
+    await session.set({ [SURFACE_VISIBILITY_KEY[surface]]: vis });
   }
 }
 
 /**
  * 某 surface 当前是否已解锁。
  *
- * sidepanel：读独立标记 octane-unlock-sidepanel，**与 home 解锁态无关**（切断联动）。
- * 标记之上叠加 TTL 规则（每次调用都校验，不依赖外部触发）：
- *   - 共享 key：octane-derived-key 不在（home lockSession 清除）→ 连带锁 + 清 sidepanel 标记
- *   - hardCap：`now - unlockedAt >= hardCap` → 锁
- *   - grace：当 hiddenAt != null（曾失焦）且 `now - hiddenAt >= grace` → 锁
- * 任一超时/缺失即判定 locked 并清标记。hiddenAt == null（当前可见/从未失焦）时 grace 项 pass。
- *
- * @throws home surface 尚未纳入 UnlockSession（沿用 CryptoService 会话级行为），后续 T 迁移
+ * 读该 surface 独立标记，与另一 surface 的解锁态无关（切断联动）。
+ * 标记之上叠加统一自动锁定规则（每次调用都校验，不依赖外部触发）：
+ *   - 共享 key：octane-derived-key 不在（任一 surface 主动清 key）→ 连带锁 + 清本 surface 标记
+ *   - idle：idleMs 非 null 且曾失焦（hiddenAt != null）且 `now - hiddenAt >= idleMs` → 锁
+ * 任一条件命中即判定 locked 并清标记。hiddenAt == null（当前可见/从未失焦）时 idle 项 pass。
  */
 export async function isUnlocked(surface: Surface): Promise<boolean> {
-  if (surface === 'home') {
-    throw new Error('home surface 尚未纳入 UnlockSession');
-  }
   const session = getChromeStorage('session');
   if (!session) return false;
-  const result = await session.get([SIDE_PANEL_STATE_KEY, DERIVED_KEY, SIDE_PANEL_VISIBILITY_KEY]);
-  const state = result[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
+  const result = await session.get([
+    SURFACE_STATE_KEY[surface],
+    DERIVED_KEY,
+    SURFACE_VISIBILITY_KEY[surface],
+  ]);
+  const state = result[SURFACE_STATE_KEY[surface]] as SurfaceUnlockState | undefined;
   if (!state?.unlocked) return false;
 
-  // home 主动 lockSession() 清共享 key → sidepanel 连带失能并清标记（key 复活不自动解锁）
+  // 主动 lockSession() 清共享 key → 连带失能并清标记（key 复活不自动解锁）
   if (!result[DERIVED_KEY]) {
-    await clearSidePanelState();
+    await clearSurfaceState(surface);
     return false;
   }
 
-  const now = Date.now();
-  const { grace, hardCap } = await readTtlConfig();
-  const hardCapExceeded = now - state.unlockedAt >= hardCap;
-  const visibility = (result[SIDE_PANEL_VISIBILITY_KEY] as SurfaceVisibility | undefined) ?? {
-    hiddenAt: null,
-  };
-  const graceExceeded = visibility.hiddenAt !== null && now - visibility.hiddenAt >= grace;
-  if (hardCapExceeded || graceExceeded) {
-    await clearSidePanelState();
-    return false;
+  const { idleMs } = await readAutoLockConfig();
+  if (idleMs !== null) {
+    const visibility =
+      (result[SURFACE_VISIBILITY_KEY[surface]] as SurfaceVisibility | undefined) ?? {
+        hiddenAt: null,
+      };
+    if (visibility.hiddenAt !== null && Date.now() - visibility.hiddenAt >= idleMs) {
+      await clearSurfaceState(surface);
+      return false;
+    }
   }
   return true;
 }
 
 /**
- * 记录 sidepanel 失焦（visibilitychange/blur 触发）。
+ * 记录 surface 失焦（visibilitychange/blur 触发）。
  * 仅在已解锁且 hiddenAt 未记时写入 visibility key，避免覆盖更早的失焦时刻。
  * 写 visibility key（独立于解锁标记）→ 不触发 useEncryptedContexts 重渲染（止闪烁）。
  */
 export async function markHidden(surface: Surface): Promise<void> {
-  if (surface === 'home') {
-    throw new Error('home surface 尚未纳入 UnlockSession');
-  }
   const session = getChromeStorage('session');
   if (!session) return;
-  const stateResult = await session.get([SIDE_PANEL_STATE_KEY]);
-  const state = stateResult[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
+  const stateResult = await session.get([SURFACE_STATE_KEY[surface]]);
+  const state = stateResult[SURFACE_STATE_KEY[surface]] as SurfaceUnlockState | undefined;
   if (!state?.unlocked) return;
-  const vis = await readVisibility();
+  const vis = await readVisibility(surface);
   if (vis.hiddenAt === null) {
-    await writeVisibility({ hiddenAt: Date.now() });
+    await writeVisibility(surface, { hiddenAt: Date.now() });
   }
 }
 
 /**
- * 记录 sidepanel 重新可见/聚焦（visibilitychange/focus 触发）。
- * 清除 hiddenAt 使 grace 重新计时。聚焦后下次 isUnlocked 重检（若失焦曾超 grace 已锁则保持 locked）。
- * 写 visibility key → 不触发 useEncryptedContexts 重渲染。
+ * 记录 surface 重新可见/聚焦（visibilitychange/focus 触发）。
+ * 清除 hiddenAt 使 idle 重新计时。聚焦后下次 isUnlocked 重检（若失焦曾超时已锁则保持 locked）。
  */
 export async function markVisible(surface: Surface): Promise<void> {
-  if (surface === 'home') {
-    throw new Error('home surface 尚未纳入 UnlockSession');
-  }
   const session = getChromeStorage('session');
   if (!session) return;
-  const stateResult = await session.get([SIDE_PANEL_STATE_KEY]);
-  const state = stateResult[SIDE_PANEL_STATE_KEY] as SurfaceUnlockState | undefined;
+  const stateResult = await session.get([SURFACE_STATE_KEY[surface]]);
+  const state = stateResult[SURFACE_STATE_KEY[surface]] as SurfaceUnlockState | undefined;
   if (!state?.unlocked) return;
-  const vis = await readVisibility();
+  const vis = await readVisibility(surface);
   if (vis.hiddenAt !== null) {
-    await writeVisibility({ hiddenAt: null });
+    await writeVisibility(surface, { hiddenAt: null });
   }
 }
 
 /** per-surface 解锁 in-flight 守卫：并发 unlock 复用同一 promise，避免重复 PBKDF2 */
 const inflightUnlock = new Map<Surface, Promise<boolean>>();
+const inflightPinUnlock = new Map<Surface, Promise<boolean>>();
 
 /**
- * 解锁指定 surface（当前仅 sidepanel）。
+ * 用主密码解锁指定 surface。
  *
- * sidepanel：每次走完整 PBKDF2 + verifier 校验（复用 CryptoService.unlock），
- * **即使 octane-derived-key 已存在（home 已解锁）也必须用密码重新派生校验**——
- * 防偷看语义：偷看者在 home 解锁后输任意密码不得通过。
+ * 每次走完整 PBKDF2 + verifier 校验（复用 CryptoService.unlock），
+ * **即使 octane-derived-key 已存在（另一 surface 已解锁）也必须用密码重新派生校验**——
+ * 防偷看语义：偷看者在已解锁会话里输任意密码不得通过。
  *
  * 校验通过 → CryptoService.unlock 已写入共享 octane-derived-key（供 getContexts 解密），
- * 此处再写 sidepanel 独立标记 octane-unlock-sidepanel。
+ * 此处再写本 surface 独立标记。
  *
- * 并发幂等：同一 surface 的并发 unlock 复用首个 promise（多个 BookmarkGroup 同时触发解锁时
+ * 并发幂等：同一 surface 的并发 unlock 复用首个 promise（多个组件同时触发解锁时
  * PBKDF2 只派生一次）。
  *
  * @returns true=密码正确并已解锁；false=密码错误
- * @throws home surface 尚未纳入；未设主密码时由 CryptoService.unlock 抛错（前置条件由调用方/T12 处理）
  */
 export async function unlock(surface: Surface, password: string): Promise<boolean> {
-  if (surface === 'home') {
-    throw new Error('home surface 尚未纳入 UnlockSession');
-  }
   const existing = inflightUnlock.get(surface);
   if (existing) return existing;
   const p = (async () => {
     const ok = await cryptoUnlock(password);
     if (!ok) return false;
-    await writeSidePanelState({ unlocked: true, unlockedAt: Date.now() });
-    await writeVisibility({ hiddenAt: null }); // 重置失焦计时
+    await writeSurfaceState(surface, { unlocked: true, unlockedAt: Date.now() });
+    await writeVisibility(surface, { hiddenAt: null }); // 重置失焦计时
     return true;
   })();
   inflightUnlock.set(surface, p);
@@ -260,18 +275,51 @@ export async function unlock(surface: Surface, password: string): Promise<boolea
 }
 
 /**
+ * 用快速解锁 PIN 解锁指定 surface（#96）。
+ *
+ * 解信封还原派生密钥（本身即验证）→ 写共享 key + 本 surface 标记。
+ * 连续输错 5 次由 CryptoService 熔断（擦信封、停用 PIN），此后调用方回退主密码路径。
+ * 并发幂等同 unlock。
+ *
+ * @returns true=PIN 正确并已解锁；false=PIN 错误 / 信封不可用（含已熔断）
+ */
+export async function unlockWithPin(surface: Surface, pin: string): Promise<boolean> {
+  const existing = inflightPinUnlock.get(surface);
+  if (existing) return existing;
+  const p = (async () => {
+    const ok = await cryptoUnlockWithPin(pin);
+    if (!ok) return false;
+    await writeSurfaceState(surface, { unlocked: true, unlockedAt: Date.now() });
+    await writeVisibility(surface, { hiddenAt: null });
+    return true;
+  })();
+  inflightPinUnlock.set(surface, p);
+  try {
+    return await p;
+  } finally {
+    inflightPinUnlock.delete(surface);
+  }
+}
+
+/**
+ * 直接写 surface 解锁标记（不跑密码校验）。
+ * 仅供「密码刚刚验证过」的调用方使用（如 setupPassword 成功后补 home 标记），
+ * 避免同一密码重复 PBKDF2。日常解锁务必走 unlock / unlockWithPin。
+ */
+export async function markSurfaceUnlocked(surface: Surface): Promise<void> {
+  await writeSurfaceState(surface, { unlocked: true, unlockedAt: Date.now() });
+  await writeVisibility(surface, { hiddenAt: null });
+}
+
+/**
  * 解锁前置条件检查（点解锁图标前调用）。
  *
  * - no-password：从未设置主密码 → Toast 引导去 home 设置
  * - needs-reset：旧版 meta 无 verifier（无法校验密码）→ Toast 引导去 home 重设
  * - ok：可弹密码框
- *
- * @throws home surface 尚未纳入 UnlockSession
  */
 export async function getUnlockPrerequisite(surface: Surface): Promise<UnlockPrerequisite> {
-  if (surface === 'home') {
-    throw new Error('home surface 尚未纳入 UnlockSession');
-  }
+  void surface; // 前置条件与 surface 无关，保留参数以稳定调用方契约
   if (!(await isPasswordSet())) return 'no-password';
   if (!(await hasVerifier())) return 'needs-reset';
   return 'ok';

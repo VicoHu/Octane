@@ -16,10 +16,12 @@ interface Props {
 export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
   const loading = useCrypto((s) => s.loading);
   const changePassword = useCrypto((s) => s.changePassword);
+  const pinEnabled = useCrypto((s) => s.pinEnabled);
 
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   // 防双触发：Enter 连按或弹窗关闭重开时，避免并发 reencryptAllContexts 导致
   // 部分 context 用新密钥而 cryptoMetadata 仍指向旧密钥（永久无法解密，数据丢失）
@@ -30,6 +32,7 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setPin('');
       setError('');
     }
   }, [visible]);
@@ -51,8 +54,17 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
         setError('新密码不能与旧密码相同');
         return;
       }
-      await changePassword(oldPassword, newPassword);
-      Toast.success('主密码已修改，加密笔记已同步');
+      // PIN 启用时必填：修改主密码后信封随之重建，PIN 自动保持有效（#96 用户故事）。
+      // 忘记 PIN 的用户先到设置区用主密码关闭 PIN，再回来改密。
+      if (pinEnabled && pin.length === 0) {
+        setError('请填写当前 PIN（修改主密码后 PIN 将自动保持有效）');
+        return;
+      }
+      const pinForEnvelope = pinEnabled ? pin : undefined;
+      await changePassword(oldPassword, newPassword, pinForEnvelope);
+      Toast.success(
+        pinEnabled ? '主密码已修改，加密笔记与 PIN 已同步' : '主密码已修改，加密笔记已同步',
+      );
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -105,6 +117,19 @@ export const ChangePasswordModal: React.FC<Props> = ({ visible, onClose }) => {
             }}
             className={styles.input}
           />
+          {pinEnabled && (
+            <Input
+              type="password"
+              inputMode="numeric"
+              placeholder="当前快速解锁 PIN（修改后自动保持有效）"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSubmit();
+              }}
+              className={styles.input}
+            />
+          )}
           {error && (
             <div className={styles.error}>
               <TriangleAlert size={14} />

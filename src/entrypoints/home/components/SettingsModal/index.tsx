@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShortcutsSection } from './sections/ShortcutsSection';
 import { BackupSyncTabs } from '@/components/backup/BackupSyncTabs';
 import { PasswordSection } from './sections/PasswordSection';
-import { EncryptionTtlSection } from './sections/EncryptionTtlSection';
+import { AutoLockSection } from './sections/AutoLockSection';
+import { PinSection } from './sections/PinSection';
 import { FaviconCacheSection } from './sections/FaviconCacheSection';
 import { AboutSection } from './sections/AboutSection';
 import { WorkspaceTabsSection } from './sections/WorkspaceTabsSection';
@@ -79,10 +80,11 @@ export function SettingsModal({ visible, onCancel, initialTab = 'shortcuts' }: S
           <TabsContent value="password" className={styles.settingsContent}>
             <header className={styles.sectionHeader}>
               <h2>主密码</h2>
-              <p>管理主密码和加密内容的自动锁定策略。</p>
+              <p>管理主密码、自动锁定与快速解锁 PIN。</p>
             </header>
             <PasswordSection />
-            <EncryptionTtlSection />
+            <AutoLockSection />
+            <PinSection />
           </TabsContent>
           <TabsContent value="workspacetabs" className={styles.settingsContent}>
             <header className={styles.sectionHeader}>

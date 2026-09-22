@@ -95,6 +95,22 @@ export interface CryptoMetadata {
     encryptedData: string;
     iv: string;
   };
+  /** 快速解锁 PIN 配置（可选）。PIN 经 PBKDF2 派生 KEK 包装派生密钥成信封。 */
+  pin?: PinConfig;
+  createdAt: number;
+}
+
+/** 快速解锁 PIN 形态 */
+export type PinFormat = 'digits-4' | 'digits-6' | 'custom';
+
+/** PIN 信封配置（存 CryptoMetadata.pin，随 IndexedDB 持久；信封本体按 persistEnvelope 落 session/local） */
+export interface PinConfig {
+  /** base64, 16 字节随机盐（PIN KEK 派生用，独立于主密码盐） */
+  salt: string;
+  iterations: number;
+  /** 信封是否持久化到 chrome.storage.local（true=浏览器重启后仍可用 PIN 解锁） */
+  persistEnvelope: boolean;
+  format: PinFormat;
   createdAt: number;
 }
 

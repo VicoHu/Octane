@@ -34,6 +34,24 @@
   margin-bottom: var(--space-md);
 }
 
+/* PIN 与主密码输入之间的切换链接 */
+.switchLink {
+  display: block;
+  margin-top: var(--space-xs);
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--font-sm);
+  color: var(--primary);
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+}
+
+.switchLink:hover {
+  text-decoration: underline;
+}
+
 .hint {
   font-size: var(--font-xs);
   color: var(--text-muted);

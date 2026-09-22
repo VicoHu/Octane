@@ -30,6 +30,12 @@ if (!('IntersectionObserver' in globalThis)) {
     IntersectionObserverPolyfill;
 }
 
+// jsdom 缺 document.elementFromPoint，input-otp 的密码管理器徽标检测在 setTimeout
+// 里调用它，缺失会抛 unhandled rejection（vitest 置非零退出码）。补空实现（环境补全）。
+if (typeof document !== 'undefined' && typeof document.elementFromPoint !== 'function') {
+  (document as unknown as { elementFromPoint: unknown }).elementFromPoint = () => null;
+}
+
 // jsdom 无 chrome 扩展 API；Sidebar / usePendingUpdate 等组件读取 chrome.runtime.getManifest
 // 与 chrome.storage.onChanged。补全最小 polyfill，让不专门 mock chrome 的组件测试能渲染。
 // 专门测 chrome 副作用的测试用 installChromeStorageLocal（@/test/storageMock）覆盖。
