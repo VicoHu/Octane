@@ -71,15 +71,17 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
   }, [open]);
 
   const showPin = pinAvailable && usePinInput;
+  const pinLength = pinFormat === 'digits-4' ? 4 : 6;
 
-  const handleSubmit = async () => {
+  // pinOverride:输满自动提交场景直接携带新值(onChange 时 state 尚未 flush,读 state 会拿到旧值)
+  const handleSubmit = async (pinOverride?: string) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
       setError('');
       setLoading(true);
       if (showPin) {
-        const ok = await unlockWithPin('sidepanel', pin);
+        const ok = await unlockWithPin('sidepanel', pinOverride ?? pin);
         if (ok) {
           Toast.success('已解锁');
           onClose();
@@ -129,7 +131,11 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
                   aria-label="PIN"
                   length={pinFormat === 'digits-4' ? 4 : 6}
                   value={pin}
-                  onChange={setPin}
+                  onChange={(v) => {
+                    setPin(v);
+                    // 固定位数输满即自动提交,省去点击「解锁」
+                    if (v.length === pinLength) void handleSubmit(v);
+                  }}
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSubmit();
@@ -191,7 +197,8 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
           )}
         </div>
         <DialogFooter>
-          <Button variant="default" size="lg" disabled={loading} onClick={handleSubmit}>
+          {/* 不直接传 handleSubmit:onClick 的 MouseEvent 会渗入 pinOverride 参数 */}
+          <Button variant="default" size="lg" disabled={loading} onClick={() => handleSubmit()}>
             {loading ? '解锁中…' : '解 锁'}
           </Button>
         </DialogFooter>

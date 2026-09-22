@@ -15,6 +15,7 @@ vi.mock('@/components/ui/toast', () => ({
 }));
 
 import { UnlockModal } from '..';
+import { Toast } from '@/components/ui/toast';
 
 describe('UnlockModal - 关闭规则', () => {
   beforeEach(() => {
@@ -91,7 +92,19 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
     expect(screen.getByLabelText('PIN')).toBeInTheDocument();
   });
 
-  it('输入 PIN 提交 -> 调用 unlockWithPin 并 Toast 已解锁', async () => {
+  it('PIN 输满 -> 自动提交解锁，无需点击按钮', async () => {
+    const user = userEvent.setup();
+    render(<UnlockModal />);
+
+    await user.type(screen.getByLabelText('PIN'), '123456');
+
+    await waitFor(() => {
+      expect(cryptoState.unlockWithPin).toHaveBeenCalledWith('123456');
+    });
+    expect(Toast.success).toHaveBeenCalledWith('已解锁');
+  });
+
+  it('PIN 未输满 + 点击解锁 -> 手动提交兜底路径仍可用', async () => {
     const user = userEvent.setup();
     render(<UnlockModal />);
 
@@ -110,8 +123,7 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
     const user = userEvent.setup();
     render(<UnlockModal />);
 
-    await user.type(screen.getByLabelText('PIN'), '0000');
-    await user.click(screen.getByRole('button', { name: '解锁' }));
+    await user.type(screen.getByLabelText('PIN'), '000000');
 
     expect(await screen.findByText('PIN 错误，连续错误 5 次将停用 PIN')).toBeInTheDocument();
     expect(cryptoState.unlockWithPassword).not.toHaveBeenCalled();

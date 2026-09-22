@@ -42,6 +42,8 @@ export function PinCodeInput({
       onKeyDown={onKeyDown}
       aria-label={rest['aria-label']}
       aria-invalid={rest['aria-invalid']}
+      // 容器占满父宽,分格组水平居中(弹窗内容整体居中布局,靠左会显歪)
+      containerClassName="justify-center"
     >
       <InputOTPGroup>
         {Array.from({ length }).map((_, i) => (

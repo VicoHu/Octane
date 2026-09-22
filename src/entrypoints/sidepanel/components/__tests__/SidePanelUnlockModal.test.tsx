@@ -92,16 +92,17 @@ describe('SidePanelUnlockModal — 快速解锁 PIN（#96）', () => {
     expect(screen.getByRole('button', { name: '使用主密码解锁' })).toBeInTheDocument();
   });
 
-  it('正确 PIN → 调 unlockWithPin("sidepanel", pin) + Toast 成功 + 关闭', async () => {
+  it('正确 PIN 输满 -> 自动提交解锁（无需点击）', async () => {
     const user = userEvent.setup();
     vi.mocked(unlockWithPin).mockResolvedValue(true);
     const onClose = vi.fn();
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
-    await user.type(await screen.findByLabelText('PIN'), '1234');
-    await user.click(screen.getByRole('button', { name: '解 锁' }));
+    await user.type(await screen.findByLabelText('PIN'), '123456');
 
-    expect(unlockWithPin).toHaveBeenCalledWith('sidepanel', '1234');
+    await waitFor(() => {
+      expect(unlockWithPin).toHaveBeenCalledWith('sidepanel', '123456');
+    });
     expect(Toast.success).toHaveBeenCalledWith('已解锁');
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });

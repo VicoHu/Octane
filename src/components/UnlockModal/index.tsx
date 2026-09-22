@@ -61,6 +61,7 @@ export const UnlockModal: React.FC = () => {
   const mode: Mode = needsReset ? 'reset' : !passwordSet ? 'setup' : 'unlock';
   const pinAvailable = mode === 'unlock' && pinEnabled && pinEnvelopeAvailable;
   const showPin = pinAvailable && usePinInput;
+  const pinLength = pinFormat === 'digits-4' ? 4 : 6;
   // 可见：手动打开 / 重锁自动弹 / 旧版数据需重设（强制处理，不可关闭）
   const visible = needsReset || unlockModalOpen || (passwordSet && !unlocked);
   const canDismiss = !needsReset && unlockModalOpen;
@@ -81,7 +82,8 @@ export const UnlockModal: React.FC = () => {
   // 防双触发：Enter 连按时避免并发 setup/unlock/reset，防止 session 与密码元数据错乱
   const submittingRef = useRef(false);
 
-  const handleSubmit = async () => {
+  // pinOverride:输满自动提交场景直接携带新值(onChange 时 state 尚未 flush,读 state 会拿到旧值)
+  const handleSubmit = async (pinOverride?: string) => {
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
@@ -89,7 +91,7 @@ export const UnlockModal: React.FC = () => {
 
       if (showPin) {
         try {
-          await unlockWithPin(pin);
+          await unlockWithPin(pinOverride ?? pin);
           Toast.success('已解锁');
         } catch {
           setError('PIN 错误，连续错误 5 次将停用 PIN');
@@ -172,7 +174,11 @@ export const UnlockModal: React.FC = () => {
                 aria-label="PIN"
                 length={pinFormat === 'digits-4' ? 4 : 6}
                 value={pin}
-                onChange={setPin}
+                onChange={(v) => {
+                  setPin(v);
+                  // 固定位数输满即自动提交,省去点击「解锁」
+                  if (v.length === pinLength) void handleSubmit(v);
+                }}
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSubmit();
@@ -259,7 +265,8 @@ export const UnlockModal: React.FC = () => {
           variant={mode === 'reset' ? 'destructive' : 'default'}
           size="lg"
           disabled={loading}
-          onClick={handleSubmit}
+          // 不直接传 handleSubmit:onClick 的 MouseEvent 会渗入 pinOverride 参数
+          onClick={() => void handleSubmit()}
           className={`${styles.submit} w-full`}
         >
           {showPin ? '解锁' : copy.cta}
