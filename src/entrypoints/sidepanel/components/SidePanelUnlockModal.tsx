@@ -4,7 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
 import { unlock, unlockWithPin } from '@/services/UnlockSession';
-import { isPinEnabled, hasPinEnvelope } from '@/services/CryptoService';
+import { isPinEnabled, hasPinEnvelope, getPinConfig } from '@/services/CryptoService';
+import { PinCodeInput } from '@/components/PinCodeInput';
+import type { PinFormat } from '@/shared/types';
 
 interface SidePanelUnlockModalProps {
   open: boolean;
@@ -45,6 +47,7 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [pinAvailable, setPinAvailable] = useState(false);
+  const [pinFormat, setPinFormat] = useState<PinFormat | null>(null);
   const [usePinInput, setUsePinInput] = useState(true);
   // 防双触发：Enter 连按时避免并发 unlock（session 广播与状态错乱）
   const submittingRef = useRef(false);
@@ -62,6 +65,8 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
     void (async () => {
       const enabled = await isPinEnabled();
       setPinAvailable(enabled ? await hasPinEnvelope() : false);
+      const cfg = enabled ? await getPinConfig() : null;
+      setPinFormat(cfg?.format ?? null);
     })().catch(() => setPinAvailable(false));
   }, [open]);
 
@@ -117,18 +122,32 @@ export function SidePanelUnlockModal({ open, onClose }: SidePanelUnlockModalProp
           </p>
           {showPin ? (
             <>
-              <Input
-                type="password"
-                inputMode="numeric"
-                placeholder="输入 PIN"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSubmit();
-                }}
-                className="h-9"
-                autoFocus
-              />
+              {pinFormat === 'digits-4' || pinFormat === 'digits-6' ? (
+                <PinCodeInput
+                  key={pinFormat}
+                  id="sidepanel-unlock-pin"
+                  aria-label="PIN"
+                  length={pinFormat === 'digits-4' ? 4 : 6}
+                  value={pin}
+                  onChange={setPin}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSubmit();
+                  }}
+                />
+              ) : (
+                <Input
+                  type="password"
+                  placeholder="输入 PIN"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSubmit();
+                  }}
+                  className="h-9"
+                  autoFocus
+                />
+              )}
               <button
                 type="button"
                 onClick={() => {

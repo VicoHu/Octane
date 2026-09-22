@@ -15,11 +15,12 @@ vi.mock('@/services/UnlockSession', () => ({
 vi.mock('@/services/CryptoService', () => ({
   isPinEnabled: vi.fn(async () => false),
   hasPinEnvelope: vi.fn(async () => false),
+  getPinConfig: vi.fn(async () => null),
 }));
 
 import { SidePanelUnlockModal } from '../SidePanelUnlockModal';
 import { unlock, unlockWithPin } from '@/services/UnlockSession';
-import { isPinEnabled, hasPinEnvelope } from '@/services/CryptoService';
+import { isPinEnabled, hasPinEnvelope, getPinConfig } from '@/services/CryptoService';
 import { Toast } from '@/components/ui/toast';
 
 describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
@@ -27,6 +28,7 @@ describe('SidePanelUnlockModal — sidepanel 解锁弹窗', () => {
     vi.clearAllMocks();
     vi.mocked(isPinEnabled).mockResolvedValue(false);
     vi.mocked(hasPinEnvelope).mockResolvedValue(false);
+    vi.mocked(getPinConfig).mockResolvedValue(null);
   });
 
   it('正确密码 → 调 unlock("sidepanel", pwd) + Toast 成功 + 关闭', async () => {
@@ -76,12 +78,17 @@ describe('SidePanelUnlockModal — 快速解锁 PIN（#96）', () => {
     vi.clearAllMocks();
     vi.mocked(isPinEnabled).mockResolvedValue(true);
     vi.mocked(hasPinEnvelope).mockResolvedValue(true);
+    // 默认 6 位数字形态:解锁弹窗渲染分格方框
+    vi.mocked(getPinConfig).mockResolvedValue({
+      salt: 's==', iterations: 600_000, persistEnvelope: false,
+      format: 'digits-6', createdAt: 0,
+    });
   });
 
   it('PIN 可用 → 默认显示 PIN 输入与主密码回退链接', async () => {
     render(<SidePanelUnlockModal open={true} onClose={vi.fn()} />);
 
-    expect(await screen.findByPlaceholderText('输入 PIN')).toBeInTheDocument();
+    expect(await screen.findByLabelText('PIN')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '使用主密码解锁' })).toBeInTheDocument();
   });
 
@@ -91,7 +98,7 @@ describe('SidePanelUnlockModal — 快速解锁 PIN（#96）', () => {
     const onClose = vi.fn();
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
-    await user.type(await screen.findByPlaceholderText('输入 PIN'), '1234');
+    await user.type(await screen.findByLabelText('PIN'), '1234');
     await user.click(screen.getByRole('button', { name: '解 锁' }));
 
     expect(unlockWithPin).toHaveBeenCalledWith('sidepanel', '1234');
@@ -105,7 +112,7 @@ describe('SidePanelUnlockModal — 快速解锁 PIN（#96）', () => {
     const onClose = vi.fn();
     render(<SidePanelUnlockModal open={true} onClose={onClose} />);
 
-    await user.type(await screen.findByPlaceholderText('输入 PIN'), '0000');
+    await user.type(await screen.findByLabelText('PIN'), '0000');
     await user.click(screen.getByRole('button', { name: '解 锁' }));
 
     expect(
@@ -122,11 +129,11 @@ describe('SidePanelUnlockModal — 快速解锁 PIN（#96）', () => {
       .mockResolvedValueOnce(false); // 失败后重探：已熔断
     render(<SidePanelUnlockModal open={true} onClose={vi.fn()} />);
 
-    await user.type(await screen.findByPlaceholderText('输入 PIN'), '0000');
+    await user.type(await screen.findByLabelText('PIN'), '0000');
     await user.click(screen.getByRole('button', { name: '解 锁' }));
 
     expect(await screen.findByPlaceholderText('输入主密码')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('输入 PIN')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
   });
 
   it('PIN 探测抛异常（如无 IndexedDB 环境）→ 落回主密码，不炸进程', async () => {

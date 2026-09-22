@@ -146,6 +146,23 @@ describe('PinSetupModal — 第 2 步：设置 PIN', () => {
     expect(await screen.findByLabelText('主密码')).toBeInTheDocument();
     expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
   });
+
+  it('切换形态 -> 清空已输入的 PIN 与确认值，需重新输入', async () => {
+    const user = await renderAtStep2();
+
+    await user.type(screen.getByLabelText('PIN'), '123456');
+    // 切到 4 位数字：已输入必须作废（长度不同，沿用必错）
+    await user.click(screen.getByRole('radio', { name: /4 位数字/ }));
+
+    await user.type(screen.getByLabelText('PIN'), '12');
+    await user.type(screen.getByLabelText('确认 PIN'), '12');
+    await user.click(screen.getByRole('button', { name: '启用 PIN' }));
+
+    // 旧的 6 位值未混入：提交的是重新输入的 4 位
+    await waitFor(() => {
+      expect(cryptoApi.setupPin).toHaveBeenCalledWith('12', 'digits-4', false);
+    });
+  });
 });
 
 describe('PinSetupModal — disable 模式（单步）', () => {

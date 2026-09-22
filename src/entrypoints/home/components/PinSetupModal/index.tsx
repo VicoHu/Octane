@@ -11,11 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from '@/components/ui/input-otp';
+import { PinCodeInput } from '@/components/PinCodeInput';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/ui/spinner';
 import { Toast } from '@/components/ui/toast';
@@ -195,7 +191,15 @@ export const PinSetupModal: React.FC<Props> = ({ visible, intent, onClose }) => 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <RadioGroup
               value={format}
-              onValueChange={(v) => setFormat(v as PinFormat)}
+              onValueChange={(v) => {
+                const next = v as PinFormat;
+                if (next !== format) {
+                  setFormat(next);
+                  // 切换形态必须重新输入:长度与字符集都不同,沿用旧值必然校验失败
+                  setPin('');
+                  setConfirmPin('');
+                }
+              }}
               aria-label="PIN 形态"
             >
               {FORMAT_OPTIONS.map((opt) => (
@@ -224,20 +228,13 @@ export const PinSetupModal: React.FC<Props> = ({ visible, intent, onClose }) => 
                   onChange={(e) => setPin(e.target.value)}
                 />
               ) : (
-                <InputOTP
+                <PinCodeInput
                   id="pin-setup-value"
-                  maxLength={format === 'digits-4' ? 4 : 6}
-                  inputMode="numeric"
+                  length={format === 'digits-4' ? 4 : 6}
                   value={pin}
                   onChange={setPin}
                   aria-invalid={error ? true : undefined}
-                >
-                  <InputOTPGroup>
-                    {Array.from({ length: format === 'digits-4' ? 4 : 6 }).map((_, i) => (
-                      <InputOTPSlot key={i} index={i} className="size-10" />
-                    ))}
-                  </InputOTPGroup>
-                </InputOTP>
+                />
               )}
             </div>
             <div>
@@ -256,23 +253,16 @@ export const PinSetupModal: React.FC<Props> = ({ visible, intent, onClose }) => 
                   }}
                 />
               ) : (
-                <InputOTP
+                <PinCodeInput
                   id="pin-setup-confirm"
-                  maxLength={format === 'digits-4' ? 4 : 6}
-                  inputMode="numeric"
+                  length={format === 'digits-4' ? 4 : 6}
                   value={confirmPin}
                   onChange={setConfirmPin}
                   aria-invalid={error ? true : undefined}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void handleEnable();
                   }}
-                >
-                  <InputOTPGroup>
-                    {Array.from({ length: format === 'digits-4' ? 4 : 6 }).map((_, i) => (
-                      <InputOTPSlot key={i} index={i} className="size-10" />
-                    ))}
-                  </InputOTPGroup>
-                </InputOTP>
+                />
               )}
             </div>
             <label className="flex cursor-pointer items-start gap-2 text-sm">

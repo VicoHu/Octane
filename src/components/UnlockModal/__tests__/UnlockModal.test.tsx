@@ -63,6 +63,7 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
       needsReset: false,
       pinEnabled: true,
       pinEnvelopeAvailable: true,
+      pinFormat: 'digits-6',
       setupMasterPassword: vi.fn(),
       unlockWithPassword: vi.fn(),
       unlockWithPin: vi.fn(async () => {}),
@@ -75,7 +76,7 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
   it('PIN 启用且信封可用 -> 默认显示 PIN 输入与主密码回退链接', () => {
     render(<UnlockModal />);
 
-    expect(screen.getByPlaceholderText('输入 PIN')).toBeInTheDocument();
+    expect(screen.getByLabelText('PIN')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '使用主密码解锁' })).toBeInTheDocument();
   });
 
@@ -87,14 +88,14 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
     expect(screen.getByPlaceholderText('输入主密码')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '使用 PIN 快速解锁' }));
-    expect(screen.getByPlaceholderText('输入 PIN')).toBeInTheDocument();
+    expect(screen.getByLabelText('PIN')).toBeInTheDocument();
   });
 
   it('输入 PIN 提交 -> 调用 unlockWithPin 并 Toast 已解锁', async () => {
     const user = userEvent.setup();
     render(<UnlockModal />);
 
-    await user.type(screen.getByPlaceholderText('输入 PIN'), '1234');
+    await user.type(screen.getByLabelText('PIN'), '1234');
     await user.click(screen.getByRole('button', { name: '解锁' }));
 
     await waitFor(() => {
@@ -109,7 +110,7 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
     const user = userEvent.setup();
     render(<UnlockModal />);
 
-    await user.type(screen.getByPlaceholderText('输入 PIN'), '0000');
+    await user.type(screen.getByLabelText('PIN'), '0000');
     await user.click(screen.getByRole('button', { name: '解锁' }));
 
     expect(await screen.findByText('PIN 错误，连续错误 5 次将停用 PIN')).toBeInTheDocument();
@@ -123,9 +124,10 @@ describe('UnlockModal - 快速解锁 PIN（#96）', () => {
   it('PIN 未启用 -> 直接显示主密码输入，无 PIN 相关入口', () => {
     cryptoState.pinEnabled = false;
     cryptoState.pinEnvelopeAvailable = false;
+    cryptoState.pinFormat = null;
     render(<UnlockModal />);
 
     expect(screen.getByPlaceholderText('输入主密码')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('输入 PIN')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('PIN')).not.toBeInTheDocument();
   });
 });

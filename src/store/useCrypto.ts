@@ -7,6 +7,7 @@ import {
   clearMeta,
   isPinEnabled,
   hasPinEnvelope,
+  getPinConfig,
   changePassword as cryptoChangePassword,
 } from '@/services/CryptoService';
 import {
@@ -21,6 +22,7 @@ import {
   syncContextMeta,
 } from '@/services/ContextService';
 import { deleteRecord } from '@/shared/db/database';
+import type { PinFormat } from '@/shared/types';
 
 interface CryptoState {
   passwordSet: boolean;
@@ -34,6 +36,8 @@ interface CryptoState {
   pinEnabled: boolean;
   /** 当前模式下 PIN 信封可用（决定解锁弹窗默认显示 PIN 输入还是主密码） */
   pinEnvelopeAvailable: boolean;
+  /** 当前 PIN 形态（决定解锁弹窗渲染 4/6 格方框还是普通输入框；未启用为 null） */
+  pinFormat: PinFormat | null;
 
   checkStatus: () => Promise<void>;
   setupMasterPassword: (password: string) => Promise<void>;
@@ -56,6 +60,7 @@ export const useCrypto = create<CryptoState>((set) => ({
   unlockModalOpen: false,
   pinEnabled: false,
   pinEnvelopeAvailable: false,
+  pinFormat: null,
 
   checkStatus: async () => {
     const passwordSet = await isPasswordSet();
@@ -65,7 +70,15 @@ export const useCrypto = create<CryptoState>((set) => ({
     const needsReset = passwordSet && !(await hasVerifier());
     const pinEnabled = passwordSet ? await isPinEnabled() : false;
     const pinEnvelopeAvailable = pinEnabled ? await hasPinEnvelope() : false;
-    set({ passwordSet, unlocked, needsReset, pinEnabled, pinEnvelopeAvailable });
+    const pinConfig = pinEnabled ? await getPinConfig() : null;
+    set({
+      passwordSet,
+      unlocked,
+      needsReset,
+      pinEnabled,
+      pinEnvelopeAvailable,
+      pinFormat: pinConfig?.format ?? null,
+    });
   },
 
   setupMasterPassword: async (password) => {
@@ -116,7 +129,13 @@ export const useCrypto = create<CryptoState>((set) => ({
         await reencryptAllContexts(oldKey, newKey);
       }, pin !== undefined ? { pin } : undefined);
       const pinEnabled = await isPinEnabled();
-      set({ loading: false, pinEnabled, pinEnvelopeAvailable: pinEnabled ? await hasPinEnvelope() : false });
+      const pinConfig = pinEnabled ? await getPinConfig() : null;
+      set({
+        loading: false,
+        pinEnabled,
+        pinEnvelopeAvailable: pinEnabled ? await hasPinEnvelope() : false,
+        pinFormat: pinConfig?.format ?? null,
+      });
     } catch (e) {
       set({ loading: false });
       throw e;
@@ -168,6 +187,11 @@ export const useCrypto = create<CryptoState>((set) => ({
 
   refreshPinStatus: async () => {
     const pinEnabled = await isPinEnabled();
-    set({ pinEnabled, pinEnvelopeAvailable: pinEnabled ? await hasPinEnvelope() : false });
+    const pinConfig = pinEnabled ? await getPinConfig() : null;
+    set({
+      pinEnabled,
+      pinEnvelopeAvailable: pinEnabled ? await hasPinEnvelope() : false,
+      pinFormat: pinConfig?.format ?? null,
+    });
   },
 }));

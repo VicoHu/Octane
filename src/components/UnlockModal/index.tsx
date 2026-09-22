@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Toast } from '@/components/ui/toast';
 import { Lock, TriangleAlert } from 'lucide-react';
+import { PinCodeInput } from '@/components/PinCodeInput';
 import { useCrypto } from '@/store/useCrypto';
 import styles from './index.module.css';
 
@@ -42,6 +43,7 @@ export const UnlockModal: React.FC = () => {
   const needsReset = useCrypto((s) => s.needsReset);
   const pinEnabled = useCrypto((s) => s.pinEnabled);
   const pinEnvelopeAvailable = useCrypto((s) => s.pinEnvelopeAvailable);
+  const pinFormat = useCrypto((s) => s.pinFormat);
   const setupMasterPassword = useCrypto((s) => s.setupMasterPassword);
   const unlockWithPassword = useCrypto((s) => s.unlockWithPassword);
   const unlockWithPin = useCrypto((s) => s.unlockWithPin);
@@ -163,17 +165,31 @@ export const UnlockModal: React.FC = () => {
 
         {showPin ? (
           <div className={styles.field}>
-            <Input
-              type="password"
-              inputMode="numeric"
-              placeholder="输入 PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleSubmit();
-              }}
-              autoFocus
-            />
+            {pinFormat === 'digits-4' || pinFormat === 'digits-6' ? (
+              <PinCodeInput
+                key={pinFormat}
+                id="unlock-pin"
+                aria-label="PIN"
+                length={pinFormat === 'digits-4' ? 4 : 6}
+                value={pin}
+                onChange={setPin}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSubmit();
+                }}
+              />
+            ) : (
+              <Input
+                type="password"
+                placeholder="输入 PIN"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleSubmit();
+                }}
+                autoFocus
+              />
+            )}
             <button
               type="button"
               className={styles.switchLink}
