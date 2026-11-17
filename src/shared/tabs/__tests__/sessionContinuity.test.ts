@@ -47,6 +47,10 @@ class MemoryChromeAdapter implements SessionContinuityAdapter {
   }
 
   async createTab(details: { url: string; pinned: boolean; windowId: number; index: number; active: boolean }) {
+    // Chrome 先校验 API 的 int32 参数，再将合法 index 截到窗口范围，不能直接截断超大数。
+    if (!Number.isInteger(details.index) || details.index < 0 || details.index > 2_147_483_647) {
+      throw new Error("标签位置必须是非负 32 位整数");
+    }
     // 模拟真实 Chrome：clamp 到 [0, count]，并位移插入位置及之后的现有 tab（保持 index 唯一连续）。
     const count = Array.from(this.tabs.values()).filter((t) => t.windowId === details.windowId).length;
     const index = Math.max(0, Math.min(details.index, count));
@@ -1347,6 +1351,65 @@ describe("SessionContinuity — 恢复后 tab 顺序（组在前、散开在后�
     // index 应唯一连续（位移模型验证）
     const indices = tabs.map((t) => t.index).sort((a, b) => (a ?? 0) - (b ?? 0));
     expect(indices).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it.each(["hide", "hide-discard"])("%s：原生恢复驻留组但缺少当前标签 → 补齐最后工作区且不留下失败通知", async (setting) => {
+    const adapter = adapterWithResidentAndCurrent();
+    adapter.storage.set("tabIsolationSetting", setting);
+    adapter.groups.set(10, { id: 10, windowId: 1, title: "A ·aaaaaaaa" });
+    adapter.tabs.set(2, businessTab({ id: 2, url: "https://a1.example", groupId: 10, index: 1 }));
+    adapter.tabs.set(3, businessTab({ id: 3, url: "https://a2.example", groupId: 10, index: 2 }));
+
+    await finishColdRecovery(coordinator(adapter, [WS_A, WS_B]));
+
+    const tabs = await adapter.queryTabs(1);
+    expect(tabs.map((tab) => tab.url)).toEqual([
+      HOME_URL, "https://a1.example", "https://a2.example", "https://b1.example", "https://b2.example",
+    ]);
+    expect(tabs.slice(1, 3).map((tab) => [tab.id, tab.groupId])).toEqual([[2, 10], [3, 10]]);
+    expect(tabs.slice(3).map((tab) => tab.groupId)).toEqual([-1, -1]);
+    expect(tabs[0]).toMatchObject({ pinned: true, active: true });
+    expect(adapter.groups.get(10)).toMatchObject({ title: "A ·aaaaaaaa", collapsed: true });
+    expect(adapter.storage.get("sessionContinuity.pendingRecovery")).toBeUndefined();
+    expect(adapter.storage.get("sessionContinuity.recoveryNotice")).toBeUndefined();
+  });
+
+  it("手动重试遗留失败记录：补齐驻留组与当前标签，清除通知且重复重试不复制标签", async () => {
+    const adapter = adapterWithResidentAndCurrent();
+    await adapter.setStorage({
+      "sessionContinuity.pendingRecovery": {
+        workspaces: [
+          {
+            workspaceId: WS_A,
+            resident: { workspaceId: WS_A, title: "A ·aaaaaaaa" },
+            entries: [{ url: "https://a1.example", order: 0 }, { url: "https://a2.example", order: 1 }],
+          },
+          {
+            workspaceId: WS_B,
+            entries: [{ url: "https://b1.example", order: 0 }, { url: "https://b2.example", order: 1 }],
+          },
+        ],
+      },
+      "sessionContinuity.recoveryNotice": { restoredCount: 0, failedCount: 4, shown: true },
+    });
+    const continuity = coordinator(adapter, [WS_A, WS_B]);
+
+    await continuity.retryPendingRecovery();
+
+    const tabs = await adapter.queryTabs(1);
+    const aGroup = Array.from(adapter.groups.values()).find((group) => group.title === "A ·aaaaaaaa");
+    expect(tabs.map((tab) => tab.url)).toEqual([
+      HOME_URL, "https://a1.example", "https://a2.example", "https://b1.example", "https://b2.example",
+    ]);
+    expect(aGroup).toMatchObject({ collapsed: true });
+    expect(tabs.slice(1, 3).map((tab) => tab.groupId)).toEqual([aGroup!.id, aGroup!.id]);
+    expect(tabs.slice(3).map((tab) => tab.groupId)).toEqual([-1, -1]);
+    expect(adapter.storage.get("sessionContinuity.pendingRecovery")).toBeUndefined();
+    expect(adapter.storage.get("sessionContinuity.recoveryNotice")).toBeUndefined();
+
+    await continuity.retryPendingRecovery();
+
+    expect(await adapter.queryTabs(1)).toEqual(tabs);
   });
 });
 

@@ -452,8 +452,8 @@ export class SessionContinuity {
           url: entry.url,
           pinned: entry.pinned ?? false,
           windowId,
-          // 追加到窗口末尾：避免用快照相对 order 插到已恢复的驻留组前面。
-          index: Number.MAX_SAFE_INTEGER,
+          // 创建前读取实际末尾位置，避免超出 Chrome 的 int32 参数范围。
+          index: (await this.adapter.queryTabs(windowId)).length,
           active: false,
         });
         // 不主动 discard：冷恢复刚创建的 tab 尚未完成加载，chrome.tabs.discard 会
@@ -526,8 +526,8 @@ export class SessionContinuity {
           url: entry.url,
           pinned: false,
           windowId,
-          // 追加到窗口末尾：驻留组先于当前散开 tab 恢复，追加保证组在前、散开在后。
-          index: Number.MAX_SAFE_INTEGER,
+          // 每次使用实际末尾位置，驻留组先恢复，当前散开标签随后追加。
+          index: (await this.adapter.queryTabs(windowId)).length,
           active: false,
         });
         createdTabIds.push(created.id);
