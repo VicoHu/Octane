@@ -94,12 +94,8 @@
 涉及前端 UI/UX 工作时，按场景选工具，避免无依据地手写样式：
 
 1. **shadcn/ui 组件选用与用法** → `shadcn` skill。本项目以 shadcn/ui（Base UI 底座）为组件基座（`src/components/ui/*`），先查/装组件再动手。> 注：Form（`Content`、`BookmarkOpsPanel`）与 Tree（`SelectionTree`）仍暂用 Semi，改这几处时用 `semi-ui-skills`。
-2. **单点 / 通用设计决策**（挑风格 / 配色 / 字体配对 / 图表选型，或任意页面的 UI/UX 优化）→ `ui-ux-pro-max` skill。基于数据库检索给推荐 + 配套 UX 规则，跨栈、不限页面类型。系统性代码 review 另用 `design-review` skill，不是它。
-3. **落地页 / 作品集 / 营销页 / 现有页面 redesign 的端到端设计落地** → `taste-skill`（install name `design-taste-frontend`，Anti-slop，读 brief 推断整体设计语言、调 VARIANCE / MOTION / DENSITY 三旋钮，产出连贯界面）。它偏整体方向落地（不是 `ui-ux-pro-max` 那种单点推荐）；默认栈 React + Tailwind v4，与本项目栈一致（v0.1.13.0 起 shadcn/ui + Tailwind v4），token 对齐 `DESIGN.md`；**明确不适用**于仪表盘、数据表格、多步产品 UI。
-
 判断原则：
-- 产品型 UI（newtab / sidepanel / 设置等）默认走 shadcn/ui + `shadcn` skill；需要设计决策时叠加 `ui-ux-pro-max`。
-- 落地页 / 作品集类页面才用 `taste-skill` 做整体设计落地（默认 React + Tailwind v4，与本项目栈一致，token 对齐 `DESIGN.md`）；扩展内功能型 UI 不要用 `taste-skill`，挑配色 / 字体等单点决策用 `ui-ux-pro-max`。
+- 产品型 UI（newtab / sidepanel / 设置等）默认走 shadcn/ui + `shadcn` skill；配色、字体与样式决策以 `DESIGN.md` 和 `docs/design-guidelines.md` 为准。
 - 极简微调（改间距 / 颜色 token 等）可直接手动（以 `DESIGN.md` 为 token 真源），无需调用 skill（用 shadcn 组件时优先 `shadcn` skill；改残留 Semi 的 Form/Tree 时用 `semi-ui-skills`）。
 
 ### 设计规范文档
